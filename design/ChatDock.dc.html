@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+  :root{
+    --ink:#14181D; --ink-muted:#5C6672; --paper:#FBFBF9; --surface:#FFFFFF;
+    --rule:#E4E5E0; --pine:#12503F; --pine-tint:#E9F0ED; --brass:#B8892B; --brass-tint:#FBF3E4;
+    --gain:#1F7A4D; --loss:#B03A2B; --info:#2A5F8F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Public Sans',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);}
+  .num{font-variant-numeric:tabular-nums;}
+  a{color:var(--pine);text-decoration:none;}
+  a:hover{color:var(--pine);text-decoration:underline;}
+  .serif{font-family:'Source Serif 4',Georgia,serif;}
+</style>
+</helmet>
+
+<div style="width:560px;height:1300px;background:var(--surface);border-left:1px solid var(--rule);display:flex;flex-direction:column;">
+
+  <!-- Header -->
+  <div style="padding:18px 20px 14px;border-bottom:1px solid var(--rule);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:600;">Assistant</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-muted)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5l12 12M16 4.5l-12 12"/></svg>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-muted)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3.5l-6 6.5 6 6.5"/></svg>
+      </div>
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:6px 10px;border-radius:6px;background:var(--pine-tint);color:var(--pine);font-weight:600;">
+      The Whitakers
+      <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="var(--pine)" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l6 6M11 5l-6 6"/></svg>
+    </div>
+  </div>
+
+  <!-- Thread -->
+  <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;">
+
+    <div style="align-self:flex-end;max-width:80%;background:var(--pine-tint);border-radius:10px;padding:11px 13px;font-size:13px;">Prep me for the 2pm with the Whitakers</div>
+
+    <div>
+      <div style="font-size:13px;line-height:1.5;">For your 2:00 PM: here&rsquo;s what&rsquo;s changed since your last meeting, plus one allocation drift worth raising before you sit down.</div>
+    </div>
+
+    <!-- Household card render -->
+    <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden;">
+      <div style="padding:12px 14px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:13px;font-weight:600;">The Whitakers</div>
+        <div style="font-size:12px;color:var(--ink-muted);">Premier</div>
+      </div>
+      <div style="display:flex;padding:12px 14px;gap:20px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;" class="num">$6,180,000</div>
+          <div style="font-size:12px;color:var(--ink-muted);">AUM</div>
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:600;" class="num">Sep 22</div>
+          <div style="font-size:12px;color:var(--ink-muted);">Next review</div>
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--loss);" class="num">6.2%</div>
+          <div style="font-size:12px;color:var(--ink-muted);">Drift</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Holdings / allocation table render -->
+    <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden;">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--rule);font-size:12px;font-weight:600;">Target vs. actual allocation</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <tr style="border-bottom:1px solid var(--rule);">
+          <td style="padding:8px 14px;color:var(--ink-muted);">Equities</td>
+          <td style="padding:8px 14px;text-align:right;" class="num">60% target</td>
+          <td style="padding:8px 14px;text-align:right;font-weight:600;color:var(--loss);" class="num">66% actual</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--rule);">
+          <td style="padding:8px 14px;color:var(--ink-muted);">Fixed income</td>
+          <td style="padding:8px 14px;text-align:right;" class="num">30% target</td>
+          <td style="padding:8px 14px;text-align:right;font-weight:600;color:var(--loss);" class="num">24% actual</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 14px;color:var(--ink-muted);">Cash</td>
+          <td style="padding:8px 14px;text-align:right;" class="num">10% target</td>
+          <td style="padding:8px 14px;text-align:right;font-weight:600;" class="num">10% actual</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Chart embed thumbnail -->
+    <div style="border:1px solid var(--rule);border-radius:10px;padding:14px;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px;">Drift from target</div>
+      <div style="display:flex;align-items:flex-end;gap:16px;height:88px;">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="font-size:12px;font-weight:600;color:var(--loss);" class="num">+6pt</div>
+          <div style="width:36px;height:54px;background:var(--loss);border-radius:0;"></div>
+          <div style="font-size:12px;color:var(--ink-muted);">Equities</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="font-size:12px;font-weight:600;color:var(--loss);" class="num">&minus;6pt</div>
+          <div style="width:36px;height:54px;background:var(--loss);border-radius:0;align-self:flex-end;"></div>
+          <div style="font-size:12px;color:var(--ink-muted);">Fixed income</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-muted);" class="num">0pt</div>
+          <div style="width:36px;height:4px;background:var(--rule);border-radius:0;"></div>
+          <div style="font-size:12px;color:var(--ink-muted);">Cash</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--ink-muted);margin-top:6px;">Percentage points, actual vs. target allocation</div>
+    </div>
+
+    <div style="font-size:12px;color:var(--ink-muted);">Source: <a href="#">Allocation section</a>, synced today &middot; <a href="#">View household</a></div>
+
+    <!-- Drafted note (serif, long-form) -->
+    <div style="border:1px solid var(--rule);border-radius:10px;padding:16px;">
+      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:8px;">Draft &mdash; Q3 note to the Whitakers</div>
+      <div class="serif" style="font-size:16px;line-height:1.65;color:var(--ink);">Ahead of our conversation on the 22nd, I wanted to flag that your portfolio has drifted somewhat from its target mix as equity markets have run ahead of fixed income this quarter&hellip;</div>
+    </div>
+
+    <!-- Confirmation proposal card -->
+    <div style="border:1px solid var(--brass);border-radius:10px;padding:16px;background:var(--brass-tint);">
+      <div style="font-size:12px;font-weight:600;color:var(--brass);margin-bottom:6px;">Proposed action</div>
+      <div style="font-size:13px;line-height:1.5;margin-bottom:12px;">Add a 10-minute allocation review to today&rsquo;s 2:00 PM agenda with the Whitakers.</div>
+      <div style="display:flex;gap:8px;">
+        <div style="font-size:12px;padding:7px 14px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);">Edit</div>
+        <div style="font-size:12px;padding:7px 14px;background:var(--pine);color:#fff;border-radius:6px;font-weight:600;">Confirm</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Composer -->
+  <div style="padding:14px 20px 20px;border-top:1px solid var(--rule);">
+    <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--rule);border-radius:6px;padding:10px 12px;">
+      <div style="flex:1;font-size:13px;color:var(--ink-muted);">Ask a follow-up&hellip;</div>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--ink-muted)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"/></svg>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
