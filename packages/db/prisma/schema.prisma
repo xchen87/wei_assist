@@ -25,11 +25,12 @@ generator client {
 }
 
 model Advisor {
-  id         String      @id @default(cuid())
-  name       String
-  initials   String
-  households Household[]
-  prospects  Prospect[]
+  id             String      @id @default(cuid())
+  name           String
+  initials       String
+  capacityTarget Int // households this advisor is staffed to serve, for the Insights capacity bar
+  households     Household[]
+  prospects      Prospect[]
 }
 
 model Household {

@@ -1,5 +1,5 @@
-import { EmptyState } from "./EmptyState";
-import { Button } from "./Button";
+import { EmptyState } from "./empty-state";
+import { Button } from "./button";
 
 export function RouteEmptyState({ title, description, action = "Get started" }: { title: string; description: string; action?: string }) {
   return (

@@ -1,5 +1,5 @@
-import { Nav } from "@/components/shell/Nav";
-import { ChatDock } from "@/components/chat/ChatDock";
+import { Nav } from "@/components/shell/nav";
+import { ChatDock } from "@/components/chat/chat-dock";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

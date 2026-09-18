@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
-import { PlanSection } from "@/components/plan/PlanSection";
-import { SectionActions } from "@/components/plan/SectionActions";
-import { CompletenessRing } from "@/components/plan/CompletenessRing";
+import { PlanSection } from "@/components/plan/plan-section";
+import { SectionActions } from "@/components/plan/section-actions";
+import { CompletenessRing } from "@/components/plan/completeness-ring";
 import { formatLongDate } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";

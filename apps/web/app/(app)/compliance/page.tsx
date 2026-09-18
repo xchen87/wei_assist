@@ -1,13 +1,15 @@
 import { prisma } from "@meridian/db";
-import { Badge } from "@/components/ui/Badge";
-import { formatShortDate } from "@/lib/format/date";
+import { Badge } from "@/components/ui/badge";
+import { formatShortDate, daysUntil } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompliancePage() {
   const households = await prisma.household.findMany({ include: { advisor: true } });
   const overdue = households.filter((h) => h.reviewStatus === "overdue");
-  const dueSoon = households.filter((h) => h.reviewStatus === "scheduled" && h.lastContactDays >= 30);
+  const dueSoon = households.filter(
+    (h) => h.reviewStatus !== "overdue" && daysUntil(h.nextReviewDate) <= 30,
+  );
 
   return (
     <div className="px-8 py-7">

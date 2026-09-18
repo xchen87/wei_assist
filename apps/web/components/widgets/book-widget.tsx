@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 import { formatMoney } from "@/lib/format/money";
 
 export function BookWidget({ aumCents, monthlyFlowCents }: { aumCents: number; monthlyFlowCents: number }) {

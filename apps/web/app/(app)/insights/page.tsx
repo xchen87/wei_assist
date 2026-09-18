@@ -1,6 +1,6 @@
 import { prisma } from "@meridian/db";
-import { BookTreemap } from "@/components/charts/BookTreemap";
-import { RevenueConcentrationCurve } from "@/components/charts/RevenueConcentrationCurve";
+import { BookTreemap } from "@/components/charts/book-treemap";
+import { RevenueConcentrationCurve } from "@/components/charts/revenue-concentration-curve";
 import { formatMoney } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,15 @@ export default async function InsightsPage() {
     return acc;
   }, {});
 
-  const byAdvisor = households.reduce<Record<string, number>>((acc, h) => {
-    acc[h.advisor.name] = (acc[h.advisor.name] ?? 0) + 1;
-    return acc;
-  }, {});
+  const byAdvisor = households.reduce<Record<string, { count: number; capacityTarget: number }>>(
+    (acc, h) => {
+      const entry = acc[h.advisor.name] ?? { count: 0, capacityTarget: h.advisor.capacityTarget };
+      entry.count += 1;
+      acc[h.advisor.name] = entry;
+      return acc;
+    },
+    {},
+  );
 
   const total10 = revenues
     .slice()
@@ -84,14 +89,19 @@ export default async function InsightsPage() {
         </div>
         <div className="rounded-card border border-rule p-4">
           <div className="mb-3 text-sm font-semibold">Advisor capacity</div>
-          {Object.entries(byAdvisor).map(([name, count]) => (
+          {Object.entries(byAdvisor).map(([name, { count, capacityTarget }]) => (
             <div key={name} className="mb-2.5">
               <div className="mb-1 flex justify-between text-sm">
                 <span>{name}</span>
-                <span className="tabular text-ink-muted">{count} of 8</span>
+                <span className="tabular text-ink-muted">
+                  {count} of {capacityTarget}
+                </span>
               </div>
               <div className="h-2 overflow-hidden rounded-control bg-paper">
-                <div className="h-full bg-pine" style={{ width: `${Math.min(100, (count / 8) * 100)}%` }} />
+                <div
+                  className="h-full bg-pine"
+                  style={{ width: `${Math.min(100, (count / capacityTarget) * 100)}%` }}
+                />
               </div>
             </div>
           ))}
@@ -113,7 +123,7 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone?:
 function Legend({ color, label }: { color: string; label: string }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="h-2 w-2 rounded-cell" style={{ background: color }} />
+      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       {label}
     </div>
   );

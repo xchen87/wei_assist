@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
-import { PlanSection } from "@/components/plan/PlanSection";
-import { SectionActions } from "@/components/plan/SectionActions";
-import { NetWorthWaterfall } from "@/components/charts/NetWorthWaterfall";
+import { PlanSection } from "@/components/plan/plan-section";
+import { SectionActions } from "@/components/plan/section-actions";
+import { NetWorthWaterfall } from "@/components/charts/net-worth-waterfall";
 import { formatMoney, formatSignedMoney } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";

@@ -329,3 +329,38 @@ advisor capacity, all queried live from the 10 seeded households.
   review agents run per finished area; see DECISIONS.md for anything they turned up
   worth recording. Not started: auth, the assistant's model wiring, RBAC, audit log,
   integrations, Storybook, CI.
+- **2026-09-18** — Fix pass on findings from six background design-quality review
+  agents (one per finished area: Clients list, household detail, Today, Prospects,
+  Insights, shell/chat). All files renamed from PascalCase to kebab-case
+  (`components/**`), the systemic violation of CLAUDE.md §12; verified with a clean
+  `tsc --noEmit` across both packages after the rename. Concrete bugs fixed:
+  Clients-list sort highlight was hardcoded to the AUM column only (now dynamic per
+  column); the drift-alert threshold was `>= 3` instead of `>= 4`, disagreeing with
+  the page's own "At risk" filter; Cash/Drift cells used inline `.toFixed(1)` instead
+  of `lib/format/percent.ts`; the Advisor column showed the full name instead of the
+  design's abbreviated form (new `lib/format/name.ts`); the now-fully-dead
+  `advisorInitials` field was removed from `ClientRow`. The pipeline funnel's
+  "stalled" highlight was hardcoded to the Proposal stage — now derived from whether
+  any prospect actually flagged `stalled` is sitting in that stage. Compliance's "Due
+  within 30 days" stat checked `lastContactDays >= 30` (contact recency, not review
+  timing) — now checks `daysUntil(nextReviewDate) <= 30` on non-overdue households;
+  verified against real seed data (2, not 3). The book treemap's money labels used
+  inline `${...toFixed(2)}M` instead of `formatMoney(..., { compact: true })`.
+  Insights' advisor-capacity bar showed "of 8" with no backing figure — added a real
+  `capacityTarget` field to the `Advisor` model (seeded 12 for Dana, 10 for Maya) so
+  the number is grounded rather than invented; required a `db push --force-reset` +
+  re-seed of the local SQLite database. `dismissInsight`'s `revalidatePath` only
+  covered the Overview route, leaving a dismissed insight looking still-active on the
+  section page it actually appeared on — it now also revalidates the calling page's
+  own pathname. Legend/status dots in `allocation-rings.tsx` and `insights/page.tsx`
+  used `rounded-cell` (square) instead of `rounded-full` (circle), breaking the
+  carried-over convention that legend dots are circles. The nav rail's `mb-[22px]`
+  arbitrary value is now a named `nav-logo` spacing token in `tailwind.config.ts`,
+  preserving the exact value from `design/*.dc.html` without leaving a magic number
+  in component code. Composer placeholders now use a true ellipsis character. Added
+  D-014 to DECISIONS.md, formalizing the SQLite/no-tRPC/no-Radix/no-auth deviations
+  that were previously only described in this file's "Implementation notes" section.
+  Re-verified with a clean typecheck + lint and a dev-server smoke test (curl against
+  `/clients`, `/prospects`, `/compliance`, `/insights`, `/today`, all 200; spot-checked
+  rendered HTML for the advisor abbreviation, the corrected capacity figure, and the
+  corrected "Due within 30 days" count).

@@ -294,3 +294,48 @@ carried into seed data verbatim, and tax/regulatory figures in particular were k
 non-realistic on purpose (see `design/README.md`) per the §13 rule against inventing
 threshold figures. The design and the code can drift once implementation starts; nothing
 enforces that they stay in sync beyond this decision record and code review.
+
+---
+
+## D-014 — Implementation runs on SQLite, without tRPC/Radix/auth, until something needs them
+
+2026-09-18 · Accepted
+
+**Context** — CLAUDE.md §2 specifies PostgreSQL, tRPC, Radix primitives, and Auth.js as
+the stack. This sandbox has no Postgres server, no Redis, and no way to run a real OAuth
+flow — and the first implementation pass (app shell, Clients, six household-detail
+sections, Prospects, Insights, top-level Compliance) turned out to need none of tRPC,
+Radix, or auth to be built correctly: every page so far is a Server Component reading
+Prisma directly, the one mutation (dismissing an Insight) is a plain Next.js Server
+Action, and every interactive control so far (sort, search, saved views, bulk-select) is
+either URL state or a handful of local `useState` — no Dialog, Popover, or Tabs primitive
+has been needed yet.
+
+**Decision** — Use SQLite locally in place of Postgres, with the schema
+(`packages/db/prisma/schema.prisma`) deliberately avoiding Postgres-only features (native
+`enum`, arrays) so returning to Postgres later is a datasource-and-migration change, not a
+data-shape rewrite — enum-shaped fields (segment, reviewStatus, goal status, pipeline
+stage) are plain `String`s constrained by TS union types at the call site instead. Skip
+tRPC, Radix, and auth entirely for now rather than scaffolding them unused; every page
+runs as a single hardcoded advisor (Dana Whitfield). Introduce each piece only when a
+feature actually needs it — tRPC when a client component must call back into the server
+after initial load (the chat dock, once wired to a model, is the likely first consumer),
+Radix when a feature needs a real Dialog/Popover/Tooltip/Tabs (the chat dock's
+confirmation-card pattern is the likely first), auth when the demo needs more than one
+session to matter.
+
+**Alternatives** — Scaffold the full stack up front (Docker Postgres, a tRPC router, Radix
+primitives, Auth.js) before building any screen: closer to CLAUDE.md §2 on paper, but adds
+infrastructure this sandbox can't run (Postgres, Redis) and defers visible progress on the
+design record without buying correctness — a tRPC layer with nothing on the client that
+needs it, or a Dialog primitive with nothing that opens one, is dead weight to review and
+maintain until a real feature arrives.
+
+**Consequences** — `packages/schemas` and `packages/integrations` also don't exist yet,
+for the same reason (no form or API boundary to validate against, no integration built).
+Every deviation is logged in PROGRESS.md's "Implementation notes and deviations" section,
+which must be kept current as each piece gets introduced for real. Money stays integer
+cents everywhere regardless (`lib/format/money.ts`, per D-007) — that part of the spec is
+fully followed, not deviated from. Risk: deferring auth means nothing in this pass has
+been tested under multi-user/session conditions; RBAC and the audit log (§11) remain
+unbuilt and unverified until that work starts.

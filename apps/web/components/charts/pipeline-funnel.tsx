@@ -9,9 +9,11 @@ const STAGES = ["Inquiry", "Discovery", "Proposal", "Agreement"] as const;
 export function PipelineFunnel({
   counts,
   avgDays,
+  stalledStages,
 }: {
   counts: Record<string, number>;
   avgDays: Record<string, number>;
+  stalledStages: Record<string, boolean>;
 }) {
   const values = STAGES.map((s) => counts[s] ?? 0);
   const max = Math.max(...values, 1);
@@ -61,7 +63,7 @@ export function PipelineFunnel({
           <Fragment key={stage}>
             <div className="text-center">
               <div className="text-sm font-semibold">{stage}</div>
-              <div className={`mt-0.5 text-xs ${stage === "Proposal" ? "text-loss" : "text-ink-muted"}`}>
+              <div className={`mt-0.5 text-xs ${stalledStages[stage] ? "text-loss" : "text-ink-muted"}`}>
                 avg {avgDays[stage] ?? 0}d in stage
               </div>
             </div>

@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/format/money";
+
 type Item = { name: string; aumCents: number; segment: string };
 
 const SEGMENT_COLOR: Record<string, string> = {
@@ -26,7 +28,7 @@ export function BookTreemap({ items }: { items: Item[] }) {
             style={{ flexGrow: item.aumCents, background: SEGMENT_COLOR[item.segment], minWidth: 0 }}
           >
             <div className="truncate text-sm font-semibold">{item.name}</div>
-            <div className="tabular text-xs opacity-85">${(item.aumCents / 100_000_000).toFixed(2)}M</div>
+            <div className="tabular text-xs opacity-85">{formatMoney(item.aumCents, { compact: true })}</div>
           </div>
         ))}
       </div>
@@ -38,7 +40,7 @@ export function BookTreemap({ items }: { items: Item[] }) {
             style={{ flexGrow: item.aumCents, background: SEGMENT_COLOR[item.segment], minWidth: 0 }}
           >
             <div className="truncate text-xs font-semibold">{item.name}</div>
-            <div className="tabular text-xs opacity-85">${(item.aumCents / 100_000_000).toFixed(2)}M</div>
+            <div className="tabular text-xs opacity-85">{formatMoney(item.aumCents, { compact: true })}</div>
           </div>
         ))}
       </div>

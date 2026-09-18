@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 /** Derived from open (non-dismissed) insights across households — the
  * closest real signal to a task list until a dedicated Task model exists

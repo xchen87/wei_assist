@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
-import { PlanSection } from "@/components/plan/PlanSection";
-import { SectionActions } from "@/components/plan/SectionActions";
+import { PlanSection } from "@/components/plan/plan-section";
+import { SectionActions } from "@/components/plan/section-actions";
 
 export const dynamic = "force-dynamic";
 

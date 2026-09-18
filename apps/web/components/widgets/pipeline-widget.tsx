@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 const STAGES = ["Inquiry", "Discovery", "Proposal", "Agreement"] as const;
 

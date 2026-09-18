@@ -1,4 +1,4 @@
-import { RouteEmptyState } from "@/components/ui/RouteEmptyState";
+import { RouteEmptyState } from "@/components/ui/route-empty-state";
 
 export default function IntakePage() {
   return (

@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 /** Illustrative — members are seeded with an age, not a birthdate, so
  * exact milestone dates can't be derived yet (see PROGRESS.md). */

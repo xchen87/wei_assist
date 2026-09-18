@@ -1,6 +1,6 @@
 import { prisma } from "@meridian/db";
 import Link from "next/link";
-import { ClientsTable, type ClientRow } from "@/components/clients/ClientsTable";
+import { ClientsTable, type ClientRow } from "@/components/clients/clients-table";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,6 @@ export default async function ClientsPage({
     lastContactDays: h.lastContactDays,
     nextReviewDate: h.nextReviewDate.toISOString(),
     reviewStatus: h.reviewStatus,
-    advisorInitials: h.advisor.initials,
     advisorName: h.advisor.name,
   }));
 
@@ -88,7 +87,7 @@ export default async function ClientsPage({
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Search households..."
+            placeholder="Search households…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted"
           />
         </form>

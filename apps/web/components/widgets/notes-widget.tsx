@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 /** Freeform scratchpad — no persistence yet (Phase 4 item). */
 export function NotesWidget() {

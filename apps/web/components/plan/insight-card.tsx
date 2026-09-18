@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import { dismissInsight } from "@/app/(app)/clients/[id]/actions";
 
 export type InsightCardData = {
@@ -16,12 +17,13 @@ export type InsightCardData = {
 export function InsightCard({ insight }: { insight: InsightCardData }) {
   const [hidden, setHidden] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const pathname = usePathname();
 
   if (hidden) return null;
 
   function act() {
     startTransition(async () => {
-      await dismissInsight(insight.id);
+      await dismissInsight(insight.id, pathname ?? undefined);
       setHidden(true);
     });
   }

@@ -89,7 +89,7 @@ export function ChatDock() {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ask a follow-up..."
+            placeholder="Ask a follow-up…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted"
           />
         </form>

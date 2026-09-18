@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 export function AlertsWidget({ items }: { items: { id: string; householdId: string; text: string }[] }) {
   return (

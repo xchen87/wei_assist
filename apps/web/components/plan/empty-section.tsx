@@ -1,6 +1,6 @@
-import { CompletenessRing } from "./CompletenessRing";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
+import { CompletenessRing } from "./completeness-ring";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 
 /** Per D-003: every section always exists, even with nothing in it yet.
  * An empty section says what's missing and offers one action — it is

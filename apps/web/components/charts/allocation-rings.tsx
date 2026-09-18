@@ -26,7 +26,7 @@ function DriftRow({ label, color, driftPts }: { label: string; color: string; dr
   return (
     <div className="grid grid-cols-[100px_1fr_60px] items-center gap-2.5">
       <div className="flex items-center gap-1.5 text-sm">
-        <span className="h-2 w-2 rounded-cell" style={{ background: color }} />
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} />
         {label}
       </div>
       <div className="relative h-4">

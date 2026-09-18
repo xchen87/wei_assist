@@ -1,15 +1,15 @@
 import { prisma } from "@meridian/db";
-import { PromptZone } from "@/components/widgets/PromptZone";
-import { AgendaWidget } from "@/components/widgets/AgendaWidget";
-import { TasksWidget } from "@/components/widgets/TasksWidget";
-import { AlertsWidget } from "@/components/widgets/AlertsWidget";
-import { PipelineWidget } from "@/components/widgets/PipelineWidget";
-import { MarketsWidget } from "@/components/widgets/MarketsWidget";
-import { BookWidget } from "@/components/widgets/BookWidget";
-import { ReviewsWidget } from "@/components/widgets/ReviewsWidget";
-import { MilestonesWidget } from "@/components/widgets/MilestonesWidget";
-import { RecentsWidget } from "@/components/widgets/RecentsWidget";
-import { NotesWidget } from "@/components/widgets/NotesWidget";
+import { PromptZone } from "@/components/widgets/prompt-zone";
+import { AgendaWidget } from "@/components/widgets/agenda-widget";
+import { TasksWidget } from "@/components/widgets/tasks-widget";
+import { AlertsWidget } from "@/components/widgets/alerts-widget";
+import { PipelineWidget } from "@/components/widgets/pipeline-widget";
+import { MarketsWidget } from "@/components/widgets/markets-widget";
+import { BookWidget } from "@/components/widgets/book-widget";
+import { ReviewsWidget } from "@/components/widgets/reviews-widget";
+import { MilestonesWidget } from "@/components/widgets/milestones-widget";
+import { RecentsWidget } from "@/components/widgets/recents-widget";
+import { NotesWidget } from "@/components/widgets/notes-widget";
 
 export const dynamic = "force-dynamic";
 

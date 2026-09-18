@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
-import { SectionNav } from "@/components/plan/SectionNav";
+import { SectionNav } from "@/components/plan/section-nav";
 
 export default async function HouseholdLayout({
   children,

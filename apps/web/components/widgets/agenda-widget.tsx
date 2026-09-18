@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 import { formatShortDate } from "@/lib/format/date";
 
 export function AgendaWidget({

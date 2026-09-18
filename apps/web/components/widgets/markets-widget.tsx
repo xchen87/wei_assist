@@ -1,4 +1,4 @@
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 /** Illustrative — no market-data integration exists yet (Phase 8). Static
  * on purpose rather than faking a live feed. */

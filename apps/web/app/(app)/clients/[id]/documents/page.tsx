@@ -1,4 +1,4 @@
-import { EmptySection } from "@/components/plan/EmptySection";
+import { EmptySection } from "@/components/plan/empty-section";
 
 export default function HouseholdDocumentsPage() {
   return (

@@ -28,7 +28,7 @@ export function PromptZone({ advisorFirstName }: { advisorFirstName: string }) {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask about a household, draft something, or find what needs attention..."
+          placeholder="Ask about a household, draft something, or find what needs attention…"
           className="flex-1 bg-transparent text-left text-md text-ink outline-none placeholder:text-ink-muted"
         />
         <button

@@ -1,5 +1,5 @@
 import { prisma } from "@meridian/db";
-import { PipelineFunnel } from "@/components/charts/PipelineFunnel";
+import { PipelineFunnel } from "@/components/charts/pipeline-funnel";
 import { formatMoney } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,10 @@ export default async function ProspectsPage() {
     daysSum[p.stage] = (daysSum[p.stage] ?? 0) + p.daysInStage;
   }
   const avgDays: Record<string, number> = {};
+  const stalledStages: Record<string, boolean> = {};
   for (const stage of STAGES) {
     avgDays[stage] = counts[stage] ? Math.round(daysSum[stage]! / counts[stage]!) : 0;
+    stalledStages[stage] = prospects.some((p) => p.stage === stage && p.stalled);
   }
   const stalledCount = prospects.filter((p) => p.stalled).length;
 
@@ -38,7 +40,7 @@ export default async function ProspectsPage() {
 
       <div className="mb-5 rounded-card border border-rule p-5">
         <div className="mb-3.5 text-sm font-semibold">Pipeline funnel</div>
-        <PipelineFunnel counts={counts} avgDays={avgDays} />
+        <PipelineFunnel counts={counts} avgDays={avgDays} stalledStages={stalledStages} />
       </div>
 
       <div className="grid grid-cols-4 gap-3.5">

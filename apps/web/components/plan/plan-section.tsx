@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { CompletenessRing } from "./CompletenessRing";
-import { InsightCard, type InsightCardData } from "./InsightCard";
+import { CompletenessRing } from "./completeness-ring";
+import { InsightCard, type InsightCardData } from "./insight-card";
 
 /** The shared scaffold every household-detail section renders through
  * (CLAUDE.md §6): Header, Summary (one primary visual), Detail, Insights,

@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
-import { PlanSection } from "@/components/plan/PlanSection";
-import { SectionActions } from "@/components/plan/SectionActions";
-import { GoalsBubbleQuadrant } from "@/components/charts/GoalsBubbleQuadrant";
+import { PlanSection } from "@/components/plan/plan-section";
+import { SectionActions } from "@/components/plan/section-actions";
+import { GoalsBubbleQuadrant } from "@/components/charts/goals-bubble-quadrant";
 import { formatMoney } from "@/lib/format/money";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 

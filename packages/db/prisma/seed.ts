@@ -448,10 +448,10 @@ async function main() {
   await prisma.advisor.deleteMany();
 
   const dana = await prisma.advisor.create({
-    data: { name: "Dana Whitfield", initials: "DW" },
+    data: { name: "Dana Whitfield", initials: "DW", capacityTarget: 12 },
   });
   const maya = await prisma.advisor.create({
-    data: { name: "Maya Reyes", initials: "MR" },
+    data: { name: "Maya Reyes", initials: "MR", capacityTarget: 10 },
   });
   const advisorId = { dana: dana.id, maya: maya.id };
 

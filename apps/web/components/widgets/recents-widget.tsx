@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 /** Placeholder ordering (most recently reviewed) until real view-tracking
  * exists — see PROGRESS.md. */

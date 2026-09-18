@@ -51,7 +51,7 @@ export function Nav() {
 
   return (
     <nav className="flex h-full w-[72px] shrink-0 flex-col items-center border-r border-rule bg-surface py-4">
-      <div className="mb-[22px] flex h-8 w-8 items-center justify-center rounded-control bg-pine text-sm font-bold text-white">
+      <div className="mb-nav-logo flex h-8 w-8 items-center justify-center rounded-control bg-pine text-sm font-bold text-white">
         M
       </div>
 

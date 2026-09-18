@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatMoney } from "@/lib/format/money";
-import { formatSignedPercent } from "@/lib/format/percent";
+import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatShortDate } from "@/lib/format/date";
-import { SortableHeader } from "./SortableHeader";
+import { formatShortName } from "@/lib/format/name";
+import { SortableHeader } from "./sortable-header";
 
 export type ClientRow = {
   id: string;
@@ -21,11 +22,15 @@ export type ClientRow = {
   lastContactDays: number;
   nextReviewDate: string;
   reviewStatus: string;
-  advisorInitials: string;
   advisorName: string;
 };
 
 const ACTIONS = ["Assign", "Tag", "Add to campaign", "Schedule review", "Export"];
+
+/** Drift threshold for the "worth flagging" red highlight — matches the
+ * Clients page's own "At risk" saved-view filter (driftPct >= 4), so the
+ * table and the filter never disagree about what counts as concerning. */
+const DRIFT_ALERT_THRESHOLD = 4;
 
 export function ClientsTable({
   rows,
@@ -123,37 +128,65 @@ export function ClientsTable({
                     }`}
                   />
                 </td>
-                <Td>
+                <Td strong={activeSort === "name"}>
                   <Link href={`/clients/${row.id}`} className="font-medium hover:underline">
                     {row.name}
                   </Link>
                 </Td>
-                <Td muted>{row.segment}</Td>
+                <Td muted strong={activeSort === "segment"}>
+                  {row.segment}
+                </Td>
                 <Td align="right" strong={activeSort === "aum"}>
                   {formatMoney(row.aumCents, { compact: true })}
                 </Td>
-                <Td align="right">{formatMoney(row.netWorthCents, { compact: true })}</Td>
-                <Td align="right">{formatMoney(row.heldAwayCents, { compact: true })}</Td>
-                <Td align="right" className={row.ytdReturnPct >= 0 ? "text-gain" : "text-loss"}>
+                <Td align="right" strong={activeSort === "netWorth"}>
+                  {formatMoney(row.netWorthCents, { compact: true })}
+                </Td>
+                <Td align="right" strong={activeSort === "heldAway"}>
+                  {formatMoney(row.heldAwayCents, { compact: true })}
+                </Td>
+                <Td
+                  align="right"
+                  strong={activeSort === "ytd"}
+                  className={row.ytdReturnPct >= 0 ? "text-gain" : "text-loss"}
+                >
                   {formatSignedPercent(row.ytdReturnPct)}
                 </Td>
-                <Td align="right">{row.cashPct.toFixed(1)}%</Td>
-                <Td align="right" className={row.driftPct >= 3 ? "font-semibold text-loss" : undefined}>
-                  {row.driftPct.toFixed(1)}%
+                <Td align="right" strong={activeSort === "cash"}>
+                  {formatPercent(row.cashPct)}
                 </Td>
-                <Td align="right" className={row.planHealthPct < 60 ? "text-loss" : undefined}>
+                <Td
+                  align="right"
+                  strong={activeSort === "drift"}
+                  className={row.driftPct >= DRIFT_ALERT_THRESHOLD ? "font-semibold text-loss" : undefined}
+                >
+                  {formatPercent(row.driftPct)}
+                </Td>
+                <Td
+                  align="right"
+                  strong={activeSort === "plan"}
+                  className={row.planHealthPct < 60 ? "text-loss" : undefined}
+                >
                   {row.planHealthPct}%
                 </Td>
-                <Td align="right" muted className={row.reviewStatus === "overdue" ? "text-loss" : undefined}>
+                <Td
+                  align="right"
+                  muted
+                  strong={activeSort === "contact"}
+                  className={row.reviewStatus === "overdue" ? "text-loss" : undefined}
+                >
                   {row.lastContactDays}d
                 </Td>
                 <Td
                   align="right"
+                  strong={activeSort === "review"}
                   className={row.reviewStatus === "overdue" ? "text-loss" : undefined}
                 >
                   {row.reviewStatus === "overdue" ? "Overdue" : formatShortDate(row.nextReviewDate)}
                 </Td>
-                <Td muted>{row.advisorName}</Td>
+                <Td muted strong={activeSort === "advisor"}>
+                  {formatShortName(row.advisorName)}
+                </Td>
               </tr>
             );
           })}

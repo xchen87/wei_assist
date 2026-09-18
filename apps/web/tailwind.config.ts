@@ -44,6 +44,7 @@ const config: Config = {
       spacing: {
         row: "40px",
         "row-compact": "32px",
+        "nav-logo": "22px", // gap below the nav-rail logo mark, per design/*.dc.html
       },
     },
   },

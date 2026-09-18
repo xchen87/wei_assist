@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WidgetCard } from "./WidgetCard";
+import { WidgetCard } from "./widget-card";
 
 export function ReviewsWidget({ items }: { items: { id: string; name: string; daysOver: number }[] }) {
   return (
