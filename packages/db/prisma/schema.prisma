@@ -1,0 +1,142 @@
+// Meridian data model.
+//
+// Production target is PostgreSQL (see ../../../DECISIONS.md D-001, D-014).
+// This sandbox has no Postgres server available, so local dev/demo runs on
+// SQLite. SQLite also has no native enum type, so fields that would be
+// Postgres enums (segment, reviewStatus, goal status, pipeline stage) are
+// plain strings here, constrained by TS union types at the app layer
+// instead (see @meridian/db's exported types) — switching back to Postgres
+// later means re-introducing real `enum` blocks, not a data migration.
+//
+// Scope: this is the seed/demo shape backing the screens actually
+// implemented so far (Today, Clients, five household-detail sections,
+// Prospects) — not the full data model implied by every mocked screen in
+// design/. Money is integer minor units (cents) per D-007. Percentages are
+// stored as plain floats on a 0-100 scale (6.1 means 6.1%), not basis points
+// — simpler for a demo with no currency conversion or interest-rate math.
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Advisor {
+  id         String      @id @default(cuid())
+  name       String
+  initials   String
+  households Household[]
+  prospects  Prospect[]
+}
+
+model Household {
+  id        String  @id @default(cuid())
+  name      String
+  segment   String // Core | Premier | Founding
+  advisor   Advisor @relation(fields: [advisorId], references: [id])
+  advisorId String
+
+  // Clients list columns
+  aumCents        Int
+  netWorthCents   Int
+  heldAwayCents   Int
+  ytdReturnPct    Float
+  cashPct         Float
+  targetCashPct   Float
+  driftPct        Float
+  planHealthPct   Int
+  lastContactDays Int
+  nextReviewDate  DateTime
+  reviewStatus    String // scheduled | due | overdue
+  clientSinceYear Int
+
+  // Overview
+  completenessPct Int
+  whatChanged     String // newline-separated bullet lines; demo-only, not a real diff engine
+
+  // Cashflow (annual, illustrative — see design/README.md conventions)
+  incomeCents    Int
+  taxesCents     Int
+  netIncomeCents Int
+  spendingCents  Int
+  savingsCents   Int
+  savingsRatePct Float
+
+  // Balance (waterfall, past 12 months)
+  balanceStartCents         Int
+  balanceContributionsCents Int
+  balanceGrowthCents        Int
+  balanceTaxesCents         Int
+  balanceSpendingCents      Int
+  investmentAccountsCents   Int
+  realEstateCents           Int
+  cashCents                 Int
+  otherAssetsCents          Int
+  mortgageCents             Int
+
+  // Allocation
+  equityTargetPct        Float
+  equityActualPct        Float
+  fixedIncomeTargetPct   Float
+  fixedIncomeActualPct   Float
+  topHoldingName         String
+  topHoldingTicker       String
+  topHoldingPct          Float
+  distinctHoldings       Int
+  blendedExpenseRatioPct Float
+
+  members  Member[]
+  goals    Goal[]
+  insights Insight[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Member {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  name        String
+  role        String // Primary | Spouse | Dependent
+  age         Int
+  occupation  String
+}
+
+model Goal {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  name        String
+  priority    String // Low | Medium | High
+  targetCents Int
+  fundedPct   Float
+  status      String // onTrack | fullyFunded | behind
+}
+
+model Insight {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  section     String // which PlanSection this belongs to
+  text        String
+  sourceLabel String
+  dismissed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model Prospect {
+  id            String   @id @default(cuid())
+  name          String
+  source        String // e.g. "Referral: Ramirez Household", "Web inquiry"
+  estValueCents Int
+  stage         String // Inquiry | Discovery | Proposal | Agreement
+  daysInStage   Int
+  stalled       Boolean  @default(false)
+  advisor       Advisor  @relation(fields: [advisorId], references: [id])
+  advisorId     String
+  createdAt     DateTime @default(now())
+}
