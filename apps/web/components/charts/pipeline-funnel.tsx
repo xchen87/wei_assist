@@ -1,6 +1,21 @@
-import { Fragment } from "react";
-
 const STAGES = ["Inquiry", "Discovery", "Proposal", "Agreement"] as const;
+
+const VIEWBOX_W = 900;
+const SEG_WIDTH = 200;
+const GAP = 20;
+const LEFT_MARGIN = 0;
+
+/** Both the funnel and its caption row below are positioned from these same
+ * xs/SEG_WIDTH numbers — expressed as percentages of VIEWBOX_W, so a plain
+ * CSS-percentage overlay lines up with the SVG's own coordinate space
+ * exactly, at any container width. An earlier version positioned the
+ * captions with an independent `10fr 1fr 10fr 1fr 10fr 1fr 10fr` CSS grid,
+ * which only approximates the SVG's actual segment/gap/margin proportions
+ * (10:1 vs. the real 200:20, and the grid had no right-margin column to
+ * match the SVG's) — close enough to look right at a glance but drifting
+ * visibly out of alignment toward the right edge. */
+const xs = STAGES.map((_, i) => LEFT_MARGIN + i * (SEG_WIDTH + GAP));
+const pct = (px: number) => `${(px / VIEWBOX_W) * 100}%`;
 
 /** A connected, proportionally-narrowing funnel (not a bar chart) — each
  * segment's height reflects its count, and segments taper continuously
@@ -20,10 +35,6 @@ export function PipelineFunnel({
   const heightFor = (v: number) => 24 + (v / max) * 96;
   const heights = values.map(heightFor);
 
-  const segWidth = 190;
-  const gap = 20;
-  const xs = STAGES.map((_, i) => 20 + i * (segWidth + gap));
-
   // Segment i tapers from its own stage's height to the NEXT stage's height,
   // so the funnel narrows exactly where the real counts drop off — the last
   // segment has nothing to taper into and stays flat. (An earlier version
@@ -32,7 +43,7 @@ export function PipelineFunnel({
   // the data — see design/Prospects.dc.html's continuously-narrowing shape.)
   const polygons = STAGES.map((_, i) => {
     const x0 = xs[i]!;
-    const x1 = x0 + segWidth;
+    const x1 = x0 + SEG_WIDTH;
     const hLeft = heights[i]!;
     const hRight = i < STAGES.length - 1 ? heights[i + 1]! : heights[i]!;
     const topLeft = 100 - hLeft / 2;
@@ -44,7 +55,7 @@ export function PipelineFunnel({
 
   return (
     <div>
-      <svg viewBox="0 0 900 200" className="block w-full" style={{ height: 160 }}>
+      <svg viewBox={`0 0 ${VIEWBOX_W} 200`} className="block w-full" style={{ height: 160 }}>
         {polygons.map((points, i) => (
           <polygon
             key={i}
@@ -55,7 +66,7 @@ export function PipelineFunnel({
         {STAGES.map((stage, i) => (
           <text
             key={stage}
-            x={xs[i]! + segWidth / 2}
+            x={xs[i]! + SEG_WIDTH / 2}
             y={106}
             textAnchor="middle"
             fontSize={22}
@@ -67,21 +78,28 @@ export function PipelineFunnel({
           </text>
         ))}
       </svg>
-      <div className="mt-2.5 grid grid-cols-[10fr_1fr_10fr_1fr_10fr_1fr_10fr]">
+
+      <div className="relative mt-2.5" style={{ height: 44 }}>
         {STAGES.map((stage, i) => (
-          <Fragment key={stage}>
-            <div className="text-center">
-              <div className="text-sm font-semibold">{stage}</div>
-              <div className={`mt-0.5 text-xs ${stalledStages[stage] ? "text-loss" : "text-ink-muted"}`}>
-                avg {avgDays[stage] ?? 0}d in stage
-              </div>
+          <div
+            key={stage}
+            className="absolute text-center"
+            style={{ left: pct(xs[i]!), width: pct(SEG_WIDTH) }}
+          >
+            <div className="text-sm font-semibold">{stage}</div>
+            <div className={`mt-0.5 text-xs ${stalledStages[stage] ? "text-loss" : "text-ink-muted"}`}>
+              avg {avgDays[stage] ?? 0}d in stage
             </div>
-            {i < STAGES.length - 1 && (
-              <div className="tabular self-center text-center text-xs text-ink-muted">
-                {values[i] ? Math.round(((values[i + 1] ?? 0) / values[i]!) * 100) : 0}%
-              </div>
-            )}
-          </Fragment>
+          </div>
+        ))}
+        {STAGES.slice(0, -1).map((stage, i) => (
+          <div
+            key={`${stage}-conversion`}
+            className="tabular absolute text-center text-xs text-ink-muted"
+            style={{ left: pct(xs[i]! + SEG_WIDTH), width: pct(GAP) }}
+          >
+            {values[i] ? Math.round(((values[i + 1] ?? 0) / values[i]!) * 100) : 0}%
+          </div>
         ))}
       </div>
     </div>
