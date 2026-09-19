@@ -43,7 +43,7 @@ export default async function CashflowPage({ params }: { params: { id: string } 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Income and expenses: manual entry · Tax withholding estimate: derived from the Tax section."
     />
   );

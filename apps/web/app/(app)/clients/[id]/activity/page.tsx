@@ -63,7 +63,7 @@ export default async function ActivityPage({ params }: { params: { id: string } 
           <Stat value={lastPlanChangeLabel} label="Last plan change" />
         </div>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Meetings and notes: manually logged by the advisor · Documents and plan changes: recorded automatically when the underlying record changes · Tasks: manual entry, no Task model in this pass — see PROGRESS.md."
     />
   );

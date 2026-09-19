@@ -55,7 +55,7 @@ export default async function ProtectionPage({ params }: { params: { id: string 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Coverage need: estimated from Cashflow + Goals sections · Current coverage: manual entry, last verified per policy — see Documents for policy declarations."
     />
   );

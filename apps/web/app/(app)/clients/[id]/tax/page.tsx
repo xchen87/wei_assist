@@ -54,7 +54,7 @@ export default async function TaxPage({ params }: { params: { id: string } }) {
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Taxable income and bracket position: derived from Balance + Cashflow sections, recalculated today · Realized/unrealized gains: custodian feed, synced today · Bracket structure shown is illustrative for this draft — connect a tax data source in Settings → Tax for current-year figures."
     />
   );

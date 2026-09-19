@@ -59,7 +59,7 @@ export default async function OverviewPage({ params }: { params: { id: string } 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance={`Positions: custodian feed, synced today · Household lead: ${primary?.name ?? household.advisor.name}`}
     />
   );

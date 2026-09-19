@@ -99,7 +99,7 @@ export default async function HouseholdDocumentsPage({ params }: { params: { id:
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Vault status: computed from documents on file · Firm-wide documents live under Documents in the main nav — this list is household-scoped."
     />
   );

@@ -78,7 +78,7 @@ export default async function RetirementPage({ params }: { params: { id: string 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Projection: Monte Carlo simulation (400 paths) run today using custodian-fed balances and manually entered spending assumptions · Social Security estimates: manual entry, unverified — confirm against each member's SSA.gov statement."
     />
   );

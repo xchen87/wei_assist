@@ -101,7 +101,10 @@ export default async function TasksPage({
               </div>
               <div className="flex flex-col gap-2.5">
                 {items.map((i) => (
-                  <InsightCard key={i.id} insight={{ id: i.id, text: i.text, sourceLabel: i.sourceLabel }} />
+                  <InsightCard
+                    key={i.id}
+                    insight={{ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }}
+                  />
                 ))}
               </div>
             </div>

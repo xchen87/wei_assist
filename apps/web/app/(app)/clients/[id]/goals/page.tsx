@@ -62,7 +62,7 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Funded percentages: calculated from Balance + Goals sections · Priority: set by the household in its last full review."
     />
   );

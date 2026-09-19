@@ -657,3 +657,30 @@ advisor capacity, all queried live from the 10 seeded households.
   lint, header count (38 open across 10 households) matches a direct DB
   query exactly, and curl-inspection confirming the Section dropdown still
   lists all sections (not just the selected one) after filtering.
+- **2026-09-18** — User feedback on Tasks: "why do all tasks only have
+  Dismiss or Accept? some tasks need to be handled in more detail." Checked
+  `actions.ts` and confirmed something already true but easy to miss:
+  Accept and Dismiss have called the identical `dismissInsight` mutation
+  since the day this pattern was built (documented in that file's own
+  comment) — there's no follow-up-task model to make Accept do anything
+  more, so the two buttons were never actually different. Rather than build
+  a real task-management system to fix that (out of scope for this pass),
+  added the thing that actually answers "handle it in more detail": a
+  "View in {section}" link on every `InsightCard` that deep-links to the
+  real section the insight is about (Allocation, Goals, Protection, ...) —
+  real navigation to where the underlying record can actually be reviewed
+  or changed, per CLAUDE.md's `nav.*` tool concept. `InsightCardData` grew
+  two optional fields (`householdId`, `section`); Overview and Tasks (the
+  two places that show insights from more than one section at a time) now
+  pass them through — a small sed-assisted update across all 11 section
+  pages that build a `household.insights.map(...)` call for `PlanSection`,
+  since each already had `i.householdId`/`i.section` on hand from its own
+  query. Section-scoped pages (Goals, Allocation, ...) correctly suppress
+  the link for insights already native to that exact page — comparing the
+  computed section URL against the current pathname — since it would just
+  point at the page you're already on. Verified: clean typecheck + lint
+  across all touched files, full smoke test (every household × every
+  section, all 200/308), and curl-inspection confirming Overview shows
+  "View in {section}" for all 4 of one household's cross-section insights
+  while the Goals page shows none for that same household's Goals-sourced
+  insight (correctly suppressed as redundant).

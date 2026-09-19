@@ -48,7 +48,7 @@ export default async function EstatePage({ params }: { params: { id: string } })
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Titling and beneficiary designations: manual entry, cross-referenced against custodian records where available · Documents in force: client-provided, last verified per document."
     />
   );

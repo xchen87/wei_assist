@@ -54,7 +54,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Allocation and drift: custodian feed · Targets: set in the household's Investment Policy Statement."
     />
   );

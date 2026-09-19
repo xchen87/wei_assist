@@ -49,7 +49,7 @@ export default async function BalancePage({ params }: { params: { id: string } }
           </tbody>
         </table>
       }
-      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel }))}
+      insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
       provenance="Investment accounts: custodian feed · Real estate & mortgage: manual entry."
     />
   );
