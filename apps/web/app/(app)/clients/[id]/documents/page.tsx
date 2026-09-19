@@ -47,23 +47,27 @@ export default async function HouseholdDocumentsPage({ params }: { params: { id:
       summaryTitle="Vault status"
       summarySubtitle={`${household.documents.length} documents on file for this household`}
       summary={
-        <div>
-          <div className="mb-2.5 flex h-4 w-full overflow-hidden rounded-control">
-            {buckets.map((b) =>
-              counts[b] ? <div key={b} style={{ flexGrow: counts[b], background: BUCKET_COLOR[b] }} /> : null,
-            )}
+        household.documents.length > 0 ? (
+          <div>
+            <div className="mb-2.5 flex h-4 w-full overflow-hidden rounded-control">
+              {buckets.map((b) =>
+                counts[b] ? <div key={b} style={{ flexGrow: counts[b], background: BUCKET_COLOR[b] }} /> : null,
+              )}
+            </div>
+            <div className="flex gap-4 text-xs text-ink-muted">
+              {buckets
+                .filter((b) => counts[b])
+                .map((b) => (
+                  <div key={b} className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full" style={{ background: BUCKET_COLOR[b] }} />
+                    {counts[b]} {BUCKET_LABEL[b]}
+                  </div>
+                ))}
+            </div>
           </div>
-          <div className="flex gap-4 text-xs text-ink-muted">
-            {buckets
-              .filter((b) => counts[b])
-              .map((b) => (
-                <div key={b} className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-cell" style={{ background: BUCKET_COLOR[b] }} />
-                  {counts[b]} {BUCKET_LABEL[b]}
-                </div>
-              ))}
-          </div>
-        </div>
+        ) : (
+          <div className="text-sm text-ink-muted">No documents on file for this household yet.</div>
+        )
       }
       detailTitle="All documents"
       detail={

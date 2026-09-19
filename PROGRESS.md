@@ -445,3 +445,34 @@ advisor capacity, all queried live from the 10 seeded households.
   always-on or always-off. Three design-quality review agents dispatched, one per
   natural grouping (Retirement+Tax, Protection+Estate, Documents+Activity);
   findings recorded in a follow-up entry once they report back.
+- **2026-09-18** — Fix pass on the three review agents' findings from the entry
+  above. Real, non-cosmetic bug: `monthlySpendingNeedCents` was derived from
+  *current* income-relative spending, which clustered every household under a
+  ~2% implied retirement withdrawal rate regardless of net worth — running the
+  actual `projectRetirement()` simulation against all 10 households' real
+  stored inputs confirmed every single one returned exactly 100% success
+  probability, making the section structurally unable to ever demonstrate the
+  risk detection the product thesis is about. Fixed by deriving retirement
+  spending need from portfolio size at a randomized 3.5%–7% withdrawal rate
+  instead; re-verified via the same method and now sees a realistic 64%–100%
+  spread across the 10 households. Protection and Estate never generated any
+  Insight rows for either section (the derivation code computed obviously
+  insight-worthy conditions — a deeply negative life-insurance gap, a missing
+  estate beneficiary, no LTC policy on file — without ever pushing them);
+  added conditional insight generation for both, plus Documents and Activity
+  for the same reason once the pattern was in front of me. Document vault rows
+  mostly showed vague placeholder text ("Recent", "On file", "Due soon")
+  instead of the real formatted dates the schema comment promised and the
+  design shows for every row; now computed from real offsets. Two smaller
+  regressions: the household Documents page's legend dots used `rounded-cell`
+  (square) instead of the `rounded-full` convention this session established
+  everywhere else, and it had no empty-state guard for a household with zero
+  documents (currently unreachable — every seeded household gets a fixed
+  document set — but latent, and inconsistent with the sibling Activity page's
+  guard). An exact-zero Protection coverage gap rendered green ("overinsured")
+  instead of the neutral "At target" treatment the null case already got.
+  Also cleaned up four orphaned `next dev` processes the three review agents
+  had each started on their own without cleanup; a reminder for future review
+  prompts to be explicit about killing any dev server they start themselves.
+  Re-verified with a clean typecheck + lint on both packages and a full
+  10-household × 12-route smoke test (all 200/308) after every fix.

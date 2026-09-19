@@ -351,7 +351,15 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
   const retirementAgeSpouse = spouseMember ? Math.round(63 + rand() * 5) : null;
   const ssClaimAgePrimary = Math.round(64 + rand() * 6);
   const ssClaimAgeSpouse = spouseMember ? Math.round(64 + rand() * 6) : null;
-  const monthlySpendingNeedCents = Math.round((spendingCents / 12) * (0.65 + rand() * 0.25));
+  // Tied to portfolio size at an annual withdrawal rate that deliberately
+  // spans "safe" (~3.5%) to "aggressive" (~7%), not to current-year income —
+  // an income-relative version of this clustered every household under a 2%
+  // implied withdrawal rate regardless of net worth, which made
+  // projectRetirement() return 100% success for all 10 households and left
+  // the section unable to ever demonstrate the risk detection the product
+  // thesis is about (see PROGRESS.md fix log).
+  const retirementWithdrawalRatePct = 0.035 + rand() * 0.035;
+  const monthlySpendingNeedCents = Math.round((netWorthCents * retirementWithdrawalRatePct) / 12);
   const withdrawalSequencing = "Taxable → Traditional → Roth";
   const retirementSuccessDeltaPts = Math.round((rand() - 0.55) * 9);
 
@@ -476,18 +484,48 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     },
   ].map((d, i) => ({ ...d, sortOrder: i }));
 
-  // Household document vault
+  // Household document vault. uploadedLabel is a real formatted date (or a
+  // relative near-future one for "Due soon") for every row that has one —
+  // see the schema comment: "formatted date string, or '—' for Missing."
+  const now = Date.now();
+  const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000);
+  const daysFromNow = (d: number) => new Date(now + d * 24 * 60 * 60 * 1000);
+  const shortDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const monthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
   const docBucketRoll = rand();
+  const trustSignedYearsAgo = 2 + Math.round(rand() * 3);
   const documents = [
-    { name: "Estate Planning Questionnaire", type: "Estate", statusLabel: "Signed", bucket: "complete", uploadedLabel: "Recent", source: "Client-provided" },
-    { name: "Family Trust Agreement (Revocable)", type: "Estate", statusLabel: "Signed", bucket: "complete", uploadedLabel: "On file", source: "E-signature" },
-    { name: "Latest Form 1040", type: "Tax", statusLabel: "Filed", bucket: "complete", uploadedLabel: "Apr 15", source: "Client-provided" },
+    {
+      name: "Estate Planning Questionnaire",
+      type: "Estate",
+      statusLabel: "Signed",
+      bucket: "complete",
+      uploadedLabel: shortDate(daysAgo(4 + Math.round(rand() * 10))),
+      source: "Client-provided",
+    },
+    {
+      name: "Family Trust Agreement (Revocable)",
+      type: "Estate",
+      statusLabel: "Signed",
+      bucket: "complete",
+      uploadedLabel: monthYear(daysAgo(trustSignedYearsAgo * 365)),
+      source: "E-signature",
+    },
+    {
+      name: "Latest Form 1040",
+      type: "Tax",
+      statusLabel: "Filed",
+      bucket: "complete",
+      uploadedLabel: "Apr 15",
+      source: "Client-provided",
+    },
     {
       name: "Investment Policy Statement",
       type: "Agreement",
       statusLabel: docBucketRoll < 0.5 ? "Due" : "Signed",
       bucket: docBucketRoll < 0.5 ? "needsAttention" : "complete",
-      uploadedLabel: docBucketRoll < 0.5 ? "Due soon" : "On file",
+      uploadedLabel: docBucketRoll < 0.5 ? shortDate(daysFromNow(4 + Math.round(rand() * 10))) : shortDate(daysAgo(20 + Math.round(rand() * 40))),
       source: "Advisor upload",
     },
     {
@@ -495,7 +533,7 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       type: "KYC",
       statusLabel: "Expiring soon",
       bucket: "needsAttention",
-      uploadedLabel: "On file",
+      uploadedLabel: monthYear(daysAgo(4 * 365 - Math.round(rand() * 60))),
       source: "Client-provided",
     },
     {
@@ -503,14 +541,12 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       type: "Estate",
       statusLabel: missingIndex >= 0 ? "Missing" : "On file",
       bucket: missingIndex >= 0 ? "missing" : "complete",
-      uploadedLabel: missingIndex >= 0 ? "—" : "On file",
+      uploadedLabel: missingIndex >= 0 ? "—" : monthYear(daysAgo(trustSignedYearsAgo * 365)),
       source: missingIndex >= 0 ? "—" : "Client-provided",
     },
   ];
 
   // Activity timeline — spread over roughly the last two months.
-  const now = Date.now();
-  const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000);
   const activityEvents = [
     { kind: "PlanChange", label: "Positions synced from custodian feed", detail: null, occurredAt: daysAgo(0) },
     { kind: "Document", label: "New document uploaded", detail: null, occurredAt: daysAgo(3 + Math.round(rand() * 4)) },
@@ -558,6 +594,48 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       section: "Overview",
       text: `This household is past its review cadence (last contact ${h.lastContactDays} days ago) — worth scheduling before it drifts further.`,
       sourceLabel: "Overview, synced today",
+    });
+  }
+  if (lifeGapPct <= -30) {
+    insights.push({
+      section: "Protection",
+      text: `Life insurance coverage (${dollarsLabel(lifeCurrentCents)}) is ${Math.abs(lifeGapPct)}% below the estimated need (${dollarsLabel(lifeNeedCents)}) given current income-replacement goals — worth discussing at the next review.`,
+      sourceLabel: "Protection section, Cashflow + Goals",
+    });
+  } else if (!hasLtcPolicy) {
+    insights.push({
+      section: "Protection",
+      text: `No long-term care policy is on file against an estimated ${dollarsLabel(ltcNeedCents)} benefit pool need — worth raising before it becomes urgent.`,
+      sourceLabel: "Protection section, synced today",
+    });
+  }
+  if (missingIndex >= 0) {
+    const missingAsset = estateAssetTemplates[missingIndex]!;
+    insights.push({
+      section: "Estate",
+      text: `${missingAsset.assetName} has no beneficiary on file. Accounts without a named beneficiary typically default to the estate, which can mean probate — worth confirming the designation with the plan administrator.`,
+      sourceLabel: "Estate section, synced today",
+    });
+  } else if (beneficiaryDesignationsOverdue) {
+    insights.push({
+      section: "Estate",
+      text: "Beneficiary designations haven't been reviewed in over three years — worth a fresh pass to confirm they still reflect the household's wishes.",
+      sourceLabel: "Estate section, synced today",
+    });
+  }
+  const missingDoc = documents.find((d) => d.bucket === "missing");
+  if (missingDoc) {
+    insights.push({
+      section: "Documents",
+      text: `${missingDoc.name} is missing from the vault — worth requesting before it holds up anything that depends on it.`,
+      sourceLabel: "Documents section, synced today",
+    });
+  }
+  if (openTasksCount >= 3) {
+    insights.push({
+      section: "Activity",
+      text: `${openTasksCount} tasks are still open for this household — worth a pass to close out or reprioritize before the next review.`,
+      sourceLabel: "Activity section, synced today",
     });
   }
 

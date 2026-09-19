@@ -14,14 +14,15 @@ export function ProtectionGapBars({ coverage }: { coverage: CoverageGap[] }) {
     <div>
       <div className="flex flex-col gap-3.5">
         {coverage.map((c) => {
+          const atTarget = c.gapPct === null || c.gapPct === 0;
           const width = c.gapPct === null ? 0 : Math.min(50, Math.abs(c.gapPct) / 2);
-          const tone = c.gapPct === null ? "muted" : c.gapPct < 0 ? "loss" : "gain";
+          const tone = atTarget ? "muted" : c.gapPct! < 0 ? "loss" : "gain";
           return (
             <div key={c.id} className="grid grid-cols-[130px_1fr_64px] items-center gap-2.5">
               <div className="text-sm">{c.label}</div>
               <div className="relative h-[18px]">
                 <div className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
-                {c.gapPct !== null && (
+                {!atTarget && c.gapPct !== null && (
                   <div
                     className={`absolute inset-y-0.5 ${tone === "loss" ? "bg-loss" : "bg-gain"}`}
                     style={c.gapPct < 0 ? { right: "50%", width: `${width}%` } : { left: "50%", width: `${width}%` }}
@@ -29,7 +30,7 @@ export function ProtectionGapBars({ coverage }: { coverage: CoverageGap[] }) {
                 )}
               </div>
               <div className={`tabular text-right text-xs ${tone === "loss" ? "text-loss" : tone === "gain" ? "text-gain" : "text-ink-muted"}`}>
-                {c.gapLabel ?? "At target"}
+                {atTarget ? "At target" : c.gapLabel}
               </div>
             </div>
           );
