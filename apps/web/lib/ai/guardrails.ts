@@ -10,7 +10,12 @@
  * that cries wolf is worse than none. */
 
 export type GuardrailFlag = {
-  rule: "security_recommendation" | "authoritative_tax_or_legal" | "ungrounded_figure";
+  rule:
+    | "security_recommendation"
+    | "authoritative_tax_or_legal"
+    | "ungrounded_figure"
+    | "unknown_citation"
+    | "uncited_answer";
   explanation: string;
   excerpt: string;
 };
@@ -36,9 +41,32 @@ function sentenceAround(text: string, index: number): string {
 
 export function checkAssistantText(
   text: string,
-  opts: { readToolsCalled: number },
+  opts: { readToolsCalled: number; refsIssued: Set<string>; refsUsed: string[] },
 ): GuardrailFlag[] {
   const flags: GuardrailFlag[] = [];
+
+  // A ref the model made up points at nothing, and the dock would render it
+  // as a dead token. Catching it is cheap and exact, unlike judging whether
+  // a real ref was the *right* one.
+  const unknown = Array.from(new Set(opts.refsUsed.filter((r) => !opts.refsIssued.has(r))));
+  if (unknown.length > 0) {
+    flags.push({
+      rule: "unknown_citation",
+      explanation: `Cited ${unknown.join(", ")}, which no tool in this conversation returned. A citation that resolves to nothing is not a citation.`,
+      excerpt: unknown.join(", "),
+    });
+  }
+
+  // Records were read and figures quoted, but nothing was attributed — the
+  // advisor has no way to check which row any of it came from (§9 rule 1).
+  if (opts.readToolsCalled > 0 && opts.refsUsed.length === 0 && FIGURE.test(text)) {
+    flags.push({
+      rule: "uncited_answer",
+      explanation:
+        "Quotes figures from records but cites none of them, so nothing in this answer links back to the record it came from.",
+      excerpt: sentenceAround(text, FIGURE.exec(text)?.index ?? 0),
+    });
+  }
 
   const security = SECURITY_RECOMMENDATION.exec(text);
   if (security) {

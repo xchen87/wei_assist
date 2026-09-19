@@ -473,3 +473,48 @@ advisor is the one who decides. Every turn writes append-only `AiConversation` /
 `AiToolCall` rows recording tool inputs and the ids of records touched — never the payloads,
 which would put client figures in a second place. Without `ANTHROPIC_API_KEY` the dock says so
 and the rest of the app is unaffected.
+
+---
+
+## D-018 — Records are cited by ref, not described in prose
+
+2026-09-19 · Accepted
+
+**Context** — The first real run of the assistant (D-017) produced an answer whose figures
+all matched the database but whose attribution did not: asked what to raise with an overdue
+household, it wrote "flagged in the Sep 2 check-in note: they'd asked for a goals
+discussion", merging the date of one activity row (a Sep 2 meeting) with the substance of
+another (an Aug 9 note). Both records were real, both mentioned goals, and the sentence read
+perfectly — a reader would have to already know the timeline to catch it. None of the
+existing guardrails could: there is no fabricated figure, no buy/sell language, and a tool
+was called. The underlying cause was structural rather than a bad turn of phrase — tool
+payloads gave the model no way to *point* at a record, so the only way to attribute anything
+was to describe it, and describing is where two rows blur into one.
+
+**Decision** — Every record a tool returns carries a ref (`R1`, `R2`, …) issued by a
+per-request registry (`lib/ai/refs.ts`) and included in its payload. The system prompt
+requires the model to cite the ref after a claim and explicitly forbids identifying a record
+by restating its date or title. The chat dock renders each ref as a link carrying that
+record's own label — "Note · Aug 9, 2026 · Household mentioned interest in a goals
+discussion" — so a citation pointing at the wrong row is visible rather than plausible. The
+route checks the finished answer against the refs actually issued: an invented ref is flagged
+`unknown_citation`, and an answer that quotes figures while citing nothing is flagged
+`uncited_answer`.
+
+**Alternatives** — Tighten the system prompt alone ("be careful with dates"): free, but the
+failure mode is a model quietly conflating two records, which is exactly what instructions
+are worst at preventing and what nothing downstream could then detect. Return record ids and
+let the model cite those: same mechanism, but raw cuids in prose are unreadable and the
+advisor still can't tell what was cited without clicking. Have the model emit structured
+citations as a separate tool call: more rigid, an extra round trip per answer, and it
+separates the claim from its citation at exactly the moment they need to stay together.
+
+**Consequences** — This makes wrong attribution *visible and checkable*; it does not make it
+impossible. The checks are exact about refs that resolve to nothing and silent about a real
+ref attached to the wrong claim — judging that needs to compare the claim against the record,
+which these string checks cannot do. What changed is that the advisor can now see, without
+leaving the sentence, which record each point came from. Ref numbering is per request, so
+refs in an older message do not resolve against a newer turn; the dock keeps each message's
+citations on the message itself for that reason. Adding a tool means deciding what its
+citable unit is — the activity tool issues one ref per event rather than one for the
+timeline, because rows within one timeline are the ones most easily conflated.

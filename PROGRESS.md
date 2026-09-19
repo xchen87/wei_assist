@@ -128,6 +128,13 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **The assistant cites records by ref, never by describing them.** Every
+  record a tool returns gets an `R1`-style ref (`lib/ai/refs.ts`) that the
+  reply quotes and the dock renders as a link naming that record. A new
+  tool has to decide its citable unit — one ref per row where rows can be
+  confused with each other (activity events), one per section where they
+  can't. Prose attribution is how a Sep 2 meeting and an Aug 9 note became
+  one wrong citation (D-018).
 - **The assistant only has tools for data that exists.** `lib/ai/tools.ts`
   has six tools, all backed by real rows. Market, calendar/task, and report
   tools from CLAUDE.md §9 are deliberately absent — a tool over fixture data
@@ -244,10 +251,14 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       a confirmation card and the advisor's click calls the same `dismissInsight`
       server action the plan sections use
 - [~] Guardrails — `lib/ai/guardrails.ts` checks every finished reply for security
-      recommendations, authoritative tax/legal claims, and figures asserted with no
-      tool call, and flags them in the dock and the audit log. Exercised by hand
-      against both trip and look-alike cases; no automated test suite exists yet
-      (no test runner in the repo at all — see Phase 0)
+      recommendations, authoritative tax/legal claims, figures asserted with no tool
+      call, citations that resolve to no record, and answers that quote figures while
+      citing nothing. Flagged in the dock and the audit log. Exercised by hand against
+      both trip and look-alike cases; no automated test suite exists yet (no test
+      runner in the repo at all — see Phase 0)
+- [x] Citations — every record a tool returns carries a ref the reply must cite, which
+      the dock renders as a link naming that record (D-018). Replaces prose attribution,
+      which is what let two activity rows get merged into one wrong citation
 - [x] Append-only interaction log — `AiConversation` / `AiMessage` / `AiToolCall`
       record the tools called and the ids of records touched (§9 rule 5, §11), never
       the tool result payloads
@@ -465,6 +476,25 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Fixed the citation-attribution problem the first live run surfaced.
+  The cause was structural, not a bad turn of phrase: tool payloads gave the model no way
+  to point at a record, so attributing anything meant describing it, and two activity rows
+  that both mentioned goals blurred into one citation. Every record a tool returns now
+  carries a ref (`lib/ai/refs.ts`), the prompt requires citing the ref and forbids
+  identifying a record by restating its date or title, the dock renders each ref as a link
+  carrying that record's own label, and the route checks the answer against the refs
+  actually issued — invented refs are flagged `unknown_citation`, a figure-quoting answer
+  that cites nothing is flagged `uncited_answer` (D-018). Re-ran the exact question that
+  failed: it now cites the Aug 9 note for the goals request and the Sep 2 meeting
+  separately for the cash conversation, each chip linking to the right row, with every ref
+  resolving. Guardrail rules verified directly against cited / invented-ref / uncited /
+  clean cases. Also rendered the light markdown the model writes (bold, dash bullets),
+  which was showing as literal asterisks in the dock now that answers are longer — same
+  file, and leaving raw `**` in shipped UI beside the new citation chips wasn't defensible.
+  What this does not do: it makes wrong attribution visible and checkable, not impossible
+  — a real ref attached to the wrong claim still reads as fine to the string checks, and
+  only the chip's own label gives it away.
 
 - **2026-09-19** — Switched the assistant to `claude-sonnet-5` (from Opus) at the user's
   direction, to keep per-conversation cost down on a workload that is short,

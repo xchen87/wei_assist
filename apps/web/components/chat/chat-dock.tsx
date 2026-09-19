@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatContext } from "@/lib/chat-store";
 import { ChatIcon, ChevronRightIcon, CloseIcon } from "@/components/ui/icons";
-import { GuardrailNotice, ProposalCard, ToolRunList } from "./message-parts";
+import { CitedText, GuardrailNotice, ProposalCard, ToolRunList } from "./message-parts";
 
 /**
  * The assistant, streaming against /api/chat with grounded tool calls
@@ -82,7 +82,7 @@ export function ChatDock() {
                 <div key={i} className="max-w-[92%]">
                   <ToolRunList tools={m.tools} />
                   {m.text ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.text}</div>
+                    <CitedText text={m.text} citations={m.citations} />
                   ) : m.error ? null : (
                     <div className="text-sm text-ink-muted">Thinking…</div>
                   )}

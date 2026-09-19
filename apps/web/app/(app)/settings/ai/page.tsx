@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 const GROUNDING_RULES: { text: string; enforcement: string }[] = [
   {
     text: "Every claim about a household's finances comes from a tool result and links to the record. If tools return nothing, the assistant says so.",
-    enforcement: "System prompt · tool payloads carry the link · flagged by guardrails when a figure appears with no tool call",
+    enforcement:
+      "System prompt · every record returned carries a citation ref the reply must quote, rendered in the dock as a link to that record · flagged when a figure appears with no tool call, when an answer cites nothing, or when a ref resolves to no record",
   },
   {
     text: "Figures are quoted from the tool payload, already rendered through lib/format — not restated or recomputed by the model.",

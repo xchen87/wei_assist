@@ -28,12 +28,16 @@ export type ProposalRecord = {
 
 export type GuardrailFlag = { rule: string; explanation: string; excerpt: string };
 
+/** A record a tool returned, keyed by the ref the model cites it with. */
+export type Citation = { ref: string; label: string; link: string };
+
 export type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   tools: ToolRun[];
   proposals: ProposalRecord[];
   guardrails: GuardrailFlag[];
+  citations: Citation[];
   error?: string;
 };
 
@@ -55,7 +59,7 @@ type ChatState = {
 let controller: AbortController | null = null;
 
 function emptyAssistant(): ChatMessage {
-  return { role: "assistant", text: "", tools: [], proposals: [], guardrails: [] };
+  return { role: "assistant", text: "", tools: [], proposals: [], guardrails: [], citations: [] };
 }
 
 export const useChatContext = create<ChatState>((set, get) => ({
@@ -92,7 +96,7 @@ export const useChatContext = create<ChatState>((set, get) => ({
 
     const history = [
       ...get().messages,
-      { role: "user" as const, text: trimmed, tools: [], proposals: [], guardrails: [] },
+      { role: "user" as const, text: trimmed, tools: [], proposals: [], guardrails: [], citations: [] },
     ];
     set({ collapsed: false, streaming: true, messages: [...history, emptyAssistant()] });
 
@@ -161,6 +165,7 @@ type StreamEvent =
   | { type: "text"; delta: string }
   | { type: "tool"; id: string; name: string; status: ToolRun["status"]; summary?: string }
   | { type: "proposal"; id: string; proposal: Proposal }
+  | { type: "citations"; items: Citation[] }
   | { type: "guardrail"; flags: GuardrailFlag[] }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -192,6 +197,9 @@ function applyEvent(
         ...m,
         proposals: [...m.proposals, { id: event.id, proposal: event.proposal, state: "pending" }],
       }));
+      return;
+    case "citations":
+      patch((m) => ({ ...m, citations: [...m.citations, ...event.items] }));
       return;
     case "guardrail":
       patch((m) => ({ ...m, guardrails: event.flags }));

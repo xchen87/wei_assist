@@ -4,6 +4,7 @@ import { getClient, isConfigured, MODEL_ID } from "@/lib/ai/model";
 import { SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
 import { buildContextDescriptor } from "@/lib/ai/context";
 import { checkAssistantText } from "@/lib/ai/guardrails";
+import { createRefRegistry, refsUsedIn, type Citation } from "@/lib/ai/refs";
 import { findTool, TOOL_DEFINITIONS, type Proposal } from "@/lib/ai/tools";
 import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 
@@ -27,6 +28,7 @@ type StreamEvent =
   | { type: "text"; delta: string }
   | { type: "tool"; id: string; name: string; status: "running" | "done" | "error"; summary?: string }
   | { type: "proposal"; id: string; proposal: Proposal }
+  | { type: "citations"; items: Citation[] }
   | { type: "guardrail"; flags: { rule: string; explanation: string; excerpt: string }[] }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -112,6 +114,9 @@ async function runTurn(
   }
 
   const client = getClient();
+  // One registry per turn: refs are handed out as tools return records, and
+  // the answer is checked against exactly what was issued.
+  const refs = createRefRegistry();
   let answer = "";
   let readToolsCalled = 0;
 
@@ -168,9 +173,15 @@ async function runTurn(
       }
 
       try {
-        const outcome = await tool.run((use.input ?? {}) as Record<string, unknown>);
+        const before = refs.all().length;
+        const outcome = await tool.run((use.input ?? {}) as Record<string, unknown>, refs);
         if (tool.effect === "read") readToolsCalled += 1;
         if (outcome.proposal) send({ type: "proposal", id: use.id, proposal: outcome.proposal });
+
+        // Send the dock what it needs to render this call's citations as
+        // links, before the model writes the sentence that cites them.
+        const issued = refs.all().slice(before);
+        if (issued.length > 0) send({ type: "citations", items: issued });
 
         await prisma.aiToolCall.create({
           data: {
@@ -211,7 +222,11 @@ async function runTurn(
     messages.push({ role: "user", content: results });
   }
 
-  const flags = checkAssistantText(answer, { readToolsCalled });
+  const flags = checkAssistantText(answer, {
+    readToolsCalled,
+    refsIssued: refs.issued(),
+    refsUsed: refsUsedIn(answer),
+  });
   if (flags.length > 0) send({ type: "guardrail", flags });
 
   await prisma.aiMessage.create({

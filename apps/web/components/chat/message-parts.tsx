@@ -3,7 +3,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { dismissInsight } from "@/app/(app)/clients/[id]/actions";
-import { useChatContext, type ChatMessage, type ProposalRecord } from "@/lib/chat-store";
+import Link from "next/link";
+import { useChatContext, type ChatMessage, type Citation, type ProposalRecord } from "@/lib/chat-store";
 
 const TOOL_LABELS: Record<string, string> = {
   search_households: "Searched the book",
@@ -130,4 +131,68 @@ export function GuardrailNotice({ flags }: { flags: ChatMessage["guardrails"] })
       ))}
     </div>
   );
+}
+
+
+/** Renders an assistant reply: citation tokens become links carrying each
+ * record's own name — so a claim attributed to the wrong row shows it,
+ * instead of reading as plausible prose — and the light markdown the model
+ * writes (bold, dash bullets) is rendered rather than shown raw. A token
+ * with no matching record renders struck through rather than silently
+ * dropped; the guardrails flag the same case. */
+export function CitedText({ text, citations }: { text: string; citations: Citation[] }) {
+  const byRef = new Map(citations.map((c) => [c.ref, c]));
+  const lines = text.split("\n");
+
+  return (
+    <div className="flex flex-col gap-1.5 text-sm leading-relaxed">
+      {lines.map((line, i) => {
+        const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+        if (bullet) {
+          return (
+            <div key={i} className="flex gap-2 pl-0.5">
+              <span className="select-none text-ink-muted">·</span>
+              <span>{renderInline(bullet[1]!, byRef)}</span>
+            </div>
+          );
+        }
+        if (!line.trim()) return null;
+        return <div key={i}>{renderInline(line, byRef)}</div>;
+      })}
+    </div>
+  );
+}
+
+/** Splits a line into citation chips, bold runs, and plain text. Kept to
+ * the two markdown forms the assistant actually produces — this is a chat
+ * column, not a document renderer. */
+function renderInline(line: string, byRef: Map<string, Citation>) {
+  const parts = line.split(/(\[R\d+\]|\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, i) => {
+    const bold = /^\*\*([^*]+)\*\*$/.exec(part);
+    if (bold) return <span key={i} className="font-semibold">{bold[1]}</span>;
+
+    const ref = /^\[(R\d+)\]$/.exec(part);
+    if (!ref) return <span key={i}>{part}</span>;
+
+    const citation = byRef.get(ref[1]!);
+    if (!citation) {
+      return (
+        <span key={i} className="text-xs text-loss line-through" title="No record was returned for this citation">
+          {part}
+        </span>
+      );
+    }
+    return (
+      <Link
+        key={i}
+        href={citation.link}
+        title={citation.label}
+        className="mx-0.5 whitespace-nowrap rounded-control bg-pine-tint px-1.5 py-0.5 text-xs font-semibold text-pine hover:underline"
+      >
+        {citation.label.length > 40 ? `${citation.label.slice(0, 39)}…` : citation.label}
+      </Link>
+    );
+  });
 }

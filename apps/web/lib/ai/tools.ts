@@ -3,6 +3,7 @@ import { prisma } from "@meridian/db";
 import { formatMoney } from "@/lib/format/money";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatDate } from "@/lib/format/date";
+import type { RefRegistry } from "./refs";
 
 /** Tools are the only way the model touches data (CLAUDE.md §9) — there is
  * no free-form SQL, and nothing here takes a table or column name from the
@@ -10,6 +11,11 @@ import { formatDate } from "@/lib/format/date";
  * lib/format alongside a link to the record they came from, so the model
  * can satisfy §9 rules 1 and 2 by quoting what it was handed rather than
  * restating numbers in its own words.
+ *
+ * Every record handed back carries a `ref` issued by the request's
+ * RefRegistry. The model cites that token rather than describing the record
+ * in its own words, which is what stops it merging two rows into one
+ * citation — see lib/ai/refs.ts.
  *
  * Two tools are proposals, not actions. Per §9 rule 3 anything with an
  * external effect is surfaced for the advisor to confirm in the UI; the
@@ -35,7 +41,7 @@ export type ToolDef = {
   name: string;
   effect: ToolEffect;
   definition: Anthropic.Tool;
-  run: (input: Record<string, unknown>) => Promise<ToolOutcome>;
+  run: (input: Record<string, unknown>, refs: RefRegistry) => Promise<ToolOutcome>;
 };
 
 function str(input: Record<string, unknown>, key: string): string | undefined {
@@ -87,7 +93,7 @@ const searchHouseholds: ToolDef = {
       required: [],
     },
   },
-  async run(input) {
+  async run(input, refs) {
     const query = str(input, "query");
     const limit = Math.min(Math.max(num(input, "limit") ?? 10, 1), 25);
     const households = await prisma.household.findMany({
@@ -120,6 +126,7 @@ const searchHouseholds: ToolDef = {
       payload: {
         count: households.length,
         households: households.map((h) => ({
+          ref: refs.issue(h.name, `/clients/${h.id}`),
           household_id: h.id,
           name: h.name,
           link: `/clients/${h.id}`,
@@ -159,13 +166,13 @@ const getHouseholdSection: ToolDef = {
       required: ["household_id", "section"],
     },
   },
-  async run(input) {
+  async run(input, refs) {
     const householdId = str(input, "household_id");
     const section = str(input, "section") as Section | undefined;
     if (!householdId || !section || !SECTIONS.includes(section)) {
       return { payload: { error: "household_id and a valid section are required." }, recordIds: [] };
     }
-    return readSection(householdId, section);
+    return readSection(householdId, section, refs);
   },
 };
 
@@ -185,7 +192,7 @@ const getHouseholdActivity: ToolDef = {
       required: ["household_id"],
     },
   },
-  async run(input) {
+  async run(input, refs) {
     const householdId = str(input, "household_id");
     if (!householdId) return { payload: { error: "household_id is required." }, recordIds: [] };
     const limit = Math.min(Math.max(num(input, "limit") ?? 8, 1), 20);
@@ -194,11 +201,16 @@ const getHouseholdActivity: ToolDef = {
       orderBy: { occurredAt: "desc" },
       take: limit,
     });
+    const link = `/clients/${householdId}/activity`;
     return {
       recordIds: events.map((e) => e.id),
       payload: {
-        link: `/clients/${householdId}/activity`,
+        link,
+        // One ref per event, not one for the timeline: these are the rows
+        // most easily conflated with each other, since several can mention
+        // the same subject on different dates.
         events: events.map((e) => ({
+          ref: refs.issue(`${e.kind} · ${formatDate(e.occurredAt)} · ${e.label}`, link),
           kind: e.kind,
           label: e.label,
           detail: e.detail,
@@ -226,7 +238,7 @@ const getOpenInsights: ToolDef = {
       required: [],
     },
   },
-  async run(input) {
+  async run(input, refs) {
     const limit = Math.min(Math.max(num(input, "limit") ?? 10, 1), 25);
     const insights = await prisma.insight.findMany({
       where: {
@@ -243,6 +255,10 @@ const getOpenInsights: ToolDef = {
       payload: {
         count: insights.length,
         insights: insights.map((i) => ({
+          ref: refs.issue(
+            `${i.household.name} · ${i.section} insight`,
+            `/clients/${i.household.id}/${sectionSlug(i.section)}`,
+          ),
           insight_id: i.id,
           household: i.household.name,
           household_id: i.household.id,
@@ -345,7 +361,7 @@ function sectionSlug(section: string): string {
 // Section readers. Each returns display-ready strings plus the link to the
 // page the advisor can verify them on.
 
-async function readSection(householdId: string, section: Section): Promise<ToolOutcome> {
+async function readSection(householdId: string, section: Section, refs: RefRegistry): Promise<ToolOutcome> {
   const h = await prisma.household.findUnique({
     where: { id: householdId },
     include: {
@@ -363,7 +379,13 @@ async function readSection(householdId: string, section: Section): Promise<ToolO
   if (!h) return { payload: { error: "No household with that id." }, recordIds: [] };
 
   const link = `/clients/${h.id}${section === "overview" ? "" : `/${section}`}`;
-  const base = { household: h.name, section, link, source: "Household record, read just now" };
+  const base = {
+    ref: refs.issue(`${h.name} · ${section}`, link),
+    household: h.name,
+    section,
+    link,
+    source: "Household record, read just now",
+  };
   const money = (cents: number) => formatMoney(cents, { compact: true });
 
   switch (section) {
@@ -520,7 +542,7 @@ async function readSection(householdId: string, section: Section): Promise<ToolO
         },
       };
     case "activity":
-      return getHouseholdActivity.run({ household_id: h.id, limit: 8 });
+      return getHouseholdActivity.run({ household_id: h.id, limit: 8 }, refs);
     case "compliance":
       return {
         recordIds: [h.id, ...h.complianceItems.map((c) => c.id), ...h.attestations.map((a) => a.id)],
