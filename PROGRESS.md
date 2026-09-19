@@ -271,9 +271,15 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       Honestly scoped: there's no generic Meeting entity yet (CLAUDE.md §10),
       so this is "upcoming household reviews," not an arbitrary event calendar
       — stated in the page's own footer note, not implied otherwise
-- [ ] Tasks — empty-state stub, same "no design reference" reasoning as Intake
-      (Today's Tasks widget derives from open Insights as a stand-in; there's no
-      Task model either)
+- [x] Tasks — built directly, no design pass (same user direction as Schedule).
+      A real inbox of every open Insight across every household, grouped by
+      household, with search + household + section filters (URL-driven, same
+      `FilterSelect` pattern as Documents). Reuses `InsightCard`/`dismissInsight`
+      unmodified — Dismiss/Accept here calls the exact same server action the
+      household detail pages use, so it's a real, persisting mutation, not a
+      "not wired up" placeholder. Honestly scoped: no due-date field exists on
+      Insight, so "due and overdue" (CLAUDE.md §5) isn't literal — stated in the
+      page's own header comment
 - [~] Markets — full layout from `design/Markets.dc.html` now built: Equities and
       Rates & economy snapshot grids, a computed Treasury yield curve
       (`components/charts/yield-curve.tsx`), a Tax & regulatory calendar, Watchlist,
@@ -633,3 +639,21 @@ advisor capacity, all queried live from the 10 seeded households.
   both the current month and a month with an overdue household). Paused here
   per the user's page-by-page review request — Tasks/Intake/Settings/
   household-Compliance not started yet.
+- **2026-09-18** — Built Tasks (second of the five no-design pages, after
+  user review of Schedule). An inbox of every open Insight across every
+  household — the same real signal Today's Tasks widget already stood in
+  with — grouped by household, with search/household/section filters, all
+  URL-driven via the same `FilterSelect` component Documents/Tasks now
+  share. Reuses `InsightCard`/`dismissInsight` unmodified rather than
+  building a parallel "not wired up" version: Dismiss/Accept on this page
+  is a real, persisting server-action call, identical to the one on every
+  household detail page. Caught and fixed one filter bug before it shipped
+  (found by reasoning through the query, not by testing): the Section
+  dropdown's own option list was being computed from the already-filtered
+  insight set, so picking a section would collapse the dropdown down to
+  just that one option on the next render — split into an independent
+  unfiltered query so both filters always show their full option list
+  regardless of what the other one is set to. Verified: clean typecheck +
+  lint, header count (38 open across 10 households) matches a direct DB
+  query exactly, and curl-inspection confirming the Section dropdown still
+  lists all sections (not just the selected one) after filtering.
