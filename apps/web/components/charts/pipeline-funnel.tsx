@@ -79,7 +79,7 @@ export function PipelineFunnel({
             textAnchor="middle"
             fontSize={22}
             fontWeight={600}
-            fill="#fff"
+            fill="var(--on-accent)"
             fontFamily="var(--font-public-sans)"
           >
             {values[i]}

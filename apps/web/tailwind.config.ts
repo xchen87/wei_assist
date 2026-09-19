@@ -22,6 +22,7 @@ const config: Config = {
         loss: "var(--loss)",
         "loss-tint": "var(--loss-tint)",
         info: "var(--info)",
+        "on-accent": "var(--on-accent)",
       },
       fontFamily: {
         sans: ["var(--font-public-sans)", "system-ui", "-apple-system", "sans-serif"],

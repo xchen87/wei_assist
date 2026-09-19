@@ -69,7 +69,7 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
             <div className="flex flex-col items-center gap-1.5">
               <div
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-                  i < step ? "bg-pine text-white" : i === step ? "border-2 border-pine text-pine" : "border border-rule text-ink-muted"
+                  i < step ? "bg-pine text-on-accent" : i === step ? "border-2 border-pine text-pine" : "border border-rule text-ink-muted"
                 }`}
               >
                 {i + 1}
@@ -247,7 +247,7 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
             <button
               disabled
               title="Not wired up in this build — see this component's file comment for why"
-              className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-white opacity-50"
+              className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-on-accent opacity-50"
             >
               Create household
             </button>
@@ -268,7 +268,7 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
             <button
               onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
               disabled={!canAdvance}
-              className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+              className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-on-accent disabled:opacity-40"
             >
               Continue →
             </button>

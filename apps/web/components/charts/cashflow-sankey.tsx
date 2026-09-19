@@ -66,7 +66,7 @@ export function CashflowSankey({
     </text>
   );
   const valueLabel = (x: number, w: number, top: number, bottom: number, cents: number) => (
-    <text x={x + w / 2} y={(top + bottom) / 2 + 4} textAnchor="middle" fontSize={12} fill="#fff" fontFamily="var(--font-public-sans)">
+    <text x={x + w / 2} y={(top + bottom) / 2 + 4} textAnchor="middle" fontSize={12} fill="var(--on-accent)" fontFamily="var(--font-public-sans)">
       {formatMoney(cents)}
     </text>
   );

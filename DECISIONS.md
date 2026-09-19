@@ -339,3 +339,44 @@ cents everywhere regardless (`lib/format/money.ts`, per D-007) — that part of 
 fully followed, not deviated from. Risk: deferring auth means nothing in this pass has
 been tested under multi-user/session conditions; RBAC and the audit log (§11) remain
 unbuilt and unverified until that work starts.
+
+---
+
+## D-015 — Display preferences live on the device, and accents get their own foreground token
+
+2026-09-19 · Accepted
+
+**Context** — Settings needed an Appearance section, and CLAUDE.md §7 specifies both a dark
+theme (with a full inverted token set already sitting unused in `globals.css`) and two
+density modes "set per user in Settings". Two things blocked making those real. There is no
+`User` table and no auth (D-014), so there is nowhere per-user to store a preference. And
+every primary button, badge, and chart label hardcoded `text-white` / `fill="#fff"` on a
+pine, brass, or info fill — fine on the light theme's dark accents, but the dark theme
+lightens those accents (`--pine` becomes `#3fa683`), where white text falls to roughly 2.3:1
+and fails the AA floor §7 requires of both themes. A theme toggle shipped over that would
+have been a switch that visibly breaks the app.
+
+**Decision** — Add one token, `--on-accent` (white on light, `#0e1114` on dark), and route
+every mark drawn on an accent fill through it; no call site hardcodes white any more. Store
+theme and density in `localStorage` under `meridian.*` keys, applied as `data-theme` and
+`data-density` attributes on `<html>` by a tiny inline script in `<head>` so a dark-theme
+user never sees a flash of the light palette. Everything downstream — tokens, and one
+`:root[data-density="compact"] :is(th, td)` rule that tightens all fourteen tables at once —
+keys off those two attributes, so nothing needs a density prop threaded through it.
+
+**Alternatives** — Ship the toggles disabled until there's a `User` table: consistent with
+how other unwired controls are handled, but these two settings need no server at all, and a
+dead switch on a page whose whole job is settings is worse than a working device-local one.
+Keep `text-white` and accept the dark-theme contrast: cheaper, but knowingly ships an AA
+failure §7 forbids. Per-component density props: explicit, but touches every table for a
+preference that is genuinely global.
+
+**Consequences** — Preferences don't follow a user to another device or another browser, and
+they're invisible to the server, so nothing can be rendered density-aware server-side. Said
+plainly on the page rather than implied to be an account setting. When auth lands, a
+`UserPreference` row replaces the two `localStorage` calls in `lib/preferences.ts` without
+touching anything that reads the attributes. Density deliberately affects table rows only;
+cards, forms, and the nav keep their spacing in both modes, which is narrower than "two
+density modes" might imply. Dark mode is now reachable by any user without ever having been
+through a design pass — the token values come from §7, but no dark-mode mockup exists, so
+individual surfaces may need adjustment as they're reviewed in it.

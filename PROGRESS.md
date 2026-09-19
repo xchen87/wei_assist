@@ -7,7 +7,8 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 
 **Last updated:** 2026-09-19
 **Current phase:** Phase 5 — Remaining plan sections (12 of 13 household-detail sections
-built; Compliance is the one remaining gap, blocked on a design pass — see D-013)
+built; Compliance is the one remaining gap, blocked on a design pass — see D-013). All
+five top-level no-design pages are built except household-scoped Compliance.
 
 ---
 
@@ -119,6 +120,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **Display preferences are device-local, not per user.** Theme and density
+  (Settings → Appearance) persist in `localStorage` and apply as two
+  attributes on `<html>`; there's no `User` table to store them on yet
+  (D-015). Anything drawn on a pine/brass/info fill uses the `--on-accent`
+  token rather than white — the dark theme lightens those accents, where
+  white text would fail AA.
 - **A real bug worth remembering:** date-only values (review dates, contact
   dates) were rendering one calendar day early throughout the app —
   `new Date("2026-10-03")` parses as UTC midnight, and this sandbox's
@@ -166,7 +173,10 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [ ] Command palette (⌘K)
 - [~] Global search — Clients list has a working name search; nothing global yet
 - [ ] Keyboard map and visible focus states beyond browser defaults
-- [ ] Theme switching, density switching — dark-mode tokens exist in CSS; no toggle UI
+- [x] Theme switching, density switching — both real, in Settings → Appearance. Light /
+      dark / system and comfortable / compact, applied as `data-theme` / `data-density` on
+      `<html>` and persisted in localStorage (no User table to hang them on yet — D-015).
+      Density tightens table rows only (40px → 32px), not cards or the nav
 
 ## Phase 2 — Clients spine (M2)
 
@@ -310,6 +320,17 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       "not wired up" placeholder. Honestly scoped: no due-date field exists on
       Insight, so "due and overdue" (CLAUDE.md §5) isn't literal — stated in the
       page's own header comment
+- [x] Settings — built directly, no design pass (same user direction as Schedule and
+      Tasks). Six subpages behind the same left-rail pattern household detail uses:
+      Organization, Team, Appearance, Integrations, AI, Billing. Split deliberately by
+      what's real. Team, the book rollup, and billing seat/household counts are live
+      queries — advisor capacity, AUM per advisor, and prospect counts all come from the
+      same records the Insights page reads, so the two can't disagree. Appearance is
+      fully functional (see Phase 1). Everything else is shown unset with disabled
+      controls rather than filled with an invented firm name, CRD number, plan price, or
+      sync timestamp, and each page's footer note says exactly which of its rows are real
+      and what's missing behind the rest. Integrations additionally names what's standing
+      in for each unbuilt feed today, so it's clear which screens read fixtures
 - [~] Markets — full layout from `design/Markets.dc.html` now built: Equities and
       Rates & economy snapshot grids, a computed Treasury yield curve
       (`components/charts/yield-curve.tsx`), a Tax & regulatory calendar, Watchlist,
@@ -340,7 +361,9 @@ advisor capacity, all queried live from the 10 seeded households.
 - [ ] Calendar (Google, Microsoft)
 - [ ] Email logging
 - [ ] Document e-signature
-- [ ] Sync health surface in Settings with per-feed last-success and error detail
+- [~] Sync health surface in Settings with per-feed last-success and error detail — the
+      panel exists on Settings → Integrations, honestly empty ("Not running", "No syncs
+      yet"); there's nothing to report until an adapter exists
 
 ## Phase 9 — Compliance and hardening (M7)
 
@@ -391,6 +414,27 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Built Settings (fourth of the five no-design pages). Six subpages —
+  Organization, Team, Appearance, Integrations, AI, Billing — on the same left-rail
+  pattern as household detail, with a shared `SettingsPage`/`Panel`/`Row` scaffold so
+  they read as one surface. The split that mattered was real vs. unset: Team, the book
+  rollup, and billing seat counts are live queries (verified against the DB — Dana 6 of
+  12 households / $55.87M, Maya 4 of 10 / $9.09M, $64.96M total AUM, 40 open insights),
+  while the firm profile, retention, integrations, AI, and billing rows are shown
+  explicitly unset with disabled controls, because an invented firm name, CRD number,
+  plan price, or last-sync timestamp is exactly the kind of detail a reader takes at
+  face value. Appearance is the exception to the usual "not wired up" pattern: theme
+  (light/dark/system) and density (comfortable/compact) genuinely work and persist,
+  since neither needs a server. Getting there required one cross-cutting fix — every
+  mark on a pine/brass/info fill was hardcoded white, which fails AA on the dark theme's
+  lightened accents, so all 16 of those call sites now go through a new `--on-accent`
+  token, and the two white toggle knobs through `--surface` (D-015). Verified in headless Chrome, not just by reading the code: stored preferences
+  survive a reload via the inline boot script (no flash of light palette), clicking
+  Light/Comfortable updates both `<html>` and localStorage, measured table row height
+  moves 41px → 33px between modes, and dark mode was eyeballed on Clients and Settings.
+  Also verified: clean typecheck + lint, and 200s across all six subpages. Household-scoped
+  Compliance is now the only no-design page left.
 
 - **2026-09-19** — Verified the repo runs from a clean checkout on a new machine and
   documented what that takes. Dependencies were installed and matched the lockfile, but

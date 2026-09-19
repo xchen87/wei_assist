@@ -35,7 +35,7 @@ export function PromptZone({ advisorFirstName }: { advisorFirstName: string }) {
           type="submit"
           className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-control bg-pine"
         >
-          <svg width={16} height={16} viewBox="0 0 20 20" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <svg width={16} height={16} viewBox="0 0 20 20" fill="none" stroke="var(--on-accent)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 10h12M11 5l5 5-5 5" />
           </svg>
         </button>

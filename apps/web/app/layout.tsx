@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Public_Sans, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
+import { PREFERENCES_BOOT_SCRIPT } from "@/lib/preferences";
 
 const publicSans = Public_Sans({
   subsets: ["latin"],
@@ -23,7 +24,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${publicSans.variable} ${sourceSerif.variable}`}>
+    // suppressHydrationWarning: the boot script sets data-theme/data-density
+    // on <html> before React hydrates, so the server markup can't match.
+    <html lang="en" className={`${publicSans.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PREFERENCES_BOOT_SCRIPT }} />
+      </head>
       <body className="font-sans text-base text-ink">{children}</body>
     </html>
   );

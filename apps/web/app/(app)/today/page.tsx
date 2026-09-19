@@ -11,6 +11,7 @@ import { MilestonesWidget } from "@/components/widgets/milestones-widget";
 import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
+import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 
 /** Matches the "At risk" saved view's own threshold on the Clients page —
  * see clients-table.tsx's DRIFT_ALERT_THRESHOLD. */
@@ -65,7 +66,7 @@ export default async function TodayPage() {
 
   return (
     <div className="mx-auto max-w-[960px] px-10 pb-12 pt-14">
-      <PromptZone advisorFirstName="Dana" />
+      <PromptZone advisorFirstName={CURRENT_ADVISOR_NAME.split(" ")[0]!} />
 
       <div className="grid grid-cols-12 gap-4">
         <AgendaWidget items={agenda} />

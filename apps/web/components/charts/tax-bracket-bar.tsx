@@ -23,7 +23,7 @@ export function TaxBracketBar({ taxableIncomeCents }: { taxableIncomeCents: numb
             <div
               key={b.ratePct}
               style={{ flex: widths[i], background }}
-              className={`flex items-center justify-center text-xs font-semibold ${reached || current ? "text-white" : "text-ink-muted"}`}
+              className={`flex items-center justify-center text-xs font-semibold ${reached || current ? "text-on-accent" : "text-ink-muted"}`}
             >
               {b.ratePct}%
             </div>

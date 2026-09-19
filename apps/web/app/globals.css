@@ -16,6 +16,11 @@
   --loss: #b03a2b;
   --loss-tint: #fbeeec;
   --info: #2a5f8f;
+  /* Text and marks drawn ON a pine/brass/info fill. White reads well on
+     the light theme's dark accents; the dark theme lightens those accents
+     (--pine #3fa683), where white would fall below AA — so it flips to ink
+     instead of every call site hardcoding white. */
+  --on-accent: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -32,6 +37,7 @@
   --loss: #e0685a;
   --loss-tint: #331e1a;
   --info: #5f9cd1;
+  --on-accent: #0e1114;
 }
 
 * {
@@ -56,4 +62,14 @@ body {
 
 ::selection {
   background: var(--pine-tint);
+}
+
+/* Density (CLAUDE.md §7): comfortable 40px rows, compact 32px. Table cells
+   set their own vertical padding with utilities, so compact overrides them
+   in one place here rather than threading a density prop through all
+   fourteen tables. Only table rows tighten — cards, forms, and the nav keep
+   their spacing in both modes. */
+:root[data-density="compact"] :is(th, td) {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }

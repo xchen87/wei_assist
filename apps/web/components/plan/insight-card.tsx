@@ -91,7 +91,7 @@ export function InsightCard({ insight }: { insight: InsightCardData }) {
           <button
             disabled={isPending}
             onClick={act}
-            className="rounded-control bg-pine px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50"
+            className="rounded-control bg-pine px-2.5 py-1 text-xs font-semibold text-on-accent disabled:opacity-50"
           >
             Accept
           </button>

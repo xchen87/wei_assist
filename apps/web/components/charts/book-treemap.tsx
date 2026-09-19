@@ -24,7 +24,7 @@ export function BookTreemap({ items }: { items: Item[] }) {
         {top.map((item) => (
           <div
             key={item.name}
-            className="flex flex-col justify-end p-2.5 text-white"
+            className="flex flex-col justify-end p-2.5 text-on-accent"
             style={{ flexGrow: item.aumCents, background: SEGMENT_COLOR[item.segment], minWidth: 0 }}
           >
             <div className="truncate text-sm font-semibold">{item.name}</div>
@@ -36,7 +36,7 @@ export function BookTreemap({ items }: { items: Item[] }) {
         {rest.map((item) => (
           <div
             key={item.name}
-            className="flex flex-col justify-end p-2 text-white"
+            className="flex flex-col justify-end p-2 text-on-accent"
             style={{ flexGrow: item.aumCents, background: SEGMENT_COLOR[item.segment], minWidth: 0 }}
           >
             <div className="truncate text-xs font-semibold">{item.name}</div>

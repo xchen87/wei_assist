@@ -121,7 +121,7 @@ export default async function ReportsPage({
             <button disabled title="Not wired up in this build" className="rounded-control border border-rule px-3.5 py-1.5 text-sm opacity-60">
               Save draft
             </button>
-            <button disabled title="Not wired up in this build" className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-white opacity-60">
+            <button disabled title="Not wired up in this build" className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-on-accent opacity-60">
               Export PDF
             </button>
           </div>
@@ -195,7 +195,7 @@ export default async function ReportsPage({
         <div className="mb-4 flex items-center justify-between text-sm" title="Not wired up in this build">
           <div>Firm letterhead</div>
           <div className="relative h-5 w-[34px] rounded-full bg-pine opacity-60">
-            <div className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-white" />
+            <div className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-surface" />
           </div>
         </div>
 
@@ -205,7 +205,7 @@ export default async function ReportsPage({
         <div className="mb-2.5 flex items-center justify-between text-sm" title="Not wired up in this build">
           <div>Email to household</div>
           <div className="relative h-5 w-[34px] rounded-full bg-pine opacity-60">
-            <div className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-white" />
+            <div className="absolute right-0.5 top-0.5 h-4 w-4 rounded-full bg-surface" />
           </div>
         </div>
         <div className="mb-4 flex flex-wrap gap-1.5">

@@ -27,7 +27,7 @@ export default async function ProspectsPage() {
     <div className="px-8 py-7">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Prospects</h1>
-        <button disabled title="Not wired up in this build" className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-white opacity-90">
+        <button disabled title="Not wired up in this build" className="rounded-control bg-pine px-3.5 py-1.5 text-sm font-semibold text-on-accent opacity-90">
           New prospect
         </button>
       </div>
