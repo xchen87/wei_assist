@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { dismissInsight } from "@/app/(app)/clients/[id]/actions";
 import { useChatContext, type ChatMessage, type ProposalRecord } from "@/lib/chat-store";
@@ -46,6 +46,7 @@ export function ProposalCard({
   messageIndex: number;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
   const resolveProposal = useChatContext((s) => s.resolveProposal);
 
@@ -95,7 +96,12 @@ export function ProposalCard({
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              await dismissInsight(proposal.insightId, `/clients/${proposal.householdId}`);
+              // The same insight renders on the household Overview and on
+              // its own section page, and the advisor may be standing on
+              // either — or on Tasks. Revalidate the page actually being
+              // looked at, the way InsightCard does, or the card the
+              // assistant just dismissed stays on screen.
+              await dismissInsight(proposal.insightId, pathname ?? `/clients/${proposal.householdId}`);
               resolveProposal(messageIndex, record.id, "confirmed");
               router.refresh();
             })

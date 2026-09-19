@@ -466,6 +466,26 @@ advisor capacity, all queried live from the 10 seeded households.
 
 ## Changelog
 
+- **2026-09-19** — Switched the assistant to `claude-sonnet-5` (from Opus) at the user's
+  direction, to keep per-conversation cost down on a workload that is short,
+  heavily tool-mediated answers over a ten-household book; one constant in
+  `lib/ai/model.ts`, which Settings → AI reads rather than restates. Then ran the
+  assistant against the real API for the first time, which is the only way the earlier
+  stand-in verification could be confirmed. It held up: asked which households are past
+  their review date, it called three tools and returned figures that match the database
+  exactly (Alvarez overdue since Aug 1 / 61 days, Kim Aug 6 / 45 days, cash 9.2% against
+  a 3.7% target, retirement 66% funded, the $451,417 LTC gap, 3 open tasks). Asked for
+  an S&P 500 close it said plainly that it has no market data tool rather than inventing
+  one, then answered the half it could ground — §9 rule 1 working as written. One real
+  bug surfaced only under the real model: confirming a dismissal from the chat dock wrote
+  to the database but left the card on screen, because the proposal revalidated
+  `/clients/<id>` while the advisor was standing on `/clients/<id>/allocation`. Now
+  revalidates the actual pathname, the way `InsightCard` already did. One soft spot worth
+  knowing: in a long answer it attributed a goals request to the Sep 2 check-in note when
+  the note is dated Aug 9 — both records are real and both mention goals, so it reads as
+  loose attribution rather than fabrication, and nothing in the guardrails catches that
+  class of error.
+
 - **2026-09-19** — Wired the chat dock to a real model (Phase 3). The route
   (`app/api/chat/route.ts`) streams the Messages API as NDJSON, runs the tool loop
   server-side, and writes an append-only `AiConversation`/`AiMessage`/`AiToolCall` log of
