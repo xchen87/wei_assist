@@ -364,3 +364,24 @@ advisor capacity, all queried live from the 10 seeded households.
   `/clients`, `/prospects`, `/compliance`, `/insights`, `/today`, all 200; spot-checked
   rendered HTML for the advisor abbreviation, the corrected capacity figure, and the
   corrected "Due within 30 days" count).
+- **2026-09-18** — Two more chart bugs, caught by user report and confirmed by
+  inspecting real rendered SVG paths, not just re-reading the code (the code looked
+  structurally right on a first read; only the actual coordinates gave it away).
+  Cashflow's Sankey ribbons were rendering as flat rectangular blocks instead of
+  tapered ribbons: the Taxes/Net-income and Spending/Savings node pairs were stacked
+  with zero gap, so a connecting ribbon's bezier curve had identical y-coordinates on
+  both sides and drew a straight line — added a `NODE_GAP` between stacked nodes in
+  `cashflow-sankey.tsx`, matching the gap `design/Cashflow.dc.html` uses for the same
+  reason. The Prospects funnel had two independent bugs compounding into "mostly
+  square, only the brass segment tapers": `pipeline-funnel.tsx`'s boundary-height
+  array duplicated the first stage's height as an artificial "before" boundary,
+  which made the first segment always render flat regardless of data, and the
+  segment fill color was hardcoded to index 2 (`i === 2`) instead of driven by
+  `stalledStages` like the label text already was — fixed both, and rebalanced the
+  seed prospects' stage distribution (`packages/db/prisma/seed.ts`) from 3/3/2/2 to
+  a strictly-decreasing 4/3/2/1 so the funnel actually narrows at every stage
+  instead of plateauing on coincidentally-equal adjacent counts. Verified by parsing
+  the real rendered polygon points and ribbon path coordinates via curl, not just by
+  eyeballing the math. A full design-vs-implementation audit of every built page
+  against its `design/*.dc.html` reference is in progress to catch anything else in
+  this class of bug.

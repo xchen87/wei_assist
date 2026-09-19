@@ -434,9 +434,9 @@ const PROSPECTS: {
   { name: "Yoon Household", source: "Referral: Kim Household", estValue: 3_100_000, stage: "Proposal", daysInStage: 11, advisor: "dana" },
   { name: "Castellano Family", source: "COI: tax attorney", estValue: 1_600_000, stage: "Proposal", daysInStage: 27, stalled: true, advisor: "maya" },
   { name: "Ferreira Household", source: "Signing scheduled Sep 24", estValue: 4_800_000, stage: "Agreement", daysInStage: 4, advisor: "dana" },
-  { name: "Whitcombe Family", source: "Referral: Ogundele Household", estValue: 1_100_000, stage: "Agreement", daysInStage: 2, advisor: "maya" },
+  { name: "Whitcombe Family", source: "Referral: Ogundele Household", estValue: 1_100_000, stage: "Discovery", daysInStage: 2, advisor: "maya" },
   { name: "Marchetti Household", source: "Web inquiry", estValue: 780_000, stage: "Inquiry", daysInStage: 1, advisor: "maya" },
-  { name: "Osei Family", source: "Referral: Bergström Household", estValue: 2_050_000, stage: "Discovery", daysInStage: 5, advisor: "dana" },
+  { name: "Osei Family", source: "Referral: Bergström Household", estValue: 2_050_000, stage: "Inquiry", daysInStage: 5, advisor: "dana" },
 ];
 
 async function main() {

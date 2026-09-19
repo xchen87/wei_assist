@@ -18,18 +18,23 @@ export function PipelineFunnel({
   const values = STAGES.map((s) => counts[s] ?? 0);
   const max = Math.max(...values, 1);
   const heightFor = (v: number) => 24 + (v / max) * 96;
+  const heights = values.map(heightFor);
 
   const segWidth = 190;
   const gap = 20;
   const xs = STAGES.map((_, i) => 20 + i * (segWidth + gap));
 
-  const boundaryHeights = [heightFor(values[0]!), ...values.map((v) => heightFor(v))];
-
+  // Segment i tapers from its own stage's height to the NEXT stage's height,
+  // so the funnel narrows exactly where the real counts drop off — the last
+  // segment has nothing to taper into and stays flat. (An earlier version
+  // duplicated the first stage's height as an artificial "before" boundary,
+  // which made the first segment always render flat/square regardless of
+  // the data — see design/Prospects.dc.html's continuously-narrowing shape.)
   const polygons = STAGES.map((_, i) => {
     const x0 = xs[i]!;
     const x1 = x0 + segWidth;
-    const hLeft = boundaryHeights[i]!;
-    const hRight = boundaryHeights[i + 1]!;
+    const hLeft = heights[i]!;
+    const hRight = i < STAGES.length - 1 ? heights[i + 1]! : heights[i]!;
     const topLeft = 100 - hLeft / 2;
     const botLeft = 100 + hLeft / 2;
     const topRight = 100 - hRight / 2;
@@ -41,7 +46,11 @@ export function PipelineFunnel({
     <div>
       <svg viewBox="0 0 900 200" className="block w-full" style={{ height: 160 }}>
         {polygons.map((points, i) => (
-          <polygon key={i} points={points} fill={i === 2 ? "var(--brass)" : "var(--pine)"} />
+          <polygon
+            key={i}
+            points={points}
+            fill={stalledStages[STAGES[i]!] ? "var(--brass)" : "var(--pine)"}
+          />
         ))}
         {STAGES.map((stage, i) => (
           <text

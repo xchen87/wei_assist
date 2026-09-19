@@ -23,6 +23,13 @@ export function CashflowSankey({
 }) {
   const TOP = 24;
   const SCALE_HEIGHT = 200;
+  // Vertical gap between the two stacked nodes in a column (Taxes above Net
+  // income; Spending above Savings). Without it the two nodes touch, so a
+  // connecting ribbon's edges land on the same y on both sides and a bezier
+  // curve between two identical points draws a straight line — the ribbon
+  // degenerates into a flat rectangle instead of the tapered shape that
+  // signals "flow" in a Sankey. See design/Cashflow.dc.html's node layout.
+  const NODE_GAP = 24;
   const scale = SCALE_HEIGHT / incomeCents;
 
   const incomeH = incomeCents * scale;
@@ -34,11 +41,11 @@ export function CashflowSankey({
   const incomeTop = TOP;
   const taxesTop = TOP;
   const taxesBottom = taxesTop + taxesH;
-  const netIncomeTop = taxesBottom;
+  const netIncomeTop = taxesBottom + NODE_GAP;
   const netIncomeBottom = netIncomeTop + netIncomeH;
   const spendingTop = netIncomeTop;
   const spendingBottom = spendingTop + spendingH;
-  const savingsTop = spendingBottom;
+  const savingsTop = spendingBottom + NODE_GAP;
   const savingsBottom = savingsTop + savingsH;
 
   const height = Math.max(savingsBottom, netIncomeBottom) + TOP;
