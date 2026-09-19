@@ -55,7 +55,15 @@ export function PipelineFunnel({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${VIEWBOX_W} 200`} className="block w-full" style={{ height: 160 }}>
+      {/* preserveAspectRatio="none": the viewBox (900x200, aspect 4.5) almost
+       * never matches the rendered box (fluid width x fixed 160px height),
+       * so the default "xMidYMid meet" scaling shrinks the content to fit
+       * and centers it — inset from the edges with empty space on the
+       * sides. The caption row below assumes the SVG content spans edge to
+       * edge (same percentages, no pillarboxing), so without this the two
+       * drift apart by that inset amount. "none" stretches the SVG to fill
+       * its box exactly, matching the plain-CSS percentage overlay. */}
+      <svg viewBox={`0 0 ${VIEWBOX_W} 200`} preserveAspectRatio="none" className="block w-full" style={{ height: 160 }}>
         {polygons.map((points, i) => (
           <polygon
             key={i}
@@ -79,28 +87,23 @@ export function PipelineFunnel({
         ))}
       </svg>
 
-      <div className="relative mt-2.5" style={{ height: 44 }}>
-        {STAGES.map((stage, i) => (
-          <div
-            key={stage}
-            className="absolute text-center"
-            style={{ left: pct(xs[i]!), width: pct(SEG_WIDTH) }}
-          >
-            <div className="text-sm font-semibold">{stage}</div>
-            <div className={`mt-0.5 text-xs ${stalledStages[stage] ? "text-loss" : "text-ink-muted"}`}>
-              avg {avgDays[stage] ?? 0}d in stage
+      <div className="relative mt-2.5" style={{ height: 54 }}>
+        {STAGES.map((stage, i) => {
+          const conversionPct = i > 0 ? Math.round(((values[i] ?? 0) / (values[i - 1] || 1)) * 100) : null;
+          return (
+            <div
+              key={stage}
+              className="absolute text-center"
+              style={{ left: pct(xs[i]!), width: pct(SEG_WIDTH) }}
+            >
+              <div className="tabular h-4 text-xs text-ink-muted">{conversionPct !== null ? `${conversionPct}%` : ""}</div>
+              <div className="text-sm font-semibold">{stage}</div>
+              <div className={`mt-0.5 text-xs ${stalledStages[stage] ? "text-loss" : "text-ink-muted"}`}>
+                avg {avgDays[stage] ?? 0}d in stage
+              </div>
             </div>
-          </div>
-        ))}
-        {STAGES.slice(0, -1).map((stage, i) => (
-          <div
-            key={`${stage}-conversion`}
-            className="tabular absolute text-center text-xs text-ink-muted"
-            style={{ left: pct(xs[i]! + SEG_WIDTH), width: pct(GAP) }}
-          >
-            {values[i] ? Math.round(((values[i + 1] ?? 0) / values[i]!) * 100) : 0}%
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

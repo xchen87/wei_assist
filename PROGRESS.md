@@ -541,3 +541,27 @@ advisor capacity, all queried live from the 10 seeded households.
   executive-summary text spot-checked across several households to confirm
   it reads coherently and varies with real data rather than being a template
   with one number swapped in.
+- **2026-09-18** — The Prospects funnel caption fix from the previous entry
+  turned out to be incomplete — user report: "Inquiry" still wasn't sitting
+  under its own block. Root cause was different from (and more subtle than)
+  the grid-ratio mismatch already fixed: `pipeline-funnel.tsx`'s `<svg>` has
+  `viewBox="0 0 900 200"` but renders at a fluid width with a *fixed* 160px
+  height, so its rendered aspect ratio essentially never matches the
+  viewBox's 4.5:1. The browser's default `preserveAspectRatio="xMidYMid
+  meet"` handles that mismatch by scaling the content to fit and *centering*
+  it — inset from the container's edges with empty space on the sides. The
+  caption row below is a plain CSS-percentage overlay that assumes the SVG
+  content spans edge to edge with no inset, so the two were drifting apart
+  by exactly that pillarboxing amount — invisible from reading the JSX,
+  only visible by actually reasoning about SVG scaling semantics. Fixed by
+  adding `preserveAspectRatio="none"`, which stretches the SVG to fill its
+  box exactly in both dimensions with no inset, matching the caption
+  overlay's assumption. Also moved the stage-to-stage conversion percentage
+  from a narrow column in the gap between segments to directly above each
+  destination stage's own caption (per user request), dropping the now-
+  unused separate gap-column elements; the first stage (Inquiry) correctly
+  shows no percentage since nothing converts into the top of the funnel.
+  Verified via curl: `preserveAspectRatio="none"` present in the rendered
+  markup, and each stage's conversion percentage (75%/67%/50% for the
+  current seed data) sits in the same caption block as that stage's name,
+  not a separate positioned element.
