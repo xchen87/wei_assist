@@ -265,8 +265,21 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [ ] Tasks — empty-state stub, same "no design reference" reasoning as Intake
       (Today's Tasks widget derives from open Insights as a stand-in; there's no
       Task model either)
-- [~] Markets — an honest static snapshot matching the design's numbers, explicitly
-      labeled as not-yet-integrated; no watchlist, movers, or news
+- [~] Markets — full layout from `design/Markets.dc.html` now built: Equities and
+      Rates & economy snapshot grids, a computed Treasury yield curve
+      (`components/charts/yield-curve.tsx`), a Tax & regulatory calendar, Watchlist,
+      Movers, a candlestick chart (`components/charts/candlestick-chart.tsx`), and
+      News. Index levels/rates/prices/news are still an honest static snapshot — no
+      market-data integration (Phase 8) exists — but two things are real: the
+      Watchlist's tickers and "held by" counts come from every household's actual
+      `topHoldingTicker`, and the RMD calendar item's household count is a real
+      query against member ages (`>= 73`), not the design's example "3 households"
+      (0 in this seed data — no household happens to have a member that old).
+      Sparkline/yield-curve/candlestick geometry is computed from value/OHLC
+      arrays via new `components/charts/sparkline.tsx`, not hand-placed SVG pixel
+      points — this session hit two real bugs earlier from exactly that pattern
+      (Cashflow ribbons, Prospects funnel), so new chart code avoids it from the
+      start
 
 **Insights** (practice analytics, not phase-mapped in the original plan — see
 `design/README.md`'s note on this) — **done with real data**, not stubbed: book
@@ -565,3 +578,30 @@ advisor capacity, all queried live from the 10 seeded households.
   markup, and each stage's conversion percentage (75%/67%/50% for the
   current seed data) sits in the same caption block as that stage's name,
   not a separate positioned element.
+- **2026-09-18** — Built out the Markets page to match `design/Markets.dc.html`'s
+  full layout: Equities and Rates & economy snapshot grids (with sparklines),
+  a Treasury yield curve, a tax & regulatory calendar, Watchlist, Movers, a
+  30-day candlestick chart, and News — the previous version only had the
+  4-card equities snapshot and an explicit "not connected" note. Added three
+  new chart primitives (`sparkline.tsx`, `yield-curve.tsx`,
+  `candlestick-chart.tsx`), each computing its geometry from a real value/OHLC
+  array rather than hand-placed SVG pixel points, learning directly from the
+  two funnel/sankey bugs fixed earlier this session that were both caused by
+  exactly that anti-pattern. Two pieces of the page are grounded in real seed
+  data instead of copied from the design: the Watchlist's ticker list and
+  "held by N households" counts come from every household's actual
+  `topHoldingTicker`/`topHoldingName` (dropping the design's one ticker, QUIL,
+  that isn't any household's holding), and the RMD calendar item's household
+  count is a real query against member ages (`>= 73`) rather than the
+  design's illustrative "3 households" — it's honestly 0 in this seed data,
+  since no seeded member happens to be that old, rather than a fabricated
+  non-zero figure copied for looks. Movers is computed by sorting the real
+  watchlist by change%, not a separately hardcoded list — it correctly shows
+  only 1 loser (not padded to match the design's 2) since only one watchlist
+  ticker is actually down. Index levels, rates, prices, and news remain an
+  honest static snapshot with no live feed, same as before, now said
+  explicitly in an updated footer note. Verified: clean typecheck + lint, a
+  full route smoke test, and curl-inspection confirming the watchlist tickers
+  match real household holdings, the RMD badge reflects the real query
+  result, and the candlestick's household attribution lists the actual
+  households holding that ticker.
