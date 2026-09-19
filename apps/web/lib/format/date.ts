@@ -7,6 +7,7 @@
 const SHORT: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: "UTC" };
 const SHORT_YEAR: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
 const LONG_YEAR: Intl.DateTimeFormatOptions = { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" };
+const MONTH_YEAR: Intl.DateTimeFormatOptions = { month: "long", year: "numeric", timeZone: "UTC" };
 
 export function formatShortDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
@@ -21,6 +22,12 @@ export function formatDate(date: Date | string): string {
 export function formatLongDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("en-US", LONG_YEAR).format(d);
+}
+
+/** "September 2026" — for report cover pages ("Prepared for the ... review"). */
+export function formatMonthYear(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat("en-US", MONTH_YEAR).format(d);
 }
 
 export function daysUntil(date: Date | string, now: Date = new Date()): number {

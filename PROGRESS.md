@@ -217,7 +217,8 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       dashed-red vs. solid-pine per row
 - [-] Business — correctly hidden; no seeded household has a business entity (D-003)
 - [x] Documents (household-scoped vault) — status breakdown bar + document table,
-      distinct from the top-level all-households Documents route
+      distinct from the top-level all-households Documents route (see Phase 7,
+      now also real)
 - [x] Activity (unified timeline) — real timeline of Meeting/Document/TaskCompleted/
       Note/PlanChange events, colored by kind; the plan-change *diff* itself is still
       seed text (see the `PlanSnapshot` item below), only the timeline is real
@@ -238,7 +239,14 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       yet — each chart implements its own axes inline
 - [ ] Full catalog from CLAUDE.md §8 documented in Storybook (no Storybook at all yet)
 - [ ] Accessibility pass
-- [ ] Report builder — top-level Reports route is an empty-state stub
+- [~] Reports — a real, per-household preview (executive summary text and net-worth
+      composition chart both computed from that household's actual data, switchable
+      via the household list in the settings panel) matching
+      `design/Reports.dc.html`'s preview panel; the section-picker, branding, and
+      delivery controls are real-looking but explicitly disabled — this pass makes
+      no PDF-rendering or email-delivery decision, so there's nothing to wire them
+      to yet; picking one is a follow-up, not done here
+- [ ] Report authoring (drag-reorder sections, save drafts, PDF export)
 - [ ] Scheduled report delivery
 
 ## Phase 7 — Pipeline and operations (M6)
@@ -246,10 +254,17 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Prospects: pipeline board, stage aging, conversion metrics, funnel — real, from
       10 seeded prospects; funnel is a proportionally-narrowing shape computed from
       actual counts, not hardcoded, and avg-days-in-stage is a real average
-- [ ] Intake — empty-state stub
-- [ ] Schedule — empty-state stub
-- [ ] Tasks — empty-state stub (Today's Tasks widget derives from open Insights as a
-      stand-in; there's no Task model)
+- [x] Documents (top-level, firm-wide) — real table across every household's
+      Document rows, search + household + status filters all in the URL
+      (`components/ui/filter-select.tsx`), per `design/Documents.dc.html`
+- [ ] Intake — empty-state stub; no design reference exists (D-013 — these three
+      were never mocked up in the design pass), so building real UI for it now
+      would mean inventing layout without the design-first process this project
+      committed to. Same reasoning as household-scoped Compliance.
+- [ ] Schedule — empty-state stub, same "no design reference" reasoning as Intake
+- [ ] Tasks — empty-state stub, same "no design reference" reasoning as Intake
+      (Today's Tasks widget derives from open Insights as a stand-in; there's no
+      Task model either)
 - [~] Markets — an honest static snapshot matching the design's numbers, explicitly
       labeled as not-yet-integrated; no watchlist, movers, or news
 
@@ -476,3 +491,53 @@ advisor capacity, all queried live from the 10 seeded households.
   prompts to be explicit about killing any dev server they start themselves.
   Re-verified with a clean typecheck + lint on both packages and a full
   10-household × 12-route smoke test (all 200/308) after every fix.
+- **2026-09-18** — Two more user-reported layout bugs, both real and both found
+  by inspecting actual rendered pixel geometry rather than re-reading the
+  math. Prospects' funnel captions were positioned with a `10fr 1fr 10fr 1fr
+  10fr 1fr 10fr` CSS grid that only approximates the SVG polygons' real
+  200:20 segment:gap ratio (and had no margin column for the SVG's own 40px
+  right margin) — close enough to look right at a glance, visibly drifting
+  out of alignment toward the right edge. Rewrote `pipeline-funnel.tsx` so
+  the caption row is an absolutely-positioned overlay computed from the exact
+  same `xs`/`SEG_WIDTH`/`GAP` numbers the polygons use, expressed as
+  percentages of the shared viewBox width — the two are now driven by one
+  source of truth instead of two independently-tuned unit systems, so they
+  can't drift regardless of container width. Today's Pipeline widget had a
+  hardcoded `h-16` (64px) flex container sized to fit only the tallest bar
+  (44px) — it never accounted for the count-number and stage-label text
+  stacked around that bar within the same column (~88px total for the
+  tallest column). Flex containers don't clip overflow, so once a real
+  household's data made Inquiry the tallest stage (after the earlier funnel
+  fix's 4/3/2/1 rebalance), that column's count number overflowed upward
+  past the container's 64px boundary and collided with the "Pipeline" title
+  above it. Fixed by dropping the hardcoded height entirely — a flex row's
+  cross-size is naturally the tallest item's real height, which can never
+  be wrong by construction. Verified both by parsing the actual rendered
+  percentage/pixel values via curl, not by eyeballing the CSS.
+- **2026-09-18** — Built the top-level Documents and Reports pages, the two
+  remaining top-level routes with a design reference (`design/Documents.dc.html`,
+  `design/Reports.dc.html`); Intake/Schedule/Tasks stay stubs since no design
+  mockup for any of them exists (see the Phase 7 note above — same reasoning
+  as household-scoped Compliance). Documents is a real, firm-wide table over
+  every household's `Document` row (the same model the household-scoped vault
+  already used), with search/household/status filters all reflected in the
+  URL via a new generic `components/ui/filter-select.tsx` client component.
+  Reports renders a real per-household preview — executive summary paragraph
+  and net-worth-composition chart both composed from that household's actual
+  data (return, cash drift, weakest section by completeness), switchable via
+  a real household list in the settings panel — rather than either faking the
+  design's full drag-reorder/PDF-export/email-delivery authoring flow (no
+  rendering or delivery infrastructure has been chosen yet) or blocking the
+  whole page on that decision; the picker/branding/delivery controls render
+  real-looking but are explicitly disabled, the same pattern already used for
+  other not-yet-wired affordances elsewhere in the app. Caught and fixed one
+  wording bug of my own before it shipped: the executive-summary template
+  literally hardcoded the word "documents" after the weakest-section name,
+  copied from the design's one specific Ramirez example ("estate documents")
+  — read correctly for that one household and nonsensically for the other
+  nine ("cashflow documents", "balance documents"); generalized to name the
+  section directly. Verified: clean typecheck + lint, full smoke test across
+  every route including all 10 households on both new pages, and the
+  executive-summary text spot-checked across several households to confirm
+  it reads coherently and varies with real data rather than being a template
+  with one number swapped in.
