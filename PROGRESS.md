@@ -5,7 +5,7 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
-**Last updated:** 2026-09-18
+**Last updated:** 2026-09-19
 **Current phase:** Phase 5 — Remaining plan sections (12 of 13 household-detail sections
 built; Compliance is the one remaining gap, blocked on a design pass — see D-013)
 
@@ -47,6 +47,28 @@ before being treated as final.
   description from scratch.
 
 ---
+
+---
+
+## Local setup
+
+`.env` and the SQLite file are gitignored, so a fresh clone needs four steps
+before `pnpm dev` will serve anything:
+
+```bash
+pnpm install                                  # pnpm 12.x, Node 22.x
+cp packages/db/.env.example packages/db/.env  # DATABASE_URL=file:./dev.db
+pnpm --filter @meridian/db exec prisma generate
+pnpm db:push && pnpm db:seed                  # creates packages/db/prisma/dev.db
+pnpm dev                                      # http://localhost:3000
+```
+
+`packages/db/.env` is the only env file needed — Prisma Client loads it from
+the schema directory, so `apps/web` needs no copy of `DATABASE_URL`. The
+relative `file:./dev.db` resolves against `prisma/schema.prisma`, not the
+process cwd, so it points at the same database from either workspace package.
+
+Checks: `pnpm typecheck`, `pnpm lint`, `pnpm build`.
 
 ## Implementation notes and deviations from the stack in CLAUDE.md §2
 
@@ -369,6 +391,18 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Verified the repo runs from a clean checkout on a new machine and
+  documented what that takes. Dependencies were installed and matched the lockfile, but
+  the Prisma client was still the ungenerated stub and there was no `.env` or `dev.db` —
+  both gitignored, and no file in the repo said they were needed, so `pnpm dev` would
+  have failed at the first Prisma query. Added `packages/db/.env.example` and a "Local
+  setup" section above. Confirmed working: `prisma generate`, `db:push`, `db:seed` (10
+  households, 10 prospects), clean `pnpm typecheck` and `pnpm lint`, successful
+  `pnpm build` (27 routes), and a dev-server smoke test returning 200 with real seeded
+  data on every route — all 13 household sections plus every top-level surface — with no
+  errors in the server log. One env file (`packages/db/.env`) is enough for both
+  packages; Prisma Client loads it from the schema directory.
 
 - **2026-09-17** — Repo documentation established. CLAUDE.md, PROGRESS.md, DECISIONS.md
   created. Phase plan drafted through private beta. No code yet.
