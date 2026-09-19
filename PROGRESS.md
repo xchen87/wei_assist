@@ -6,7 +6,8 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Last updated:** 2026-09-18
-**Current phase:** Phase 2 — Clients spine (implementation started; see notes below)
+**Current phase:** Phase 5 — Remaining plan sections (12 of 13 household-detail sections
+built; Compliance is the one remaining gap, blocked on a design pass — see D-013)
 
 ---
 
@@ -197,30 +198,44 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 ## Phase 5 — Remaining plan sections (M5)
 
-- [x] Cashflow — real Sankey (`components/charts/CashflowSankey.tsx`), data-driven
+- [x] Cashflow — real Sankey (`components/charts/cashflow-sankey.tsx`), data-driven
       node heights and ribbon geometry, not hardcoded pixels
 - [x] Goals — bubble quadrant (the primary visual the design settled on over the
       stacked-area alternative), area-proportional bubble sizing, real Goal records
 - [~] Household (members) — a members roster is real and data-backed; the force-free
       relationship graph from `design/HouseholdMembers.dc.html` isn't built (see that
       section's page for the exact gap)
-- [ ] Retirement — empty-state stub (D-003 pattern: says what's missing, offers to start)
-- [ ] Tax — empty-state stub
-- [ ] Protection — empty-state stub
-- [ ] Estate — empty-state stub
+- [x] Retirement — Monte Carlo-style fan chart (`lib/calc/retirement.ts`, a pure
+      seeded simulation, not hardcoded percentile bands) + plan assumptions table
+- [x] Tax — stepped bracket bar (`lib/calc/tax.ts`; bracket structure is illustrative
+      per the design's own disclaimer, position within it is computed from real
+      taxable income) + tax position table
+- [x] Protection — diverging gap bars (`components/charts/protection-gap-bars.tsx`),
+      one row per coverage type, real per-household gap magnitudes and directions
+- [x] Estate — directed asset → beneficiary flow diagram
+      (`components/charts/estate-flow-diagram.tsx`), missing-designation flag drives
+      dashed-red vs. solid-pine per row
 - [-] Business — correctly hidden; no seeded household has a business entity (D-003)
-- [ ] Documents (household-scoped vault) — empty-state stub
-- [ ] Activity (unified timeline, plan-change diff) — empty-state stub
-- [ ] Compliance (household-scoped: IPS, suitability, attestations) — empty-state stub
+- [x] Documents (household-scoped vault) — status breakdown bar + document table,
+      distinct from the top-level all-households Documents route
+- [x] Activity (unified timeline) — real timeline of Meeting/Document/TaskCompleted/
+      Note/PlanChange events, colored by kind; the plan-change *diff* itself is still
+      seed text (see the `PlanSnapshot` item below), only the timeline is real
+- [ ] Compliance (household-scoped: IPS, suitability, attestations) — empty-state stub;
+      no design reference exists for this one section (D-013) — needs a design pass
+      before it can be built, unlike the others above
 - [ ] `PlanSnapshot` versioning + "what changed since last review" diff — the Overview
-      page's "what changed" list is static seed text, not a real diff engine
+      page's "what changed" list and the Activity timeline's plan-change entries are
+      static/seeded, not a real diff engine
 
 ## Phase 6 — Charts and reports
 
-- [~] Chart primitives — seven real, data-driven chart components exist
-      (`components/charts/`: Sankey, Waterfall, AllocationRings, BubbleQuadrant,
-      Treemap, RevenueConcentrationCurve, PipelineFunnel); no shared axis/legend/
-      tooltip/table-toggle abstraction yet — each chart implements its own axes inline
+- [~] Chart primitives — eleven real, data-driven chart components exist
+      (`components/charts/`: cashflow-sankey, net-worth-waterfall, allocation-rings,
+      goals-bubble-quadrant, book-treemap, revenue-concentration-curve,
+      pipeline-funnel, retirement-fan-chart, tax-bracket-bar, protection-gap-bars,
+      estate-flow-diagram); no shared axis/legend/tooltip/table-toggle abstraction
+      yet — each chart implements its own axes inline
 - [ ] Full catalog from CLAUDE.md §8 documented in Storybook (no Storybook at all yet)
 - [ ] Accessibility pass
 - [ ] Report builder — top-level Reports route is an empty-state stub
@@ -383,5 +398,50 @@ advisor capacity, all queried live from the 10 seeded households.
   instead of plateauing on coincidentally-equal adjacent counts. Verified by parsing
   the real rendered polygon points and ribbon path coordinates via curl, not just by
   eyeballing the math. A full design-vs-implementation audit of every built page
-  against its `design/*.dc.html` reference is in progress to catch anything else in
-  this class of bug.
+  against its `design/*.dc.html` reference found two more real gaps: Today's Alerts
+  widget still used a `driftPct >= 3` threshold instead of the `>= 4` every other
+  surface was corrected to in the prior pass (fixed), and every household-detail
+  section's completeness ring except Overview was a hardcoded constant reused
+  identically across every household (`completenessPct={100}` on four pages,
+  `{90}` on one) rather than computed per household — flagged as systemic, fixed
+  below alongside the new sections that needed the same per-section completeness
+  concept anyway.
+- **2026-09-18** — Built the six remaining household-detail sections (Retirement,
+  Tax, Protection, Estate, household-scoped Documents, Activity), bringing 12 of
+  13 sections to real data (only Compliance remains a stub — no design reference
+  exists for it per D-013, so it needs a design pass before it can be built).
+  Extended `packages/db/prisma/schema.prisma` with the new models (`Policy`,
+  `EstateAsset`, `EstateDocument`, `Document`, `ActivityEvent`) and per-section
+  `Household` fields, and extended `deriveFinancials()` in `seed.ts` to generate
+  all of it — internally consistent per household (e.g. a household's real
+  taxable income drives which of the six illustrative tax brackets it falls in,
+  not a hardcoded bracket). Two new pure `lib/calc` modules do the real math
+  rather than storing pre-derived output that could drift out of sync:
+  `lib/calc/retirement.ts` runs a simplified seeded Monte Carlo projection (many
+  simulated paths, percentile bands at checkpoint ages, a real success-probability
+  count) for the Retirement fan chart, and `lib/calc/tax.ts` computes bracket
+  position from taxable income against a shared illustrative bracket table (the
+  design's own copy disclaims these as illustrative, not real IRS figures, so the
+  code carries the same disclaimer rather than presenting them as authoritative
+  per CLAUDE.md §13). Four new chart components follow CLAUDE.md §8's catalog
+  entries for these sections: `retirement-fan-chart.tsx`, `tax-bracket-bar.tsx`,
+  `protection-gap-bars.tsx` (diverging bars), `estate-flow-diagram.tsx` (directed
+  flow); Activity's timeline and Documents' vault-status bar are simple enough to
+  not need a dedicated chart component per the catalog. Also fixed, while wiring
+  per-section completeness for the new sections, the exact hardcoded-completeness
+  bug the audit above flagged: `household/cashflow/balance/allocation/goals`
+  pages now read `household.<section>CompletenessPct` (seeded to vary per
+  household) instead of a literal constant. Added `formatTime()` to
+  `lib/format/date.ts` for the one place in the app that needed to show a real
+  time-of-day (activity timestamps), rather than formatting it inline. Verified:
+  clean typecheck + lint on both packages; every one of the 10×6 = 60
+  household/section combinations smoke-tested via curl (all 200, after
+  discovering — twice — that a long-running `next dev` process holds a stale
+  Prisma Client in memory across a `db push`/reseed and needs a restart, not a
+  code fix, to pick up new fields); spot-checked real rendered output for
+  completeness-ring variation, tax-bracket variation, and the two "sometimes
+  present" conditional branches (LTC "no policy on file", Estate "no beneficiary
+  on file") actually firing for some households and not others rather than being
+  always-on or always-off. Three design-quality review agents dispatched, one per
+  natural grouping (Retirement+Tax, Protection+Estate, Documents+Activity);
+  findings recorded in a follow-up entry once they report back.

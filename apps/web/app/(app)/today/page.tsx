@@ -10,6 +10,11 @@ import { ReviewsWidget } from "@/components/widgets/reviews-widget";
 import { MilestonesWidget } from "@/components/widgets/milestones-widget";
 import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
+import { formatPercent } from "@/lib/format/percent";
+
+/** Matches the "At risk" saved view's own threshold on the Clients page —
+ * see clients-table.tsx's DRIFT_ALERT_THRESHOLD. */
+const DRIFT_ALERT_THRESHOLD = 4;
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +40,14 @@ export default async function TodayPage() {
   }));
 
   const alerts = households
-    .filter((h) => h.driftPct >= 3 || h.reviewStatus === "overdue")
+    .filter((h) => h.driftPct >= DRIFT_ALERT_THRESHOLD || h.reviewStatus === "overdue")
     .slice(0, 4)
     .map((h) => ({
       id: h.id,
       householdId: h.id,
       text:
-        h.driftPct >= 3
-          ? `Drift ${h.driftPct.toFixed(1)}% over target — ${h.name}`
+        h.driftPct >= DRIFT_ALERT_THRESHOLD
+          ? `Drift ${formatPercent(h.driftPct)} over target — ${h.name}`
           : `Review overdue — ${h.name}`,
     }));
 

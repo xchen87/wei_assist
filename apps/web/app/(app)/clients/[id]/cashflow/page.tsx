@@ -17,7 +17,7 @@ export default async function CashflowPage({ params }: { params: { id: string } 
   return (
     <PlanSection
       title="Cashflow"
-      completenessPct={100}
+      completenessPct={household.cashflowCompletenessPct}
       updatedLabel="Derived from Balance + income figures on file"
       actions={<SectionActions />}
       summaryTitle="Where the household's income goes"

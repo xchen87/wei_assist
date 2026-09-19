@@ -17,7 +17,7 @@ export default async function BalancePage({ params }: { params: { id: string } }
   return (
     <PlanSection
       title="Balance"
-      completenessPct={100}
+      completenessPct={household.balanceCompletenessPct}
       updatedLabel="Synced today · Custodian feed"
       actions={<SectionActions />}
       summaryTitle="Net worth, past 12 months"

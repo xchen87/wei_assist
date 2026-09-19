@@ -29,7 +29,7 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
   return (
     <PlanSection
       title="Goals"
-      completenessPct={100}
+      completenessPct={household.goalsCompletenessPct}
       updatedLabel="Recalculated today · Balance + Goals sections"
       actions={<SectionActions />}
       summaryTitle="Priority vs. funded status"

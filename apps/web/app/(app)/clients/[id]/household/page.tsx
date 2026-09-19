@@ -15,7 +15,7 @@ export default async function HouseholdMembersPage({ params }: { params: { id: s
   return (
     <PlanSection
       title="Household"
-      completenessPct={100}
+      completenessPct={household.householdCompletenessPct}
       updatedLabel="Verified · Manual entry"
       actions={<SectionActions />}
       summaryTitle="Members"

@@ -27,7 +27,7 @@ export default async function AllocationPage({ params }: { params: { id: string 
   return (
     <PlanSection
       title="Allocation"
-      completenessPct={90}
+      completenessPct={household.allocationCompletenessPct}
       updatedLabel="Synced today · Custodian feed"
       actions={<SectionActions />}
       summaryTitle="Target vs. actual allocation"

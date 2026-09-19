@@ -58,6 +58,24 @@ model Household {
   completenessPct Int
   whatChanged     String // newline-separated bullet lines; demo-only, not a real diff engine
 
+  // Per-section completeness, shown in each PlanSection header's ring. Real
+  // completeness (CLAUDE.md §6) comes from a required-field manifest, which
+  // doesn't exist yet (see PROGRESS.md) — until then these are seeded to
+  // vary plausibly per household rather than being one constant reused on
+  // every section of every household, which was the actual bug: it read as
+  // fabricated because it never changed.
+  householdCompletenessPct  Int
+  cashflowCompletenessPct   Int
+  balanceCompletenessPct    Int
+  allocationCompletenessPct Int
+  goalsCompletenessPct      Int
+  retirementCompletenessPct Int
+  taxCompletenessPct        Int
+  protectionCompletenessPct Int
+  estateCompletenessPct     Int
+  documentsCompletenessPct  Int
+  activityCompletenessPct   Int
+
   // Cashflow (annual, illustrative — see design/README.md conventions)
   incomeCents    Int
   taxesCents     Int
@@ -89,9 +107,41 @@ model Household {
   distinctHoldings       Int
   blendedExpenseRatioPct Float
 
-  members  Member[]
-  goals    Goal[]
-  insights Insight[]
+  // Retirement (inputs to the Monte-Carlo-style projection in lib/calc/retirement.ts —
+  // the fan chart itself is computed, not stored; see design/Retirement.dc.html)
+  retirementAgePrimary      Int
+  retirementAgeSpouse       Int? // null for single-member households
+  ssClaimAgePrimary         Int
+  ssClaimAgeSpouse          Int?
+  monthlySpendingNeedCents  Int
+  withdrawalSequencing      String // shared with Tax's "preferred withdrawal order" row
+  retirementSuccessDeltaPts Int // change in success probability since last review — illustrative, like whatChanged
+
+  // Tax — only the real inputs are stored; which bracket a household falls
+  // in, how far through it, and room to the next one are all computed at
+  // render time by lib/calc/tax.ts from taxableIncomeCents, against the six
+  // illustrative bracket rates/widths defined once there (per
+  // design/Tax.dc.html's own "illustrative for this draft" disclaimer).
+  // Storing the derived position too would let it silently drift out of
+  // sync with the bracket table if either ever changed independently.
+  filingStatus           String // e.g. "Married filing jointly"
+  taxableIncomeCents     Int
+  effectiveRatePct       Float
+  realizedGainsCents     Int
+  unrealizedGainsCents   Int
+  harvestableLossesCents Int
+
+  // Activity
+  openTasksCount Int
+
+  members        Member[]
+  goals          Goal[]
+  insights       Insight[]
+  policies       Policy[]
+  estateAssets   EstateAsset[]
+  estateDocs     EstateDocument[]
+  documents      Document[]
+  activityEvents ActivityEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -140,4 +190,65 @@ model Prospect {
   advisor       Advisor  @relation(fields: [advisorId], references: [id])
   advisorId     String
   createdAt     DateTime @default(now())
+}
+
+// Protection: one row per coverage type, driving the diverging gap-bar chart.
+// gapPct is what the bar plots directly (negative = underinsured, positive =
+// overinsured, 0 = at target) — see design/Protection.dc.html. detailLabel is
+// the free-text "Need X · Current Y" shown in the Detail table, since life
+// insurance is dollar-denominated but disability is percent-denominated and
+// a single pair of numeric columns can't represent both honestly.
+model Policy {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  type        String // Life | Disability | LongTermCare | Umbrella | PropertyCasualty
+  gapPct      Float? // null = "at target", drawn with no bar at all
+  gapLabel    String? // e.g. "-40%", "-25pts", "+50%" — display form, sign-formatted per its own unit
+  detailLabel String // e.g. "Need $2,000,000 · Current $1,200,000"
+}
+
+// Estate: each row is one edge in the asset -> beneficiary flow diagram.
+model EstateAsset {
+  id                 String    @id @default(cuid())
+  household          Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId        String
+  assetName          String
+  beneficiaryLabel   String
+  missingDesignation Boolean   @default(false)
+  sortOrder          Int
+}
+
+model EstateDocument {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  name        String
+  statusLabel String
+  overdue     Boolean   @default(false)
+  sortOrder   Int
+}
+
+// Household-scoped document vault (distinct from the top-level Documents
+// page, which lists across all households).
+model Document {
+  id            String    @id @default(cuid())
+  household     Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId   String
+  name          String
+  type          String // Estate | Tax | Agreement | KYC | ...
+  statusLabel   String // Signed | Filed | Due | Expiring soon | Missing
+  bucket        String // complete | needsAttention | missing — drives the vault-status bar
+  uploadedLabel String // formatted date string, or "—" for Missing
+  source        String // Client-provided | E-signature | Advisor upload | "—"
+}
+
+model ActivityEvent {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  kind        String // Meeting | Document | TaskCompleted | Note | PlanChange
+  label       String
+  detail      String? // optional second line, e.g. meeting notes
+  occurredAt  DateTime
 }

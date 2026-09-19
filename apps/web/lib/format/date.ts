@@ -32,3 +32,11 @@ export function daysUntil(date: Date | string, now: Date = new Date()): number {
 export function formatDaysAgo(days: number): string {
   return `${days}d`;
 }
+
+/** "8:02 AM" — for the few timestamps in the app (activity events) that are
+ * a real moment, not a pure calendar date. Still UTC-pinned so it doesn't
+ * shift with server timezone, same reasoning as SHORT/LONG_YEAR above. */
+export function formatTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(d);
+}

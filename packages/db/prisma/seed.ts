@@ -30,6 +30,14 @@ function centsFrom(dollars: number) {
   return Math.round(dollars * 100);
 }
 
+function dollarsLabel(cents: number) {
+  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+}
+
+function clampPct(v: number, min = 40, max = 100) {
+  return Math.max(min, Math.min(max, Math.round(v)));
+}
+
 type HouseholdSeed = {
   name: string;
   segment: Segment;
@@ -336,6 +344,193 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     };
   });
 
+  // Retirement
+  const primaryMember = h.members.find((m) => m.role === "Primary") ?? h.members[0];
+  const spouseMember = h.members.find((m) => m.role === "Spouse");
+  const retirementAgePrimary = Math.round(62 + rand() * 5);
+  const retirementAgeSpouse = spouseMember ? Math.round(63 + rand() * 5) : null;
+  const ssClaimAgePrimary = Math.round(64 + rand() * 6);
+  const ssClaimAgeSpouse = spouseMember ? Math.round(64 + rand() * 6) : null;
+  const monthlySpendingNeedCents = Math.round((spendingCents / 12) * (0.65 + rand() * 0.25));
+  const withdrawalSequencing = "Taxable → Traditional → Roth";
+  const retirementSuccessDeltaPts = Math.round((rand() - 0.55) * 9);
+
+  // Tax
+  const filingStatus = spouseMember ? "Married filing jointly" : "Single";
+  const taxableIncomeCents = Math.round(incomeCents * (0.75 + rand() * 0.15));
+  const effectiveRatePct = Math.round((14 + rand() * 10) * 10) / 10;
+  const realizedGainsCents = Math.round(netWorthCents * (0.001 + rand() * 0.003));
+  const unrealizedGainsCents = Math.round(investmentAccountsCents * (0.15 + rand() * 0.15));
+  const harvestableLossesCents = Math.round(unrealizedGainsCents * (0.02 + rand() * 0.04));
+
+  // Activity
+  const openTasksCount = Math.round(rand() * 4);
+
+  // Per-section completeness — varies per household and per section rather
+  // than repeating one constant everywhere (see PROGRESS.md fix log).
+  const sectionCompleteness = {
+    householdCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    cashflowCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    balanceCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    allocationCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    goalsCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    retirementCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 30, 30),
+    taxCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 30, 30),
+    protectionCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 30, 30),
+    estateCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 30, 30),
+    documentsCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+    activityCompletenessPct: clampPct(h.planHealthPct + (rand() - 0.5) * 24),
+  };
+
+  // Protection: one row per coverage type, gap magnitude driving the
+  // diverging bar directly (see components/charts/protection-gap-bars.tsx).
+  const lifeNeedCents = Math.round(incomeCents * (6 + rand() * 4));
+  const lifeCurrentCents = Math.round(lifeNeedCents * (0.35 + rand() * 0.9));
+  const lifeGapPct = Math.round(((lifeCurrentCents - lifeNeedCents) / lifeNeedCents) * 100);
+
+  const disabilityNeedPct = Math.round(50 + rand() * 20);
+  const disabilityCurrentPct = Math.round(disabilityNeedPct * (0.5 + rand() * 0.7));
+  const disabilityGapPts = disabilityCurrentPct - disabilityNeedPct;
+
+  const ltcNeedCents = Math.round(netWorthCents * (0.015 + rand() * 0.01));
+  const hasLtcPolicy = rand() > 0.5;
+  const ltcCurrentCents = hasLtcPolicy ? Math.round(ltcNeedCents * (0.3 + rand() * 0.6)) : 0;
+  const ltcGapPct = hasLtcPolicy ? Math.round(((ltcCurrentCents - ltcNeedCents) / ltcNeedCents) * 100) : -100;
+
+  const umbrellaNeedCents = Math.round(netWorthCents * (0.15 + rand() * 0.05));
+  const umbrellaCurrentCents = Math.round(umbrellaNeedCents * (0.8 + rand() * 0.6));
+  const umbrellaGapPct = Math.round(((umbrellaCurrentCents - umbrellaNeedCents) / umbrellaNeedCents) * 100);
+
+  const policies = [
+    {
+      type: "Life",
+      gapPct: lifeGapPct,
+      gapLabel: `${lifeGapPct >= 0 ? "+" : ""}${lifeGapPct}%`,
+      detailLabel: `Need ${dollarsLabel(lifeNeedCents)} · Current ${dollarsLabel(lifeCurrentCents)}`,
+    },
+    {
+      type: "Disability",
+      gapPct: disabilityGapPts,
+      gapLabel: `${disabilityGapPts >= 0 ? "+" : ""}${disabilityGapPts}pts`,
+      detailLabel: `Need ${disabilityNeedPct}% income replacement · Current ${disabilityCurrentPct}%`,
+    },
+    {
+      type: "LongTermCare",
+      gapPct: ltcGapPct,
+      gapLabel: `${ltcGapPct >= 0 ? "+" : ""}${ltcGapPct}%`,
+      detailLabel: hasLtcPolicy
+        ? `Need ${dollarsLabel(ltcNeedCents)} benefit pool · Current ${dollarsLabel(ltcCurrentCents)}`
+        : `Need ${dollarsLabel(ltcNeedCents)} benefit pool · No policy on file`,
+    },
+    {
+      type: "Umbrella",
+      gapPct: umbrellaGapPct,
+      gapLabel: `${umbrellaGapPct >= 0 ? "+" : ""}${umbrellaGapPct}%`,
+      detailLabel: `Need ${dollarsLabel(umbrellaNeedCents)} · Current ${dollarsLabel(umbrellaCurrentCents)}`,
+    },
+    {
+      type: "PropertyCasualty",
+      gapPct: null as number | null,
+      gapLabel: null as string | null,
+      detailLabel: "Reviewed within the past year · Adequate",
+    },
+  ];
+
+  // Estate: asset -> beneficiary flow, one asset deliberately missing a
+  // designation about a third of the time.
+  const primaryFirst = primaryMember?.name.split(" ")[0] ?? "Primary";
+  const spouseFirst = spouseMember?.name.split(" ")[0];
+  const missingIndex = rand() < 0.35 ? Math.floor(rand() * 3) : -1; // -1 = nothing missing
+  const estateAssetTemplates = spouseFirst
+    ? [
+        { assetName: "Joint taxable account", beneficiaryLabel: `${primaryFirst} & ${spouseFirst}` },
+        { assetName: `${primaryFirst}'s Traditional IRA`, beneficiaryLabel: `${spouseFirst} (spouse)` },
+        { assetName: `${spouseFirst}'s 401(k)`, beneficiaryLabel: `${primaryFirst} (spouse)` },
+        { assetName: "Revocable Trust", beneficiaryLabel: "Children" },
+        { assetName: "Primary residence", beneficiaryLabel: "Revocable Trust" },
+      ]
+    : [
+        { assetName: "Taxable brokerage account", beneficiaryLabel: "Estate" },
+        { assetName: `${primaryFirst}'s Traditional IRA`, beneficiaryLabel: "Named beneficiary" },
+        { assetName: `${primaryFirst}'s 401(k)`, beneficiaryLabel: "Named beneficiary" },
+        { assetName: "Revocable Trust", beneficiaryLabel: "Named heirs" },
+        { assetName: "Primary residence", beneficiaryLabel: "Revocable Trust" },
+      ];
+  const estateAssets = estateAssetTemplates.map((a, i) => ({
+    assetName: a.assetName,
+    beneficiaryLabel: i === missingIndex ? "No beneficiary on file" : a.beneficiaryLabel,
+    missingDesignation: i === missingIndex,
+    sortOrder: i,
+  }));
+
+  const beneficiaryDesignationsOverdue = rand() < 0.4;
+  const estateDocs = [
+    { name: "Wills", statusLabel: spouseFirst ? `${primaryFirst} & ${spouseFirst} — signed` : `${primaryFirst} — signed`, overdue: false },
+    { name: "Power of attorney", statusLabel: "On file — signed", overdue: false },
+    { name: "Healthcare directive", statusLabel: "On file — signed", overdue: false },
+    { name: "Revocable trust", statusLabel: "Established, partially funded", overdue: false },
+    {
+      name: "Beneficiary designations",
+      statusLabel: beneficiaryDesignationsOverdue ? "Last reviewed over 3 years ago · overdue" : "Reviewed within the past year",
+      overdue: beneficiaryDesignationsOverdue,
+    },
+  ].map((d, i) => ({ ...d, sortOrder: i }));
+
+  // Household document vault
+  const docBucketRoll = rand();
+  const documents = [
+    { name: "Estate Planning Questionnaire", type: "Estate", statusLabel: "Signed", bucket: "complete", uploadedLabel: "Recent", source: "Client-provided" },
+    { name: "Family Trust Agreement (Revocable)", type: "Estate", statusLabel: "Signed", bucket: "complete", uploadedLabel: "On file", source: "E-signature" },
+    { name: "Latest Form 1040", type: "Tax", statusLabel: "Filed", bucket: "complete", uploadedLabel: "Apr 15", source: "Client-provided" },
+    {
+      name: "Investment Policy Statement",
+      type: "Agreement",
+      statusLabel: docBucketRoll < 0.5 ? "Due" : "Signed",
+      bucket: docBucketRoll < 0.5 ? "needsAttention" : "complete",
+      uploadedLabel: docBucketRoll < 0.5 ? "Due soon" : "On file",
+      source: "Advisor upload",
+    },
+    {
+      name: `Driver's License (${primaryFirst})`,
+      type: "KYC",
+      statusLabel: "Expiring soon",
+      bucket: "needsAttention",
+      uploadedLabel: "On file",
+      source: "Client-provided",
+    },
+    {
+      name: `${spouseFirst ? `${spouseFirst}'s ` : ""}401(k) Beneficiary Designation`,
+      type: "Estate",
+      statusLabel: missingIndex >= 0 ? "Missing" : "On file",
+      bucket: missingIndex >= 0 ? "missing" : "complete",
+      uploadedLabel: missingIndex >= 0 ? "—" : "On file",
+      source: missingIndex >= 0 ? "—" : "Client-provided",
+    },
+  ];
+
+  // Activity timeline — spread over roughly the last two months.
+  const now = Date.now();
+  const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000);
+  const activityEvents = [
+    { kind: "PlanChange", label: "Positions synced from custodian feed", detail: null, occurredAt: daysAgo(0) },
+    { kind: "Document", label: "New document uploaded", detail: null, occurredAt: daysAgo(3 + Math.round(rand() * 4)) },
+    { kind: "PlanChange", label: "Net worth figures verified", detail: null, occurredAt: daysAgo(8 + Math.round(rand() * 4)) },
+    {
+      kind: "Meeting",
+      label: "Quarterly check-in call, 30 min",
+      detail: "Discussed cash position and upcoming goals.",
+      occurredAt: daysAgo(15 + Math.round(rand() * 5)),
+    },
+    { kind: "TaskCompleted", label: "Sent quarterly market update email", detail: null, occurredAt: daysAgo(21 + Math.round(rand() * 5)) },
+    { kind: "PlanChange", label: "Protection coverage figures verified", detail: null, occurredAt: daysAgo(28 + Math.round(rand() * 8)) },
+    {
+      kind: "Note",
+      label: "Household mentioned interest in a goals discussion",
+      detail: "Flagged for the next review.",
+      occurredAt: daysAgo(36 + Math.round(rand() * 8)),
+    },
+  ];
+
   const whatChanged = [
     `Cash allocation moved to ${h.cashPct.toFixed(1)}% against a ${cashTarget.toFixed(1)}% target`,
     `Plan health is ${h.planHealthPct}% complete`,
@@ -395,6 +590,26 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     whatChanged,
     goals,
     insights,
+    retirementAgePrimary,
+    retirementAgeSpouse,
+    ssClaimAgePrimary,
+    ssClaimAgeSpouse,
+    monthlySpendingNeedCents,
+    withdrawalSequencing,
+    retirementSuccessDeltaPts,
+    filingStatus,
+    taxableIncomeCents,
+    effectiveRatePct,
+    realizedGainsCents,
+    unrealizedGainsCents,
+    harvestableLossesCents,
+    openTasksCount,
+    ...sectionCompleteness,
+    policies,
+    estateAssets,
+    estateDocs,
+    documents,
+    activityEvents,
   };
 }
 
@@ -501,9 +716,39 @@ async function main() {
         topHoldingPct: extra.topHoldingPct,
         distinctHoldings: extra.distinctHoldings,
         blendedExpenseRatioPct: extra.blendedExpenseRatioPct,
+        retirementAgePrimary: extra.retirementAgePrimary,
+        retirementAgeSpouse: extra.retirementAgeSpouse,
+        ssClaimAgePrimary: extra.ssClaimAgePrimary,
+        ssClaimAgeSpouse: extra.ssClaimAgeSpouse,
+        monthlySpendingNeedCents: extra.monthlySpendingNeedCents,
+        withdrawalSequencing: extra.withdrawalSequencing,
+        retirementSuccessDeltaPts: extra.retirementSuccessDeltaPts,
+        filingStatus: extra.filingStatus,
+        taxableIncomeCents: extra.taxableIncomeCents,
+        effectiveRatePct: extra.effectiveRatePct,
+        realizedGainsCents: extra.realizedGainsCents,
+        unrealizedGainsCents: extra.unrealizedGainsCents,
+        harvestableLossesCents: extra.harvestableLossesCents,
+        openTasksCount: extra.openTasksCount,
+        householdCompletenessPct: extra.householdCompletenessPct,
+        cashflowCompletenessPct: extra.cashflowCompletenessPct,
+        balanceCompletenessPct: extra.balanceCompletenessPct,
+        allocationCompletenessPct: extra.allocationCompletenessPct,
+        goalsCompletenessPct: extra.goalsCompletenessPct,
+        retirementCompletenessPct: extra.retirementCompletenessPct,
+        taxCompletenessPct: extra.taxCompletenessPct,
+        protectionCompletenessPct: extra.protectionCompletenessPct,
+        estateCompletenessPct: extra.estateCompletenessPct,
+        documentsCompletenessPct: extra.documentsCompletenessPct,
+        activityCompletenessPct: extra.activityCompletenessPct,
         members: { create: h.members },
         goals: { create: extra.goals },
         insights: { create: extra.insights },
+        policies: { create: extra.policies },
+        estateAssets: { create: extra.estateAssets },
+        estateDocs: { create: extra.estateDocs },
+        documents: { create: extra.documents },
+        activityEvents: { create: extra.activityEvents },
       },
     });
   }
