@@ -6,7 +6,8 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Last updated:** 2026-09-19
-**Current phase:** Phase 5 complete — all 13 household-detail sections are built on the
+**Current phase:** Phase 3 — the assistant is wired: streaming, six grounded tools,
+confirmation cards, guardrails, and an append-only interaction log. Phase 5 is complete — all 13 household-detail sections are built on the
 shared scaffold (Business is correctly hidden; no seeded household has an entity, D-003).
 The five surfaces with no design mockup were built directly at the user's direction
 (D-016). Next up is Phase 3, the assistant: the chat dock is UI-only until a model,
@@ -71,6 +72,11 @@ the schema directory, so `apps/web` needs no copy of `DATABASE_URL`. The
 relative `file:./dev.db` resolves against `prisma/schema.prisma`, not the
 process cwd, so it points at the same database from either workspace package.
 
+The assistant needs one more, and only if you want it to answer: copy
+`apps/web/.env.example` to `apps/web/.env.local` and set `ANTHROPIC_API_KEY`.
+Without it the chat dock says exactly that and every other surface is
+unaffected.
+
 Checks: `pnpm typecheck`, `pnpm lint`, `pnpm build`.
 
 ## Implementation notes and deviations from the stack in CLAUDE.md §2
@@ -122,6 +128,15 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **The assistant only has tools for data that exists.** `lib/ai/tools.ts`
+  has six tools, all backed by real rows. Market, calendar/task, and report
+  tools from CLAUDE.md §9 are deliberately absent — a tool over fixture data
+  returns invented answers wearing a citation, which is worse than no tool
+  (D-017). If you add a tool, add the model behind it first.
+- **Nothing the assistant does writes without a click.** `propose_*` tools
+  return a descriptor; the runtime never executes them. Keep that property
+  when adding tools — an action tool that runs itself breaks §9 rule 3 and
+  the audit trail stops meaning anything.
 - **The IPS has two homes and one source of truth.** It appears both in the
   household document vault (Documents section) and as a required item in
   Compliance. The seed decides its status and date once and both read that
@@ -216,14 +231,26 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 ## Phase 3 — Assistant (M3)
 
-- [~] Chat dock UI shell: collapse/expand, context chip (wired to the section nav via
-      a Zustand store), composer, message thread — all real and interactive. Not real:
-      there's no model behind it. Submitting shows an honest "not connected yet"
-      message rather than a faked grounded response — see `components/chat/ChatDock.tsx`
-- [ ] Streaming, stop/retry/copy
-- [ ] Tool runtime, the six household/market/nav tools, tool-call renderers
-- [ ] Confirmation flow for writes/sends
-- [ ] Guardrail tests
+- [x] Chat dock: collapse/expand, context chip wired to the section nav, composer,
+      message thread — now streaming real answers from `/api/chat`
+- [x] Streaming, stop/retry/copy — NDJSON stream off the Messages API, abortable
+      mid-answer, retry drops the failed turn before re-asking
+- [~] Tool runtime and tool-call renderers — six tools, all backed by real rows
+      (`lib/ai/tools.ts`), each announced in the dock as it runs with what it touched.
+      Three of CLAUDE.md §9's six families are deliberately unbuilt (market.*,
+      calendar.*/task.*, report.*) because no data exists behind them — see D-017 and
+      Settings → AI, which lists them as unbuilt rather than stubbing them
+- [x] Confirmation flow for writes — `propose_*` tools never execute; the dock renders
+      a confirmation card and the advisor's click calls the same `dismissInsight`
+      server action the plan sections use
+- [~] Guardrails — `lib/ai/guardrails.ts` checks every finished reply for security
+      recommendations, authoritative tax/legal claims, and figures asserted with no
+      tool call, and flags them in the dock and the audit log. Exercised by hand
+      against both trip and look-alike cases; no automated test suite exists yet
+      (no test runner in the repo at all — see Phase 0)
+- [x] Append-only interaction log — `AiConversation` / `AiMessage` / `AiToolCall`
+      record the tools called and the ids of records touched (§9 rule 5, §11), never
+      the tool result payloads
 - [ ] Conversation history / threading
 - [ ] Token and cost telemetry
 
@@ -438,6 +465,28 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Wired the chat dock to a real model (Phase 3). The route
+  (`app/api/chat/route.ts`) streams the Messages API as NDJSON, runs the tool loop
+  server-side, and writes an append-only `AiConversation`/`AiMessage`/`AiToolCall` log of
+  the tools called and the ids of records touched. Six tools, all over real rows; the
+  three §9 families with no data behind them (market, calendar/task, report) are listed
+  as unbuilt on Settings → AI rather than stubbed with fixtures, because a tool that
+  invents its answer is worse than a missing one (D-017). Grounding is enforced in three
+  places instead of one: the system prompt, tool payloads that carry lib/format-rendered
+  strings plus a link so the model quotes rather than computes, and a post-hoc guardrail
+  check that flags the reply in the dock. Writes go through confirmation cards — the
+  `propose_*` tools never execute, and confirming a dismissal calls the same server
+  action the plan sections use. Settings → AI now reads the real tool registry, model id,
+  and log counts, so it can't drift from what's wired. No API key exists in this sandbox,
+  so the whole path was verified against a local stand-in that speaks the real streaming
+  protocol: multi-turn tool loop (search → section → proposal), audit rows written with
+  the right record ids, the confirmation card actually dismissing a real insight and the
+  page updating, and the guardrail banner firing on a deliberately rule-breaking reply
+  while staying quiet on look-alike phrasing. That run caught a real bug — text written
+  before and after a tool call arrived concatenated ("record.Cash is 6.1%"), now
+  separated by a paragraph break. Without a key the dock says so plainly and the rest of
+  the app is untouched, which was also tested.
 
 - **2026-09-19** — Built the household-scoped Compliance section, the last of the
   fourteen and the last page with no design mockup (D-016). Needed a data model first:

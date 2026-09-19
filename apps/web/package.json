@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
     "@meridian/db": "workspace:*",
     "next": "^14.2.15",
     "react": "^18.3.1",

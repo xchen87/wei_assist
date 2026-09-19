@@ -295,3 +295,46 @@ model ReviewAttestation {
   scope       String // what the review covered
   notes       String?
 }
+
+// Assistant transcript and audit trail. CLAUDE.md §9 rule 5 requires every
+// AI interaction to be logged with the tools called and the records
+// touched, and §11 requires that log to be append-only — nothing in the
+// app updates or deletes these rows. Deliberately stores record *ids* and
+// tool inputs, never tool result payloads: the audit question is "what did
+// the assistant read and act on", and copying household figures into a
+// second table would be a second place for client data to leak from.
+model AiConversation {
+  id           String      @id @default(cuid())
+  advisorName  String // the acting advisor; a real User relation lands with auth (D-014)
+  contextLabel String? // the route context chip in effect, e.g. "Ramirez Household"
+  contextPath  String?
+  createdAt    DateTime    @default(now())
+  messages     AiMessage[]
+  toolCalls    AiToolCall[]
+}
+
+model AiMessage {
+  id             String         @id @default(cuid())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  role           String // user | assistant
+  text           String
+  // Set when lib/ai/guardrails flagged the text (CLAUDE.md §9 rule 4).
+  guardrailFlags String?
+  createdAt      DateTime       @default(now())
+}
+
+model AiToolCall {
+  id             String         @id @default(cuid())
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  toolName       String
+  inputJson      String
+  // Which records the call touched, comma-separated ids — the "records
+  // touched" half of §9 rule 5.
+  recordIds      String
+  ok             Boolean
+  errorMessage   String?
+  durationMs     Int
+  createdAt      DateTime       @default(now())
+}

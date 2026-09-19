@@ -1,41 +1,68 @@
+import { prisma } from "@meridian/db";
 import { Badge } from "@/components/ui/badge";
 import { Panel, Row, SettingsPage, Unset } from "@/components/settings/settings-panel";
+import { isConfigured, MODEL_ID } from "@/lib/ai/model";
+import { TOOLS } from "@/lib/ai/tools";
 
-/** The assistant isn't connected to a model in this build — the chat dock
- * replies with a fixed "not wired up" message (lib/chat-store.ts) and
- * lib/ai doesn't exist yet. So this page is the policy surface it can
- * honestly be: the grounding rules and tool families the assistant will be
- * held to, each marked with whether anything enforces it yet. */
+export const dynamic = "force-dynamic";
 
-const GROUNDING_RULES: string[] = [
-  "Every claim about a client's finances comes from a tool result and links to the record. If tools return nothing, the assistant says so.",
-  "Figures render from the tool payload through lib/format, not restated as prose numbers.",
-  "Anything with an external effect — send, schedule, file, change a plan value — is a proposal the advisor confirms. The model never commits silently.",
-  "No specific securities to buy or sell, and no tax or legal advice presented as authoritative.",
-  "Every interaction is logged with the tools called and the records touched.",
+/** Reads the assistant's own modules rather than restating them, so this
+ * page can't drift from what's actually wired: the tool list is the real
+ * registry from lib/ai/tools, the model id is the one the route sends, and
+ * the log counts are real rows. */
+
+const GROUNDING_RULES: { text: string; enforcement: string }[] = [
+  {
+    text: "Every claim about a household's finances comes from a tool result and links to the record. If tools return nothing, the assistant says so.",
+    enforcement: "System prompt · tool payloads carry the link · flagged by guardrails when a figure appears with no tool call",
+  },
+  {
+    text: "Figures are quoted from the tool payload, already rendered through lib/format — not restated or recomputed by the model.",
+    enforcement: "System prompt · tools return display strings, not raw numbers",
+  },
+  {
+    text: "Anything with an external effect is a proposal the advisor confirms. The model never commits silently.",
+    enforcement: "Enforced in code: propose_* tools return a confirmation card and never execute",
+  },
+  {
+    text: "No specific securities to buy or sell, and no tax or legal advice presented as authoritative.",
+    enforcement: "System prompt · checked after the fact by lib/ai/guardrails, which flags the reply in the dock",
+  },
+  {
+    text: "Every interaction is logged with the tools called and the records touched.",
+    enforcement: "Append-only AiConversation / AiMessage / AiToolCall rows",
+  },
 ];
 
-const TOOL_FAMILIES: { name: string; purpose: string }[] = [
-  { name: "household.*", purpose: "Search, get section, get holdings, get activity." },
-  { name: "market.*", purpose: "Quote, series, cited news." },
-  { name: "calendar.* / task.*", purpose: "Read, propose, create on confirmation." },
-  { name: "doc.*", purpose: "Retrieve, summarize, extract fields." },
-  { name: "report.*", purpose: "Assemble a draft." },
-  { name: "nav.*", purpose: "Navigate the workspace to a record." },
+/** CLAUDE.md §9 names six tool families. These three have no data behind
+ * them yet, and a tool that invents its own answer is worse than no tool. */
+const UNBUILT_FAMILIES: { name: string; why: string }[] = [
+  { name: "market.*", why: "No Security or Quote model — the Markets page is a static snapshot, so a quote tool would fabricate." },
+  { name: "calendar.* / task.*", why: "No Meeting or Task model; Schedule stands in with review dates and Tasks with insights." },
+  { name: "report.*", why: "The report builder has no renderer or delivery path yet (Phase 8)." },
 ];
 
-export default function AiSettingsPage() {
+export default async function AiSettingsPage() {
+  const connected = isConfigured();
+  const [conversations, toolCalls, flagged] = await Promise.all([
+    prisma.aiConversation.count(),
+    prisma.aiToolCall.count(),
+    prisma.aiMessage.count({ where: { guardrailFlags: { not: null } } }),
+  ]);
+
   return (
     <SettingsPage
       title="AI"
-      description="Which model the assistant uses, what it's allowed to do, and what's disclosed to clients."
+      description="Which model the assistant uses, what it's allowed to do, and what's recorded."
       note={
         <>
-          The assistant is not connected to a model: the chat dock is UI-only and{" "}
-          <code>lib/ai</code> — prompt assembly, tool definitions, and guardrails — isn&rsquo;t built
-          yet (Phase 3, see PROGRESS.md). The rules below are the contract from CLAUDE.md §9 that the
-          implementation will be held to, shown here rather than left undocumented; none of them is
-          enforced in code today because there is no model call to enforce them on.
+          The assistant is wired to the Anthropic Messages API with streaming and tool calling. It reads
+          only through the tools listed below — there is no free-form SQL — and every call is written to
+          an append-only log. {connected ? null : <>No <code>ANTHROPIC_API_KEY</code> is set in this
+          environment, so the chat dock answers with that fact instead of a model response; everything
+          else in Meridian runs without it. </>}
+          Three of CLAUDE.md §9&rsquo;s six tool families aren&rsquo;t built, because the data behind them
+          doesn&rsquo;t exist yet — listed below rather than stubbed with invented answers.
         </>
       }
     >
@@ -43,33 +70,57 @@ export default function AiSettingsPage() {
         <Row label="Provider">
           <div className="flex items-center gap-2">
             <span>Anthropic</span>
-            <Badge tone="neutral">Not connected</Badge>
+            <Badge tone={connected ? "pine" : "neutral"}>{connected ? "Connected" : "No key set"}</Badge>
           </div>
         </Row>
-        <Row label="Model" description="Selected per org once the assistant is wired up.">
-          <Unset />
+        <Row label="Model" description="Sent on every request from lib/ai/model.ts.">
+          <span className="tabular">{MODEL_ID}</span>
         </Row>
-        <Row label="API key" description="Stored server-side; never exposed to the browser.">
-          <Unset>Not configured</Unset>
+        <Row label="API key" description="Read from the server environment; never exposed to the browser.">
+          {connected ? <span>Configured</span> : <Unset>Not configured</Unset>}
         </Row>
-        <Row label="Interaction log" description="Tools called and records touched, per CLAUDE.md §11.">
-          <Unset>Not built</Unset>
+      </Panel>
+
+      <Panel
+        title="Interaction log"
+        subtitle="Append-only, per CLAUDE.md §11. Records tool inputs and the ids of records touched — never tool result payloads."
+      >
+        <Row label="Conversations">
+          <span className="tabular">{conversations}</span>
+        </Row>
+        <Row label="Tool calls logged" description="With duration, success, and the records each one touched.">
+          <span className="tabular">{toolCalls}</span>
+        </Row>
+        <Row label="Replies flagged by guardrails">
+          <span className={`tabular ${flagged > 0 ? "text-brass" : ""}`}>{flagged}</span>
         </Row>
       </Panel>
 
       <Panel title="Grounding rules" subtitle="CLAUDE.md §9. Ungrounded speculation is a bug, not a setting.">
-        <ol className="list-decimal py-3.5 pl-5 text-sm marker:text-ink-muted">
-          {GROUNDING_RULES.map((rule) => (
-            <li key={rule} className="mb-2 pl-1 last:mb-0">
-              {rule}
-            </li>
-          ))}
-        </ol>
+        {GROUNDING_RULES.map((rule, i) => (
+          <div key={rule.text} className="border-b border-rule py-3 last:border-b-0">
+            <div className="flex gap-2 text-sm">
+              <span className="text-ink-muted">{i + 1}.</span>
+              <span>{rule.text}</span>
+            </div>
+            <div className="mt-1 pl-5 text-xs text-ink-muted">{rule.enforcement}</div>
+          </div>
+        ))}
       </Panel>
 
-      <Panel title="Tools" subtitle="The only way the model touches data — there is no free-form SQL.">
-        {TOOL_FAMILIES.map((t) => (
-          <Row key={t.name} label={t.name} description={t.purpose}>
+      <Panel title="Tools" subtitle="The only way the model touches data. Read tools run immediately; proposals wait on you.">
+        {TOOLS.map((tool) => (
+          <Row key={tool.name} label={tool.name} description={tool.definition.description}>
+            <Badge tone={tool.effect === "proposal" ? "brass" : "pine"}>
+              {tool.effect === "proposal" ? "Needs confirmation" : "Read-only"}
+            </Badge>
+          </Row>
+        ))}
+      </Panel>
+
+      <Panel title="Not built" subtitle="Tool families from CLAUDE.md §9 with no data behind them yet.">
+        {UNBUILT_FAMILIES.map((f) => (
+          <Row key={f.name} label={f.name} description={f.why}>
             <Unset>Not built</Unset>
           </Row>
         ))}

@@ -427,3 +427,49 @@ seed decides its status once so the two can't disagree, but any future writer ha
 single source intact. `complianceCompletenessPct` being computed while its eleven siblings are
 seeded is a deliberate inconsistency, and should become the pattern — not the exception — once
 the real per-section manifest in `packages/schemas/completeness.ts` exists.
+
+---
+
+## D-017 — The assistant ships with six grounded tools and no fabricating ones
+
+2026-09-19 · Accepted
+
+**Context** — Phase 3 wires the chat dock to a real model. CLAUDE.md §9 names six tool
+families (`household.*`, `market.*`, `calendar.*`/`task.*`, `doc.*`, `report.*`, `nav.*`) and
+five grounding rules, and §1 says ungrounded speculation is a bug. But the data model only
+covers some of that surface: there is no Security, Quote, Meeting, or Task model, and no
+report renderer. A `market.quote` tool over a hardcoded snapshot, or a `calendar.create` over
+a table that doesn't exist, would return invented answers with the full authority of a tool
+result — the exact failure §9 exists to prevent, made harder to spot because it arrives
+wearing a citation.
+
+**Decision** — Add `@anthropic-ai/sdk` (the only new dependency; it replaces nothing — the
+app had no model client) and ship six tools, each backed by real rows: `search_households`,
+`get_household_section`, `get_household_activity`, `get_open_insights`, plus two *proposal*
+tools, `propose_navigation` and `propose_dismiss_insight`. Proposal tools never execute — the
+runtime returns a descriptor the dock renders as a confirmation card, and only the advisor's
+click calls the existing `dismissInsight` server action. The three unbuilt families are
+listed as unbuilt on Settings → AI with the reason, rather than stubbed. Grounding is enforced
+in three places, not one: the system prompt states the rules, tool payloads carry
+lib/format-rendered strings and a link so the model quotes rather than computes, and
+`lib/ai/guardrails.ts` checks the finished reply and flags it in the dock.
+
+**Alternatives** — Stub the missing families with fixture data so the tool surface matches
+§9: better-looking demo, but it teaches the model that fabricated market data is citable, and
+every honest boundary elsewhere in this codebase would be undercut by it. Let the model write
+its own numbers from raw payloads: simpler tools, but rounding and formatting then vary per
+answer and contradict the pages they came from. Execute writes directly and offer an undo:
+fewer clicks, but §9 rule 3 is explicit that the model never commits silently, and an audit
+trail of AI-initiated writes with no confirmation step is exactly what §11 is guarding
+against.
+
+**Consequences** — The assistant can answer about households, sections, activity, and open
+insights, and can propose two actions; it cannot answer about markets, schedule a meeting, or
+assemble a report, and will say so. Conversation history replays as plain text, so prior tool
+payloads are re-fetched rather than trusted from earlier turns — more calls, but no stale
+figures. The guardrail checks are narrow string rules that run after generation: they catch
+the obvious cases and will miss paraphrases, and they flag rather than block, because the
+advisor is the one who decides. Every turn writes append-only `AiConversation` / `AiMessage` /
+`AiToolCall` rows recording tool inputs and the ids of records touched — never the payloads,
+which would put client figures in a second place. Without `ANTHROPIC_API_KEY` the dock says so
+and the rest of the app is unaffected.

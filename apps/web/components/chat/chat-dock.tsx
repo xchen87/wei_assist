@@ -1,19 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatContext } from "@/lib/chat-store";
 import { ChatIcon, ChevronRightIcon, CloseIcon } from "@/components/ui/icons";
+import { GuardrailNotice, ProposalCard, ToolRunList } from "./message-parts";
 
 /**
- * The assistant isn't wired to the Anthropic API yet (that's Phase 3 —
- * streaming, tool-calling, grounded citations per CLAUDE.md §9). This is a
- * real, interactive shell: collapse state, a context chip, and a
- * composer — shared with the Today page's prompt zone via useChatContext
- * so a message submitted there streams into this same dock, per §5.
+ * The assistant, streaming against /api/chat with grounded tool calls
+ * (CLAUDE.md §9). Every assistant turn shows three things beyond the prose:
+ * which tools it ran and what they touched, any proposal waiting on the
+ * advisor, and any guardrail flag on the reply itself. The context chip
+ * above the thread is what the route handed it, and clearing it really does
+ * drop that context from the next request.
  */
 export function ChatDock() {
   const [draft, setDraft] = useState("");
-  const { label, href, clearContext, collapsed, messages, send } = useChatContext();
+  const { label, href, clearContext, collapsed, messages, streaming, send, stop, retry } = useChatContext();
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  // Follow the stream, but only while the advisor is already at the bottom —
+  // yanking the view down mid-read is worse than a missed line.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
+  }, [messages]);
 
   if (collapsed) {
     return (
@@ -54,25 +66,52 @@ export function ChatDock() {
         ) : null}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div ref={threadRef} className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="text-sm text-ink-muted">
             Ask about a household, draft something, or find what needs attention.
           </div>
         ) : (
-          <div className="flex flex-col gap-3.5">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={
-                  m.role === "user"
-                    ? "max-w-[85%] self-end rounded-card bg-pine-tint px-3 py-2.5 text-sm"
-                    : "max-w-[92%] text-sm leading-relaxed text-ink-muted"
-                }
-              >
-                {m.text}
-              </div>
-            ))}
+          <div className="flex flex-col gap-4">
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <div key={i} className="max-w-[85%] self-end rounded-card bg-pine-tint px-3 py-2.5 text-sm">
+                  {m.text}
+                </div>
+              ) : (
+                <div key={i} className="max-w-[92%]">
+                  <ToolRunList tools={m.tools} />
+                  {m.text ? (
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">{m.text}</div>
+                  ) : m.error ? null : (
+                    <div className="text-sm text-ink-muted">Thinking…</div>
+                  )}
+                  {m.proposals.map((p) => (
+                    <ProposalCard key={p.id} record={p} messageIndex={i} />
+                  ))}
+                  <GuardrailNotice flags={m.guardrails} />
+                  {m.error ? (
+                    <div className="mt-2 rounded-card border border-rule p-3">
+                      <div className="text-xs leading-relaxed text-ink-muted">{m.error}</div>
+                      <button
+                        onClick={retry}
+                        className="mt-2 rounded-control border border-rule px-2.5 py-1 text-xs font-semibold"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : null}
+                  {m.text && !streaming ? (
+                    <button
+                      onClick={() => void navigator.clipboard?.writeText(m.text)}
+                      className="mt-1.5 text-xs text-ink-muted hover:text-ink"
+                    >
+                      Copy
+                    </button>
+                  ) : null}
+                </div>
+              ),
+            )}
           </div>
         )}
       </div>
@@ -89,9 +128,19 @@ export function ChatDock() {
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Ask a follow-up…"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted"
+            disabled={streaming}
+            placeholder={streaming ? "Answering…" : "Ask a follow-up…"}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted disabled:opacity-60"
           />
+          {streaming ? (
+            <button
+              type="button"
+              onClick={stop}
+              className="rounded-control border border-rule px-2 py-0.5 text-xs font-semibold"
+            >
+              Stop
+            </button>
+          ) : null}
         </form>
       </div>
     </div>
