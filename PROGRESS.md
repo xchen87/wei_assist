@@ -257,10 +257,18 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Documents (top-level, firm-wide) — real table across every household's
       Document rows, search + household + status filters all in the URL
       (`components/ui/filter-select.tsx`), per `design/Documents.dc.html`
-- [ ] Intake — empty-state stub; no design reference exists (D-013 — these three
-      were never mocked up in the design pass), so building real UI for it now
-      would mean inventing layout without the design-first process this project
-      committed to. Same reasoning as household-scoped Compliance.
+- [x] Intake — built directly, no design pass (third of the five, after Schedule
+      and Tasks). A real 5-step interactive wizard (`components/intake/
+      intake-wizard.tsx`: Start → Household basics → Members → Goals → Review,
+      real step state, real add/remove rows) that starts from an actual
+      Agreement-stage Prospect when one exists (pre-fills name and advisor from
+      real seeded data) or from scratch. "Create household" is deliberately
+      disabled — a Household record has ~70 fields spanning every plan section,
+      which this wizard never collects and which a brand-new household
+      wouldn't have data for yet; wiring a real create means deciding a
+      freshly-onboarded household's starting state across every section, a
+      product decision this pass doesn't make. Explained in the component's own
+      comment and in the disabled button's tooltip, not silently disabled.
 - [x] Schedule — built directly without a design pass, per explicit user direction
       (offered a design-first pass matching D-013's process; user chose to build
       page by page instead, reviewing each before the next). A real month
@@ -684,3 +692,24 @@ advisor capacity, all queried live from the 10 seeded households.
   "View in {section}" for all 4 of one household's cross-section insights
   while the Goals page shows none for that same household's Goals-sourced
   insight (correctly suppressed as redundant).
+- **2026-09-18** — Built Intake (third of the five no-design pages). A real
+  5-step interactive wizard — Start, Household basics, Members, Goals,
+  Review — with genuine client-side step state and add/remove rows, not a
+  static mockup, since this is application code rather than a design
+  artifact. The Start step lists real Agreement-stage Prospects (currently
+  just Ferreira Household) and pre-fills the household name and advisor
+  from that real record when picked, or lets the flow start from scratch.
+  "Create household" on the Review step is deliberately disabled with an
+  explained tooltip: a Household record has roughly 70 fields spanning
+  every plan section (cashflow, balance, allocation, retirement, tax, ...),
+  none of which this wizard collects, and a freshly-onboarded household
+  wouldn't have plan data yet regardless — wiring a real create means
+  deciding what that starting state looks like across every section, a
+  product decision out of scope here. Cleaned up one inconsistency before
+  it shipped: initially used a `<style jsx>` block for form-control
+  styling, the only place in the codebase that would have used styled-jsx
+  instead of the Tailwind utilities used everywhere else — replaced with a
+  shared class-name constant. Verified: clean typecheck + lint, full route
+  smoke test, and curl-inspection confirming Ferreira Household's real
+  advisor (Dana Whitfield) and estimated value render correctly in the
+  Start step.
