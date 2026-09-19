@@ -261,7 +261,16 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       were never mocked up in the design pass), so building real UI for it now
       would mean inventing layout without the design-first process this project
       committed to. Same reasoning as household-scoped Compliance.
-- [ ] Schedule — empty-state stub, same "no design reference" reasoning as Intake
+- [x] Schedule — built directly without a design pass, per explicit user direction
+      (offered a design-first pass matching D-013's process; user chose to build
+      page by page instead, reviewing each before the next). A real month
+      calendar (`components/schedule/month-calendar.tsx`, computed grid/dots,
+      not hand-laid-out) plus an Overdue and month-grouped Upcoming reviews list,
+      built from each household's real `nextReviewDate`/`reviewStatus`/
+      `planHealthPct` — the same fields Today's Agenda widget already uses.
+      Honestly scoped: there's no generic Meeting entity yet (CLAUDE.md §10),
+      so this is "upcoming household reviews," not an arbitrary event calendar
+      — stated in the page's own footer note, not implied otherwise
 - [ ] Tasks — empty-state stub, same "no design reference" reasoning as Intake
       (Today's Tasks widget derives from open Insights as a stand-in; there's no
       Task model either)
@@ -605,3 +614,22 @@ advisor capacity, all queried live from the 10 seeded households.
   match real household holdings, the RMD badge reflects the real query
   result, and the candlestick's household attribution lists the actual
   households holding that ticker.
+- **2026-09-18** — Offered a `/design` pass for the five remaining no-mockup
+  pages (Intake, Schedule, Tasks, Settings, household-scoped Compliance) to
+  keep D-013's design-first process intact; user chose instead to build them
+  directly, one page at a time, reviewing each before the next starts. Built
+  Schedule first: a real month calendar grid (new
+  `components/schedule/month-calendar.tsx`) plus Overdue and month-grouped
+  Upcoming sections, all driven by each household's real `nextReviewDate` /
+  `reviewStatus` / `planHealthPct` — the same fields Today's Agenda widget
+  already uses, so the two surfaces can't disagree about what's coming up.
+  Deliberately scoped honestly rather than implying more than the data
+  supports: there's no generic Meeting entity yet, so this reads as
+  "upcoming household reviews" (stated in the page's own footer), not an
+  arbitrary calendar. Verified: clean typecheck + lint, month navigation
+  smoke-tested across 8 months including a year boundary (Dec→Jan), and
+  curl-inspection confirming a household appears as both a calendar dot and
+  a list row only in the month its real review date falls in (checked against
+  both the current month and a month with an overdue household). Paused here
+  per the user's page-by-page review request — Tasks/Intake/Settings/
+  household-Compliance not started yet.
