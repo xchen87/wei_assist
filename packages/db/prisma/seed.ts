@@ -492,9 +492,19 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
   const daysFromNow = (d: number) => new Date(now + d * 24 * 60 * 60 * 1000);
   const shortDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const monthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+  // Compliance dates are a year or more apart, so they carry the year —
+  // without it "effective Apr 3 / next due Apr 3" reads as a bug.
+  const dateWithYear = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
   const docBucketRoll = rand();
   const trustSignedYearsAgo = 2 + Math.round(rand() * 3);
+  // The IPS appears in two places — the document vault below and the
+  // Compliance section's item list — so its status and date are decided
+  // once here and read by both. Two independent rolls would eventually
+  // have the vault calling it signed while Compliance called it due.
+  const ipsDue = docBucketRoll < 0.5;
+  const ipsDate = ipsDue ? daysFromNow(4 + Math.round(rand() * 10)) : daysAgo(20 + Math.round(rand() * 40));
+  const ipsDateLabel = shortDate(ipsDate);
   const documents = [
     {
       name: "Estate Planning Questionnaire",
@@ -523,9 +533,9 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     {
       name: "Investment Policy Statement",
       type: "Agreement",
-      statusLabel: docBucketRoll < 0.5 ? "Due" : "Signed",
-      bucket: docBucketRoll < 0.5 ? "needsAttention" : "complete",
-      uploadedLabel: docBucketRoll < 0.5 ? shortDate(daysFromNow(4 + Math.round(rand() * 10))) : shortDate(daysAgo(20 + Math.round(rand() * 40))),
+      statusLabel: ipsDue ? "Due" : "Signed",
+      bucket: ipsDue ? "needsAttention" : "complete",
+      uploadedLabel: ipsDateLabel,
       source: "Advisor upload",
     },
     {
@@ -545,6 +555,185 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       source: missingIndex >= 0 ? "—" : "Client-provided",
     },
   ];
+
+  // ---- Compliance (household-scoped, CLAUDE.md §6 §14) ----
+  // Everything here is anchored to fields the rest of the app already
+  // renders — the household's review cadence, its next review date, its
+  // last-contact gap, the year it became a client — so the Compliance
+  // section can't tell a different story than the Clients list, the
+  // top-level Compliance page, or the document vault. Item names are the
+  // artifacts an RIA actually keeps on file; the dates and statuses are
+  // fixtures, and no filing deadline or rule text is asserted anywhere.
+  const cadenceMonths = h.segment === "Core" ? 12 : 6;
+  const nextReview = new Date(`${h.nextReviewDate}T00:00:00Z`);
+  const monthsBefore = (d: Date, months: number) => {
+    const out = new Date(d);
+    out.setUTCMonth(out.getUTCMonth() - months);
+    return out;
+  };
+  const monthsAfter = (d: Date, months: number) => monthsBefore(d, -months);
+  const periodLabel = (d: Date) =>
+    cadenceMonths === 12 ? String(d.getUTCFullYear()) : `${d.getUTCMonth() < 6 ? "H1" : "H2"} ${d.getUTCFullYear()}`;
+
+  const reviewScopes = [
+    "Allocation, goals, and suitability",
+    "Full plan review — all sections",
+    "Allocation drift and cash position",
+    "Goals, contributions, and tax position",
+  ];
+
+  // Up to four prior reviews, never reaching back before the household was
+  // a client. A Core household on an annual cadence naturally shows fewer
+  // markers than a Founding one reviewed twice a year.
+  const priorReviews = [1, 2, 3, 4]
+    .map((n) => monthsBefore(nextReview, n * cadenceMonths))
+    .filter((d) => d.getUTCFullYear() >= h.clientSinceYear);
+
+  // A review that happened but was never attested is the gap worth
+  // surfacing — distinct from one that simply hasn't come due yet.
+  const attestationLapsed = rand() < 0.3 && priorReviews.length > 0;
+
+  const attestations = [
+    ...priorReviews.map((d, i) => ({
+      periodLabel: periodLabel(d),
+      occurredAt: d,
+      held: true,
+      attested: !(i === 0 && attestationLapsed),
+      scope: reviewScopes[i % reviewScopes.length]!,
+      notes:
+        i === 0 && attestationLapsed
+          ? "Review held and notes filed; attestation never signed."
+          : null,
+    })),
+    {
+      periodLabel: periodLabel(nextReview),
+      occurredAt: nextReview,
+      held: false,
+      attested: false,
+      scope: reviewScopes[priorReviews.length % reviewScopes.length]!,
+      notes:
+        h.reviewStatus === "overdue"
+          ? `Past the household's ${cadenceMonths}-month cadence — not yet held.`
+          : null,
+    },
+  ].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+
+  // Annual disclosure deliveries, anchored to the most recent review so
+  // they sit on the same clock as everything else on the page.
+  const lastReview = priorReviews[0] ?? monthsBefore(nextReview, cadenceMonths);
+  const advDelivered = lastReview;
+  const advNextDue = monthsAfter(advDelivered, 12);
+  const advOverdue = advNextDue.getTime() < now;
+  const privacyDelivered = monthsBefore(advDelivered, 3);
+  const privacyNextDue = monthsAfter(privacyDelivered, 12);
+  const privacyOverdue = privacyNextDue.getTime() < now;
+  const suitabilityStale = h.lastContactDays > 90;
+  const feeAckMissing = rand() < 0.2;
+
+  // Items that recur with the review cycle come due at the first review
+  // that falls after they took effect — without that guard, a household
+  // whose review is already overdue gets an item whose "next due" lands
+  // before its own effective date. And anything whose due date has passed
+  // is flagged, whatever else is true about it: one rule for every dated
+  // item, so an overdue household can't show a page full of "in force".
+  const reviewAfter = (effective: Date) =>
+    nextReview.getTime() > effective.getTime() ? nextReview : monthsAfter(nextReview, cadenceMonths);
+  const pastDue = (d: Date) => d.getTime() < now;
+
+  const ipsEffective = ipsDue ? daysAgo(18 * 30) : ipsDate;
+  const ipsNextDue = ipsDue ? ipsDate : reviewAfter(ipsEffective);
+  const suitabilityEffective = lastReview;
+  const suitabilityNextDue = reviewAfter(suitabilityEffective);
+  const suitabilityNeedsWork = suitabilityStale || pastDue(suitabilityNextDue);
+
+  const complianceItems = [
+    {
+      name: "Investment Policy Statement",
+      category: "IPS",
+      detail: "Objectives, constraints, and the target allocation this household is managed against.",
+      statusLabel: ipsDue || pastDue(ipsNextDue) ? "Refresh due" : "In force",
+      bucket: ipsDue || pastDue(ipsNextDue) ? "needsAttention" : "inForce",
+      effectiveLabel: dateWithYear(ipsEffective),
+      nextDueLabel: dateWithYear(ipsNextDue),
+    },
+    {
+      name: "Suitability assessment",
+      category: "Suitability",
+      detail: "Risk tolerance, time horizon, liquidity needs, and stated objectives on record.",
+      statusLabel: suitabilityNeedsWork ? "Refresh due" : "In force",
+      bucket: suitabilityNeedsWork ? "needsAttention" : "inForce",
+      effectiveLabel: dateWithYear(suitabilityEffective),
+      nextDueLabel: dateWithYear(suitabilityNextDue),
+    },
+    {
+      name: "Risk profile questionnaire",
+      category: "Suitability",
+      detail: "The completed questionnaire behind the suitability assessment.",
+      statusLabel: pastDue(suitabilityNextDue) ? "Refresh due" : "In force",
+      bucket: pastDue(suitabilityNextDue) ? "needsAttention" : "inForce",
+      effectiveLabel: dateWithYear(suitabilityEffective),
+      nextDueLabel: dateWithYear(suitabilityNextDue),
+    },
+    {
+      name: "Advisory agreement",
+      category: "Agreement",
+      detail: "Signed engagement, scope of services, and fee basis.",
+      statusLabel: "In force",
+      bucket: "inForce",
+      effectiveLabel: String(h.clientSinceYear),
+      nextDueLabel: "—",
+    },
+    {
+      name: "Fee schedule acknowledgment",
+      category: "Agreement",
+      detail: "Client acknowledgment of the fee schedule in effect.",
+      statusLabel: feeAckMissing ? "Not on file" : "In force",
+      bucket: feeAckMissing ? "missing" : "inForce",
+      effectiveLabel: feeAckMissing ? "—" : String(h.clientSinceYear),
+      nextDueLabel: "—",
+    },
+    {
+      name: "Form ADV Part 2A & 2B",
+      category: "Disclosure",
+      detail: "Firm brochure and brochure supplement, delivered annually.",
+      statusLabel: advOverdue ? "Delivery due" : "In force",
+      bucket: advOverdue ? "needsAttention" : "inForce",
+      effectiveLabel: dateWithYear(advDelivered),
+      nextDueLabel: dateWithYear(advNextDue),
+    },
+    {
+      name: "Form CRS",
+      category: "Disclosure",
+      detail: "Relationship summary, delivered at onboarding and on material change.",
+      statusLabel: "In force",
+      bucket: "inForce",
+      effectiveLabel: String(h.clientSinceYear),
+      nextDueLabel: "—",
+    },
+    {
+      name: "Privacy notice",
+      category: "Disclosure",
+      detail: "Annual notice of the firm's privacy practices.",
+      statusLabel: privacyOverdue ? "Delivery due" : "In force",
+      bucket: privacyOverdue ? "needsAttention" : "inForce",
+      effectiveLabel: dateWithYear(privacyDelivered),
+      nextDueLabel: dateWithYear(privacyNextDue),
+    },
+  ].map((c, i) => ({ ...c, sortOrder: i }));
+
+  // Computed from the record rather than seeded to "vary plausibly" like
+  // the other eleven section rings: an item in force counts fully, one
+  // needing attention counts half, one not on file counts nothing, and an
+  // unattested or missed review costs the section eight points.
+  const itemScore = complianceItems.reduce(
+    (sum, c) => sum + (c.bucket === "inForce" ? 1 : c.bucket === "needsAttention" ? 0.5 : 0),
+    0,
+  );
+  const reviewPenalty = attestationLapsed || h.reviewStatus === "overdue" ? 8 : 0;
+  const complianceCompletenessPct = clampPct(
+    (itemScore / complianceItems.length) * 100 - reviewPenalty,
+    30,
+  );
 
   // Activity timeline — spread over roughly the last two months.
   const activityEvents = [
@@ -631,6 +820,28 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       sourceLabel: "Documents section, synced today",
     });
   }
+  if (attestationLapsed) {
+    const lapsed = attestations.find((a) => a.held && !a.attested)!;
+    insights.push({
+      section: "Compliance",
+      text: `The ${lapsed.periodLabel} review was held but never attested — the notes are on file, the sign-off isn't. Worth closing before the next audit pass.`,
+      sourceLabel: "Compliance section, review attestations",
+    });
+  }
+  const missingComplianceItem = complianceItems.find((c) => c.bucket === "missing");
+  if (missingComplianceItem) {
+    insights.push({
+      section: "Compliance",
+      text: `${missingComplianceItem.name} isn't on file for this household — worth collecting alongside the next scheduled review.`,
+      sourceLabel: "Compliance section, synced today",
+    });
+  } else if (ipsDue || pastDue(ipsNextDue)) {
+    insights.push({
+      section: "Compliance",
+      text: `The Investment Policy Statement is due for a refresh on ${dateWithYear(ipsNextDue)} — the target allocation it documents predates the household's current drift.`,
+      sourceLabel: "Compliance section, cross-referenced with Allocation",
+    });
+  }
   if (openTasksCount >= 3) {
     insights.push({
       section: "Activity",
@@ -688,6 +899,9 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     estateDocs,
     documents,
     activityEvents,
+    complianceItems,
+    attestations,
+    complianceCompletenessPct,
   };
 }
 
@@ -819,6 +1033,7 @@ async function main() {
         estateCompletenessPct: extra.estateCompletenessPct,
         documentsCompletenessPct: extra.documentsCompletenessPct,
         activityCompletenessPct: extra.activityCompletenessPct,
+        complianceCompletenessPct: extra.complianceCompletenessPct,
         members: { create: h.members },
         goals: { create: extra.goals },
         insights: { create: extra.insights },
@@ -827,6 +1042,8 @@ async function main() {
         estateDocs: { create: extra.estateDocs },
         documents: { create: extra.documents },
         activityEvents: { create: extra.activityEvents },
+        complianceItems: { create: extra.complianceItems },
+        attestations: { create: extra.attestations },
       },
     });
   }

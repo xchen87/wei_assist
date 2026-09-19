@@ -70,6 +70,7 @@ export default async function ReportsPage({
     ["Estate", household.estateCompletenessPct],
     ["Documents", household.documentsCompletenessPct],
     ["Activity", household.activityCompletenessPct],
+    ["Compliance", household.complianceCompletenessPct],
   ];
   const weakest = sectionCompleteness.reduce((a, b) => (b[1] < a[1] ? b : a));
   const healthClause =

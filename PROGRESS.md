@@ -6,9 +6,11 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Last updated:** 2026-09-19
-**Current phase:** Phase 5 — Remaining plan sections (12 of 13 household-detail sections
-built; Compliance is the one remaining gap, blocked on a design pass — see D-013). All
-five top-level no-design pages are built except household-scoped Compliance.
+**Current phase:** Phase 5 complete — all 13 household-detail sections are built on the
+shared scaffold (Business is correctly hidden; no seeded household has an entity, D-003).
+The five surfaces with no design mockup were built directly at the user's direction
+(D-016). Next up is Phase 3, the assistant: the chat dock is UI-only until a model,
+tool runtime, and confirmation flow exist.
 
 ---
 
@@ -120,6 +122,18 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **The IPS has two homes and one source of truth.** It appears both in the
+  household document vault (Documents section) and as a required item in
+  Compliance. The seed decides its status and date once and both read that
+  same value — two independent rolls would eventually have the vault calling
+  it signed while Compliance called it due. Keep that intact when either
+  section changes.
+- **Compliance item names are real artifacts; every date and status is a
+  fixture.** Form ADV, Form CRS, and the privacy notice are what an RIA
+  actually keeps on file, but no filing deadline, cadence requirement, or
+  rule text is asserted anywhere in the app (CLAUDE.md §13). Items come due
+  on the household's own review cycle, and anything past its due date is
+  flagged by one rule rather than per-item special cases.
 - **Display preferences are device-local, not per user.** Theme and density
   (Settings → Appearance) persist in `localStorage` and apply as two
   attributes on `<html>`; there's no `User` table to store them on yet
@@ -254,21 +268,31 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Activity (unified timeline) — real timeline of Meeting/Document/TaskCompleted/
       Note/PlanChange events, colored by kind; the plan-change *diff* itself is still
       seed text (see the `PlanSnapshot` item below), only the timeline is real
-- [ ] Compliance (household-scoped: IPS, suitability, attestations) — empty-state stub;
-      no design reference exists for this one section (D-013) — needs a design pass
-      before it can be built, unlike the others above
+- [x] Compliance (household-scoped: IPS, suitability, attestations) — built directly
+      without a design pass, per the same user direction as Schedule/Tasks/Intake/
+      Settings (D-016). Two new models (`ComplianceItem`, `ReviewAttestation`) backing
+      eight required items and a review history per household, all anchored to fields
+      the rest of the app already renders — review cadence, next review date,
+      last-contact gap, client-since year — so the section can't contradict the Clients
+      list or the top-level Compliance queue. Summary visual is a review-attestation
+      timeline (`components/charts/attestation-timeline.tsx`), which distinguishes a
+      review held but never attested from one not yet due and one missed outright. Its
+      completeness ring is computed from the record rather than seeded like the other
+      eleven
 - [ ] `PlanSnapshot` versioning + "what changed since last review" diff — the Overview
       page's "what changed" list and the Activity timeline's plan-change entries are
       static/seeded, not a real diff engine
 
 ## Phase 6 — Charts and reports
 
-- [~] Chart primitives — eleven real, data-driven chart components exist
+- [~] Chart primitives — twelve real, data-driven chart components exist
       (`components/charts/`: cashflow-sankey, net-worth-waterfall, allocation-rings,
       goals-bubble-quadrant, book-treemap, revenue-concentration-curve,
       pipeline-funnel, retirement-fan-chart, tax-bracket-bar, protection-gap-bars,
-      estate-flow-diagram); no shared axis/legend/tooltip/table-toggle abstraction
-      yet — each chart implements its own axes inline
+      estate-flow-diagram, attestation-timeline); no shared axis/legend/tooltip/
+      table-toggle abstraction yet — each chart implements its own axes inline.
+      Compliance is the one section that ships its chart's table equivalent
+      (CLAUDE.md §8) as a real Review history table rather than a toggle
 - [ ] Full catalog from CLAUDE.md §8 documented in Storybook (no Storybook at all yet)
 - [ ] Accessibility pass
 - [~] Reports — a real, per-household preview (executive summary text and net-worth
@@ -414,6 +438,31 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Built the household-scoped Compliance section, the last of the
+  fourteen and the last page with no design mockup (D-016). Needed a data model first:
+  `ComplianceItem` (eight required items per household — IPS, suitability assessment,
+  risk questionnaire, advisory agreement, fee acknowledgment, Form ADV, Form CRS,
+  privacy notice) and `ReviewAttestation` (the review history), plus a
+  `complianceCompletenessPct` computed from those rows rather than seeded like its
+  eleven siblings. Everything is anchored to fields the app already renders — cadence
+  from segment, dates from `nextReviewDate`, staleness from `lastContactDays`, history
+  bounded by `clientSinceYear` — so Compliance can't tell a different story than the
+  Clients list or the firm-wide review queue. Summary visual is a review-attestation
+  timeline rather than another status bar: it distinguishes a review held but never
+  attested (brass ring) from one not yet due (dashed) and one missed outright (red),
+  which a status bar collapses. Seeding surfaced two real bugs, both found by auditing
+  the generated rows rather than by looking at the page: items showed "effective Apr 3 /
+  next due Apr 3" because the date format omitted the year, and an overdue household got
+  an IPS whose next-due date fell *before* its own effective date. Fixed by carrying the
+  year and by deriving each recurring item's due date from the first review after it took
+  effect — plus one rule that flags anything past due, so an overdue household can no
+  longer show a page of "in force". Verified: an automated audit of all 80 seeded items
+  found no ordering or stale-status contradictions, all 10 household compliance pages
+  return 200, insight cards appear on exactly the 6 households whose records warrant
+  one, and two pages were screenshot-reviewed (table wrapping fixed as a result). Also
+  added Compliance to the Reports page's section-completeness list, which had enumerated
+  eleven sections and would otherwise have named the wrong weakest section.
 
 - **2026-09-19** — Built Settings (fourth of the five no-design pages). Six subpages —
   Organization, Team, Appearance, Integrations, AI, Billing — on the same left-rail

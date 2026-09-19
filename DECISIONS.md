@@ -380,3 +380,50 @@ cards, forms, and the nav keep their spacing in both modes, which is narrower th
 density modes" might imply. Dark mode is now reachable by any user without ever having been
 through a design pass — the token values come from §7, but no dark-mode mockup exists, so
 individual surfaces may need adjustment as they're reviewed in it.
+
+---
+
+## D-016 — The five undesigned pages ship without a design pass; household Compliance closes them out
+
+2026-09-19 · Accepted
+
+**Context** — D-013 put a visual design pass ahead of implementation, and 22 screens were
+mocked before Phase 0. Five surfaces never got one: Schedule, Tasks, Intake, Settings, and
+the household-scoped Compliance section. PROGRESS.md listed the last of these as blocked —
+"needs a design pass before it can be built, unlike the others above". Offered a design pass
+for all five; the user chose instead to build them directly, one page at a time, reviewing
+each before the next started. The first four shipped that way over 2026-09-18 and -19, and
+this entry records the choice rather than leaving it implied by four changelog lines.
+
+**Decision** — Build all five directly against CLAUDE.md's prose spec and the token/scaffold
+discipline the designed screens established, rather than blocking on mockups. For the
+household Compliance section specifically, two choices follow from having no design to copy.
+Its primary visual is a review-attestation timeline, not another status bar — the Documents
+section already breaks its vault down that way, and what makes a compliance record auditable
+is the cadence: whether each periodic review happened, and whether it was signed off. A
+review held but never attested is its own failure mode, distinct from one not yet due and
+from one missed outright, and only the timeline shows that at a glance. And its completeness
+ring is computed from the household's own compliance rows — items in force count fully, ones
+needing attention count half, an unattested or missed review costs eight points — rather than
+seeded to "vary plausibly" like the other eleven section rings, because here the record
+itself is a good enough stand-in for the required-field manifest that doesn't exist yet.
+
+**Alternatives** — Hold Compliance until a design pass: consistent with D-013, but the four
+sibling pages had already shipped without one and the section was the last gap in a
+fourteen-section record whose scaffold dictates most of the layout anyway. Reuse the
+Documents status bar for the summary: cheaper and consistent, but it would have made two
+adjacent sections look identical while hiding the one thing compliance is actually judged on.
+Seed the completeness figure like the other sections: consistent, but needlessly less honest
+when the underlying rows can answer the question directly.
+
+**Consequences** — Five surfaces now exist with no design record behind them, so they were
+never reviewed for token/type/radius discipline the way the 22 mocked screens were; any later
+design pass will be reconciling against shipped code rather than leading it. The compliance
+data model (`ComplianceItem`, `ReviewAttestation`) was invented here rather than derived from
+a mockup, and item names are the artifacts an RIA keeps on file while every date and status is
+a fixture — no filing deadline or rule text is asserted anywhere, per CLAUDE.md §13. The IPS
+now appears in two sections at once (the document vault and the compliance item list); the
+seed decides its status once so the two can't disagree, but any future writer has to keep that
+single source intact. `complianceCompletenessPct` being computed while its eleven siblings are
+seeded is a deliberate inconsistency, and should become the pattern — not the exception — once
+the real per-section manifest in `packages/schemas/completeness.ts` exists.

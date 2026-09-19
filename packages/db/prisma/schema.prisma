@@ -75,6 +75,12 @@ model Household {
   estateCompletenessPct     Int
   documentsCompletenessPct  Int
   activityCompletenessPct   Int
+  // Unlike the eleven above, this one isn't seeded to "vary plausibly" — the
+  // seed computes it from the household's own ComplianceItem rows and
+  // attestation currency, which is the closest thing to a real required-field
+  // manifest that exists anywhere in the app today. Still stored rather than
+  // computed at render time, so every section reads its ring the same way.
+  complianceCompletenessPct Int
 
   // Cashflow (annual, illustrative — see design/README.md conventions)
   incomeCents    Int
@@ -142,6 +148,8 @@ model Household {
   estateDocs     EstateDocument[]
   documents      Document[]
   activityEvents ActivityEvent[]
+  complianceItems ComplianceItem[]
+  attestations    ReviewAttestation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -251,4 +259,39 @@ model ActivityEvent {
   label       String
   detail      String? // optional second line, e.g. meeting notes
   occurredAt  DateTime
+}
+
+// Household-scoped compliance record (CLAUDE.md §6 §14): the agreements,
+// disclosures, and suitability artifacts that have to be in force for this
+// household, one row each. Deliberately parallel to Document's vocabulary
+// — same three buckets, same status-label-plus-bucket split — because the
+// two surfaces overlap (the IPS appears in both) and disagreeing about
+// whether it's signed would be worse than the duplication.
+model ComplianceItem {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  name        String
+  category    String // IPS | Suitability | Disclosure | Agreement
+  statusLabel String // In force | Refresh due | Delivery due | Not on file
+  bucket      String // inForce | needsAttention | missing — drives the readiness bar
+  detail      String // what the item is, in an advisor's words
+  effectiveLabel String // formatted date it took effect, or "—"
+  nextDueLabel   String // formatted date it next comes due, or "—" if it doesn't recur
+  sortOrder   Int
+}
+
+// One periodic review and whether it was attested. This is the compliance
+// heartbeat the section's summary visual plots: a review that happened but
+// was never attested is a real audit gap, distinct from one not yet held.
+model ReviewAttestation {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  periodLabel String // e.g. "H1 2026" or "2025" depending on the household's cadence
+  occurredAt  DateTime // the review date — in the future for the one not yet held
+  held        Boolean // false for the upcoming (or missed) review
+  attested    Boolean // a held review can still be unattested; that's the gap worth surfacing
+  scope       String // what the review covered
+  notes       String?
 }
