@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
 import { PlanSection } from "@/components/plan/plan-section";
 import { SectionActions } from "@/components/plan/section-actions";
+import { formatDate, formatNextBirthday } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,13 @@ export default async function HouseholdMembersPage({ params }: { params: { id: s
               <div className="text-sm font-semibold">{m.name}</div>
               <div className="text-xs text-ink-muted">
                 {m.role} · Age {m.age}
+                {m.birthDate ? <> · Born {formatDate(m.birthDate)}</> : null}
               </div>
+              {/* Only when it's near: the part an advisor acts on — a card,
+                  a milestone, an age-based trigger. */}
+              {m.birthDate && formatNextBirthday(m.birthDate) ? (
+                <div className="mt-0.5 text-xs text-brass">{formatNextBirthday(m.birthDate)}</div>
+              ) : null}
               <div className="mt-1 text-xs text-ink-muted">{m.occupation}</div>
             </div>
           ))}
@@ -42,7 +49,7 @@ export default async function HouseholdMembersPage({ params }: { params: { id: s
         </div>
       }
       insights={[]}
-      provenance="Member and contact details: manual entry."
+      provenance="Member and contact details, including dates of birth: manual entry. Dates of birth are shown in full rather than masked (D-019) and are not encrypted at rest yet (CLAUDE.md §11, Phase 9)."
     />
   );
 }

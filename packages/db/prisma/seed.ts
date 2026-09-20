@@ -905,6 +905,21 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
   };
 }
 
+/** A fictional date of birth that agrees with the member's stated age as of
+ * seed time. Deterministic per member name, so reseeding doesn't shuffle
+ * birthdays. Deliberately spread across the year rather than clustered, so
+ * "next birthday" is a useful signal on some households and not others. */
+function birthDateFor(name: string, age: number, now: Date): Date {
+  const rand = mulberry32(hashCode(`dob:${name}`));
+  const dayOfYear = 1 + Math.floor(rand() * 364);
+  const thisYear = now.getUTCFullYear();
+  const thisYearBirthday = new Date(Date.UTC(thisYear, 0, dayOfYear));
+  // If the birthday has already happened this year, they turned `age` this
+  // year; otherwise they turn it later this year and were born a year earlier.
+  const birthYear = thisYearBirthday.getTime() <= now.getTime() ? thisYear - age : thisYear - age - 1;
+  return new Date(Date.UTC(birthYear, thisYearBirthday.getUTCMonth(), thisYearBirthday.getUTCDate()));
+}
+
 function hashCode(str: string) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -1034,7 +1049,9 @@ async function main() {
         documentsCompletenessPct: extra.documentsCompletenessPct,
         activityCompletenessPct: extra.activityCompletenessPct,
         complianceCompletenessPct: extra.complianceCompletenessPct,
-        members: { create: h.members },
+        members: {
+          create: h.members.map((m) => ({ ...m, birthDate: birthDateFor(m.name, m.age, new Date()) })),
+        },
         goals: { create: extra.goals },
         insights: { create: extra.insights },
         policies: { create: extra.policies },

@@ -518,3 +518,43 @@ refs in an older message do not resolve against a newer turn; the dock keeps eac
 citations on the message itself for that reason. Adding a tool means deciding what its
 citable unit is — the activity tool issues one ref per event rather than one for the
 timeline, because rows within one timeline are the ones most easily conflated.
+
+---
+
+## D-019 — Dates of birth are shown in full, not masked
+
+2026-09-19 · Accepted
+
+**Context** — Adding a member's birthday to the Household section ran straight into
+CLAUDE.md §11, which lists dates of birth alongside SSNs and account numbers as fields to
+mask by default, revealing only through an explicit action that is logged — under a heading
+that calls those constraints non-negotiable. Taken literally that means an advisor cannot
+see their own client's birthday without clicking through a logged reveal, four times for a
+four-person household.
+
+**Decision** — Show the full date in the roster. The product owner's framing: every user of
+this platform is a certified professional operating on records that are confidential in
+their entirety, so masking one field from the advisor who owns that relationship is friction
+with no threat model behind it — the whole page is already client data, and nothing about a
+birthday is more sensitive than the net-worth figure two sections over. Alongside the date,
+the roster shows a nudge — "turns 17 in 12 days" — only when the birthday is within sixty
+days, which is the part an advisor acts on; past that it would just be the same date twice.
+
+**Alternatives** — Mask by default with a one-click, logged reveal per household: what §11
+says, and the version originally built (an `AuditEvent` model plus a reveal server action,
+both backed out with this decision). It defends against shoulder-surfing, screenshots, and
+bulk scraping, and it produces a trail — but it taxes every legitimate look to do it, and
+this application has no untrusted reader to defend against. Show month and day only: keeps
+the year out of the UI, but the age is displayed two characters earlier, so the year is
+derivable anyway — privacy theatre rather than privacy.
+
+**Consequences** — §11's masking rule is now unmet, deliberately, and this entry is the
+record of that rather than a silent gap; the section's own provenance line says so on the
+page too. What is *not* waived: dates of birth are still unencrypted at rest, which is a
+separate §11 requirement and remains unbuilt (Phase 9), and there is still no audit log of
+reads. If this platform ever gains a reader who is not a certified professional — a client
+portal, a support seat, a read-only role for an outside auditor — this decision should be
+revisited before that ships, because the reasoning above depends entirely on who is holding
+the screen. `Member.birthDate` is nullable and seeded with fictional dates consistent with
+each member's stated age at seed time; the two drift as real time passes, so `age` stays the
+field everything except the roster reads.

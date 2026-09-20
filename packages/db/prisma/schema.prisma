@@ -163,6 +163,15 @@ model Member {
   role        String // Primary | Spouse | Dependent
   age         Int
   occupation  String
+  // CLAUDE.md §11 lists dates of birth as masked-by-default PII. Shown in
+  // full instead, per D-019: every user of this platform is a certified
+  // professional and the whole record is confidential, so masking a
+  // birthday from the advisor who owns the relationship is friction with no
+  // threat model behind it. Still plaintext at rest — field-level
+  // encryption is unbuilt (Phase 9). Seeded values are fictional and agree
+  // with `age` at seed time; the two drift apart as real time passes, so
+  // `age` stays the field everything but the roster reads.
+  birthDate   DateTime?
 }
 
 model Goal {

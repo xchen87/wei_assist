@@ -134,6 +134,13 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **Dates of birth are shown, not masked (D-019).** CLAUDE.md §11 says to
+  mask them; this platform's users are all certified professionals working
+  on wholly confidential records, so the rule buys nothing here and the
+  roster shows the full date. The masking machinery built for it — an
+  `AuditEvent` model and a logged reveal action — was backed out rather
+  than left unused. Encryption at rest is a separate §11 requirement and is
+  still unbuilt.
 - **The assistant cites records by ref, never by describing them.** Every
   record a tool returns gets an `R1`-style ref (`lib/ai/refs.ts`) that the
   reply quotes and the dock renders as a link naming that record. A new
@@ -327,9 +334,11 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       node heights and ribbon geometry, not hardcoded pixels
 - [x] Goals — bubble quadrant (the primary visual the design settled on over the
       stacked-area alternative), area-proportional bubble sizing, real Goal records
-- [~] Household (members) — a members roster is real and data-backed; the force-free
-      relationship graph from `design/HouseholdMembers.dc.html` isn't built (see that
-      section's page for the exact gap)
+- [~] Household (members) — a members roster is real and data-backed, now including each
+      member's date of birth and a "turns 17 in 12 days" nudge when a birthday is within
+      sixty days. Dates of birth are shown in full rather than masked (D-019), which is a
+      deliberate deviation from CLAUDE.md §11. The force-free relationship graph from
+      `design/HouseholdMembers.dc.html` isn't built (see that section's page for the gap)
 - [x] Retirement — Monte Carlo-style fan chart (`lib/calc/retirement.ts`, a pure
       seeded simulation, not hardcoded percentile bands) + plan assumptions table
 - [x] Tax — stepped bracket bar (`lib/calc/tax.ts`; bracket structure is illustrative
@@ -477,7 +486,11 @@ advisor capacity, all queried live from the 10 seeded households.
 - [ ] Audit log viewer with export
 - [ ] Retention policy configuration and enforcement job
 - [ ] Field-level encryption for SSN, account numbers, DOB
-- [ ] Masked-by-default PII with logged reveal
+- [-] Masked-by-default PII with logged reveal — dropped for dates of birth (D-019): every
+      user is a certified professional and the whole record is confidential, so masking one
+      field from the advisor who owns the relationship buys nothing. Revisit if a reader
+      who isn't a certified professional ever gets a seat (client portal, support, outside
+      auditor). Field-level encryption below is unaffected and still required
 - [ ] Compliance role: read-everything, write-attestations-only
 - [ ] Penetration test and remediation
 - [ ] SOC 2 evidence collection started
@@ -517,6 +530,20 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Added dates of birth to the Household section's Members panel, with a
+  "turns 17 in 12 days" nudge shown only when a birthday is within sixty days — past that
+  it would repeat the date printed beside it. Needed a new `Member.birthDate` (the model
+  had only `age`), seeded with fictional dates that agree with each member's stated age at
+  seed time; verified all 24 members' stored ages match the ages their dates imply. The
+  work started as masked-by-default with a logged reveal, per CLAUDE.md §11, and an
+  `AuditEvent` model and reveal server action were built for it; the product owner's
+  framing — every user is a certified professional, the whole record is confidential —
+  made that friction without a threat model, so the masking was dropped and its machinery
+  backed out rather than left unused (D-019). The deviation is recorded in DECISIONS, in
+  the section's own provenance line, and in the schema comment, since a rule §11 calls
+  non-negotiable shouldn't go unmet silently. Encryption at rest is a separate §11
+  requirement and remains unbuilt.
 
 - **2026-09-19** — A batch of small items, no new dependencies. Clients search now
   matches member names as well as household names (members are modelled, and the
