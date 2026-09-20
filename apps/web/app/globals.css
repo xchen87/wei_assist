@@ -64,6 +64,19 @@ body {
   background: var(--pine-tint);
 }
 
+/* CLAUDE.md §4: the nav is an icon rail that expands to labels on hover or
+   when pinned. Pinned width is applied from the boot-script attribute rather
+   than React state, so a pinned nav never flashes narrow on first paint. The
+   hover expansion overlays the workspace instead of pushing it — content
+   that reflows every time the pointer crosses the rail is worse than a rail
+   that sits on top of it for a moment. */
+.nav-shell {
+  width: 72px;
+}
+:root[data-nav="pinned"] .nav-shell {
+  width: 232px;
+}
+
 /* CLAUDE.md §7: motion answers user actions, and respects the OS setting.
    The skeleton pulse is the only ambient animation in the app; under
    reduced motion it becomes a static placeholder. */

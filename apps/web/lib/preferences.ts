@@ -7,9 +7,13 @@
 
 export const THEME_KEY = "meridian.theme";
 export const DENSITY_KEY = "meridian.density";
+export const NAV_KEY = "meridian.nav";
 
 export type Theme = "light" | "dark" | "system";
 export type Density = "comfortable" | "compact";
+/** Rail: icons only, expanding over the workspace on hover. Pinned: labels
+ * always visible, workspace shifted across to make room (CLAUDE.md §4). */
+export type NavMode = "rail" | "pinned";
 
 export const THEMES: { value: Theme; label: string; description: string }[] = [
   { value: "light", label: "Light", description: "Warm paper background, dark ink." },
@@ -32,6 +36,15 @@ export function applyPreferences(theme: Theme, density: Density): void {
   document.documentElement.setAttribute("data-density", density);
 }
 
+export function applyNavMode(mode: NavMode): void {
+  document.documentElement.setAttribute("data-nav", mode);
+  try {
+    localStorage.setItem(NAV_KEY, mode);
+  } catch {
+    // Same as the other preferences: it still applies for this session.
+  }
+}
+
 /** Runs in <head> before first paint, so a dark-theme user never sees a
  * flash of the light palette. Inlined as a string because it has to
  * execute before React hydrates — keep it dependency-free and in sync with
@@ -40,4 +53,6 @@ export const PREFERENCES_BOOT_SCRIPT = `(function(){try{var t=localStorage.getIt
   THEME_KEY,
 )})||"system";var d=localStorage.getItem(${JSON.stringify(
   DENSITY_KEY,
-)})||"comfortable";var r=t==="system"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;var e=document.documentElement;e.setAttribute("data-theme",r);e.setAttribute("data-density",d);}catch(_){}})();`;
+)})||"comfortable";var r=t==="system"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;var n=localStorage.getItem(${JSON.stringify(
+  NAV_KEY,
+)})||"rail";var e=document.documentElement;e.setAttribute("data-theme",r);e.setAttribute("data-density",d);e.setAttribute("data-nav",n);}catch(_){}})();`;

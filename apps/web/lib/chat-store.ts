@@ -53,6 +53,9 @@ type ChatState = {
   streaming: boolean;
   conversationId: string | null;
   setContext: (label: string, href: string, ids?: string[]) => void;
+  /** Called once from the dock on mount — the store is created during SSR,
+   * where sessionStorage doesn't exist. */
+  restore: () => void;
   clearContext: () => void;
   send: (text: string) => void;
   stop: () => void;
@@ -61,6 +64,38 @@ type ChatState = {
 };
 
 let controller: AbortController | null = null;
+
+/** The thread survives a reload, per tab. sessionStorage rather than
+ * localStorage on purpose: a conversation belongs to the sitting the
+ * advisor is in, and a second tab opening onto someone else's half-finished
+ * thread about a different household would be worse than starting clean.
+ *
+ * What's stored is the transcript the advisor can already see — messages,
+ * the tool calls and citations attached to them, the context chip — plus
+ * the conversation id, so a resumed thread keeps writing to the same
+ * append-only log rather than starting a second one. */
+const SESSION_KEY = "meridian.chat";
+
+type PersistedChat = Pick<
+  ChatState,
+  "messages" | "conversationId" | "label" | "href" | "contextIds"
+>;
+
+function persistSession(state: ChatState) {
+  if (typeof window === "undefined") return;
+  try {
+    const snapshot: PersistedChat = {
+      messages: state.messages,
+      conversationId: state.conversationId,
+      label: state.label,
+      href: state.href,
+      contextIds: state.contextIds,
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Storage blocked or full: the thread just won't survive a reload.
+  }
+}
 
 function emptyAssistant(): ChatMessage {
   return { role: "assistant", text: "", tools: [], proposals: [], guardrails: [], citations: [] };
@@ -74,6 +109,28 @@ export const useChatContext = create<ChatState>((set, get) => ({
   messages: [],
   streaming: false,
   conversationId: null,
+
+  restore: () => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<PersistedChat>;
+      if (!Array.isArray(saved.messages) || saved.messages.length === 0) return;
+      set({
+        messages: saved.messages,
+        conversationId: saved.conversationId ?? null,
+        // A route that sets its own context (a household page) wins over the
+        // stored chip, so resuming never claims to be looking at a record
+        // the advisor has since navigated away from.
+        label: get().label ?? saved.label ?? null,
+        href: get().href ?? saved.href ?? null,
+        contextIds: get().contextIds.length > 0 ? get().contextIds : (saved.contextIds ?? []),
+      });
+    } catch {
+      // A corrupt snapshot shouldn't cost the advisor the dock.
+    }
+  },
 
   setContext: (label, href, ids = []) => set({ label, href, contextIds: ids }),
   clearContext: () => set({ label: null, href: null, contextIds: [] }),
@@ -216,4 +273,10 @@ function applyEvent(
     case "done":
       return;
   }
+}
+
+// Every state change the advisor can see is worth keeping; streaming deltas
+// land here too, so an interrupted answer survives a reload as far as it got.
+if (typeof window !== "undefined") {
+  useChatContext.subscribe(persistSession);
 }

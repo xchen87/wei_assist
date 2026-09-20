@@ -195,8 +195,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 ## Phase 0 — Foundations
 
-- [x] Repo scaffold: Next.js App Router, TypeScript strict, ESLint — configured; no
-      Prettier config file written yet (installed as a dependency only)
+- [x] Repo scaffold: Next.js App Router, TypeScript strict, ESLint — configured. No
+      Prettier config on purpose: it's installed, but checking the tree against a
+      reasonable config (120 cols, double quotes, trailing commas) reports 68 files
+      differing, so adding one means a repo-wide reformat that buries feature history in
+      `git blame`. Worth doing as its own commit when someone wants it, not slipped into
+      a batch
 - [~] Monorepo wiring — `apps/web` and `packages/db` exist and are wired via pnpm
       workspaces; `packages/schemas` and `packages/integrations` don't exist yet (see notes)
 - [x] Design tokens in CSS custom properties, Tailwind theme mapped to them
@@ -232,8 +236,11 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 ## Phase 1 — Shell (M1)
 
 - [~] Three-column layout — built and fixed-width; not resizable, no persistence
-- [~] Nav rail — icon mode, groups, Settings pinned bottom all match the design exactly;
-      no expand-on-hover/pin-to-expanded mode
+- [x] Nav rail — icon mode, groups, Settings pinned bottom, plus expand-on-hover and
+      pin-to-expanded (CLAUDE.md §4). Hovering overlays the workspace; pinning shifts it
+      across, so content doesn't reflow every time the pointer crosses the rail. Group
+      labels appear only when expanded. The pin persists via the same boot-script
+      attribute as theme and density, so a pinned nav never flashes narrow on load
 - [x] Route stubs for all 12 top-level entries with proper empty states — every one
       has since been built out for real; no stub routes remain
 - [ ] Responsive behavior: overlay chat < 1280px, bottom bar nav < 900px
@@ -252,8 +259,10 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 - [~] Household table, 12 columns, tabular figures — not virtualized (10 seeded rows
       don't need it; revisit once row count actually warrants it)
-- [~] Sort — real, URL-driven (`?sort=&dir=`), all 12 columns. Show/hide, reorder, and
-      pin-the-household-column are not built
+- [~] Sort — real, URL-driven (`?sort=&dir=`), all 12 columns. The Household column is
+      pinned: the table scrolls horizontally below 1224px (which is most configurations
+      once the nav is pinned or the chat dock is open) and the name column stays put
+      rather than every column being squeezed. Show/hide and reorder are not built
 - [~] Search — household name or any member's name; no email or tag search (neither is
       modelled). Matches the same two fields the assistant's `search_households` tool does
 - [ ] Filter chips (region, income, investable assets, segment, goals, life stage, risk,
@@ -305,9 +314,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Append-only interaction log — `AiConversation` / `AiMessage` / `AiToolCall`
       record the tools called and the ids of records touched (§9 rule 5, §11), never
       the tool result payloads
-- [~] Conversation history / threading — every turn is persisted and a thread keeps
-      one `conversationId` for its lifetime, but there's no UI to reopen a past
-      conversation and the dock's thread is lost on reload
+- [~] Conversation history / threading — every turn is persisted, a thread keeps one
+      `conversationId` for its lifetime, and the dock now survives a reload: the
+      transcript, its citations, and the conversation id are kept in sessionStorage, so
+      a resumed thread keeps writing to the same append-only log. Still no UI to reopen
+      a past conversation, and a new tab starts clean (deliberately — a conversation
+      belongs to the sitting it was started in)
 - [ ] Token and cost telemetry
 
 ## Phase 4 — Today (M4)
@@ -549,6 +561,24 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Three more small items, no new dependencies. The nav rail now expands
+  on hover and can be pinned (CLAUDE.md §4, previously unbuilt): hovering overlays the
+  workspace, pinning shifts it across — content that reflows every time the pointer
+  crosses the rail would be worse than a rail that sits over it for a moment — and group
+  labels (Work, Relationships, Intelligence, Records) appear only when expanded. The pin
+  rides the same boot-script attribute as theme and density, so a pinned nav doesn't flash
+  narrow on first paint; verified by measuring nav, shell, and workspace offsets through
+  hover, pin, pointer-away, and reload. The chat dock survives a reload: transcript,
+  citations, and conversation id go to sessionStorage, so a resumed thread keeps writing
+  to the same append-only log rather than opening a second one — verified by checking the
+  id and all four citation chips came back. And the Household column is pinned on the
+  Clients table, which meant giving the table horizontal scroll: at 1224px of columns it
+  overflows as soon as the nav is pinned or the dock is open, and the old fixed layout
+  squeezed every column instead. Deliberately not done: a Prettier config. It's installed,
+  but the tree differs from any reasonable config in 68 files, and a repo-wide reformat
+  buried in a feature batch is worse than no config — recorded in Phase 0 so it isn't
+  re-derived.
 
 - **2026-09-19** — Made Today's widget grid configurable (CLAUDE.md §5), on
   `react-grid-layout` as §2 specifies — the first new dependency since the Anthropic SDK,

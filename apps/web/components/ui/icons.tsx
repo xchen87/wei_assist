@@ -139,3 +139,13 @@ export function CloseIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Pin / unpin the nav rail open. */
+export function PinIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={14} height={14} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M8 3h4l-.6 4.2 2.6 2.3v1.3H6v-1.3l2.6-2.3L8 3Z" />
+      <path d="M10 10.8V17" />
+    </svg>
+  );
+}

@@ -15,8 +15,14 @@ import { CitedText, GuardrailNotice, ProposalCard, ToolRunList } from "./message
  */
 export function ChatDock() {
   const [draft, setDraft] = useState("");
-  const { label, href, clearContext, collapsed, messages, streaming, send, stop, retry } = useChatContext();
+  const { label, href, clearContext, collapsed, messages, streaming, send, stop, retry, restore } =
+    useChatContext();
   const threadRef = useRef<HTMLDivElement>(null);
+
+  // Pick the thread back up after a reload (sessionStorage, per tab).
+  useEffect(() => {
+    restore();
+  }, [restore]);
 
   // Follow the stream, but only while the advisor is already at the bottom —
   // yanking the view down mid-read is worse than a missed line.

@@ -105,7 +105,14 @@ export function ClientsTable({
         </div>
       )}
 
-      <table className="w-full table-fixed border-collapse text-sm">
+      {/* CLAUDE.md §6 asks for a pinned Household column. Pinning only means
+          something once the table can scroll sideways: at 1224px of columns
+          it overflows as soon as the nav is pinned or the chat dock is open,
+          and the old table-fixed squeeze made every column unreadable at
+          once instead. Horizontal only — the page still owns vertical
+          scrolling (§4). */}
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[1224px] table-fixed border-collapse text-sm">
         <colgroup>
           <col style={{ width: 32 }} />
           <col style={{ width: 200 }} />
@@ -123,7 +130,7 @@ export function ClientsTable({
         </colgroup>
         <thead>
           <tr className="border-b border-rule">
-            <th />
+            <th className="sticky left-0 z-20 bg-paper" />
             {(
               [
                 ["name", "HOUSEHOLD", "left"],
@@ -140,7 +147,10 @@ export function ClientsTable({
                 ["advisor", "ADVISOR", "left"],
               ] as const
             ).map(([field, label, align]) => (
-              <th key={field} className="px-1.5 py-2">
+              <th
+                key={field}
+                className={`px-1.5 py-2 ${field === "name" ? "sticky left-[32px] z-20 bg-paper" : ""}`}
+              >
                 <SortableHeader field={field} label={label} align={align} currentSort={activeSort} currentDir={activeDir} />
               </th>
             ))}
@@ -154,7 +164,7 @@ export function ClientsTable({
                 key={row.id}
                 className={`border-b border-rule ${isSelected ? "bg-pine-tint" : ""}`}
               >
-                <td className="py-2.5">
+                <td className={`sticky left-0 z-10 py-2.5 ${isSelected ? "bg-pine-tint" : "bg-paper"}`}>
                   <button
                     onClick={() => toggle(row.id)}
                     aria-pressed={isSelected}
@@ -164,7 +174,12 @@ export function ClientsTable({
                     }`}
                   />
                 </td>
-                <Td strong={activeSort === "name"}>
+                <Td
+                  strong={activeSort === "name"}
+                  className={`sticky left-[32px] z-10 border-r border-rule ${
+                    activeSort === "name" ? "" : isSelected ? "bg-pine-tint" : "bg-paper"
+                  }`}
+                >
                   <Link href={`/clients/${row.id}`} className="font-medium hover:underline">
                     {row.name}
                   </Link>
@@ -228,6 +243,7 @@ export function ClientsTable({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
