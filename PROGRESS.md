@@ -142,6 +142,18 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   A widget's size lives in `components/widgets/catalog.ts`, not in the
   widget: one that set its own width would fight the layout the advisor
   dragged.
+- **The intake SSN box masks while typing; the Household panel shows dates
+  of birth in full.** Not a contradiction with D-019: a date of birth on a
+  record page is being read by the advisor who owns that relationship, while
+  an SSN is typed at a meeting where the client — or the next person past the
+  desk — can see the screen. Masking a field being typed is ordinary practice
+  for secrets, not a compliance gesture. Nothing typed there is stored:
+  there's no encrypted column for it (§11, Phase 9).
+- **The risk questionnaire's bands are illustrative, like the tax brackets.**
+  `lib/calc/risk.ts` scores four answers into Conservative/Moderate/Growth/
+  Aggressive. The mechanism is real and visible to the advisor; the questions
+  and cut-offs are fixtures, because a firm's suitability questionnaire is a
+  compliance artifact its own compliance team owns (CLAUDE.md §13).
 - **Dates of birth are shown, not masked (D-019).** CLAUDE.md §11 says to
   mask them; this platform's users are all certified professionals working
   on wholly confidential records, so the rule buys nothing here and the
@@ -433,17 +445,26 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       Document rows, search + household + status filters all in the URL
       (`components/ui/filter-select.tsx`), per `design/Documents.dc.html`
 - [x] Intake — built directly, no design pass (third of the five, after Schedule
-      and Tasks). A real 5-step interactive wizard (`components/intake/
-      intake-wizard.tsx`: Start → Household basics → Members → Goals → Review,
-      real step state, real add/remove rows) that starts from an actual
-      Agreement-stage Prospect when one exists (pre-fills name and advisor from
-      real seeded data) or from scratch. "Create household" is deliberately
+      and Tasks). A real 5-step interactive wizard (`components/intake/`: Start →
+      Household basics → Members → Goals → Review, real step state, real add/remove
+      rows) that starts from an actual Agreement-stage Prospect when one exists
+      (pre-fills name and advisor from real seeded data) or from scratch.
+      Members collect a date of birth (age is derived, never typed — two fields for
+      one fact drift apart the moment a birthday passes), a social security number,
+      income/expenses/assets/liabilities with net worth and annual surplus computed
+      live, and a four-question risk-tolerance questionnaire that scores to a profile
+      in front of the advisor rather than out of sight (`lib/calc/risk.ts`). Goals are
+      picked from a catalog of the common ones — the first five matching the names
+      seeded households already use, plus an Other escape hatch — each with a priority
+      and a time-horizon band. "Create household" is deliberately
       disabled — a Household record has ~70 fields spanning every plan section,
       which this wizard never collects and which a brand-new household
       wouldn't have data for yet; wiring a real create means deciding a
       freshly-onboarded household's starting state across every section, a
-      product decision this pass doesn't make. Explained in the component's own
-      comment and in the disabled button's tooltip, not silently disabled.
+      product decision this pass doesn't make, and there is no encrypted column for
+      a social security number to go in (CLAUDE.md §11, Phase 9). Explained in the
+      component's own comment, in the step's footer note, and in the disabled
+      button's tooltip, not silently disabled.
 - [x] Schedule — built directly without a design pass, per explicit user direction
       (offered a design-first pass matching D-013's process; user chose to build
       page by page instead, reviewing each before the next). A real month
@@ -561,6 +582,26 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Six adjustments to Intake, at the user's request. Members now take a
+  date of birth instead of an age, with the age derived beside it — an age typed today is
+  wrong within a year, and the Household section already stores dates of birth. Added a
+  social security number field that masks as you type with a Show toggle, four money
+  fields (income, expenses, assets, liabilities) with net worth and annual surplus
+  computed live from them, and a four-question risk-tolerance questionnaire per member
+  that shows its score and profile as it's filled in rather than computing one invisibly.
+  The member row became a member card to hold it; scoring lives in `lib/calc/risk.ts`,
+  pure like the rest of lib/calc, with its bands marked illustrative for the same reason
+  the tax brackets are. Goals are now chosen from a catalog of common ones — the first
+  five matching names the seeded households already use, so a goal picked at intake reads
+  the same as one already on a plan — with an Other escape hatch, and each carries a time
+  horizon as a band rather than a year, since at intake a household knows "a few years"
+  long before it knows a date. The Review step summarises all of it, showing only the last
+  four of an SSN. Walked the whole wizard in a browser: age derived correctly from a
+  1979 date, SSN masked then revealed as 123-45-6789, net worth $1,430,000 and surplus
+  $85,000 computed from the four inputs, four answers scoring 12 of 16 into Growth, Other
+  revealing its text box, and the review tables carrying all of it through. Still not
+  wired to create anything, for the reasons above plus the missing encrypted column.
 
 - **2026-09-19** — Three more small items, no new dependencies. The nav rail now expands
   on hover and can be pinned (CLAUDE.md §4, previously unbuilt): hovering overlays the

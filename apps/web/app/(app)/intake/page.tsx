@@ -14,7 +14,7 @@ export default async function IntakePage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-[760px] px-8 py-7">
+    <div className="mx-auto max-w-[900px] px-8 py-7">
       <h1 className="mb-1 text-lg font-semibold">Intake</h1>
       <p className="mb-6 text-sm text-ink-muted">
         Onboard a new client household — the guided flow from a signed agreement to a plan on file.

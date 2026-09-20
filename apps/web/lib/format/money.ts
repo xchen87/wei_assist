@@ -27,6 +27,18 @@ export function toDollars(cents: number): number {
   return Math.round(cents) / 100;
 }
 
+/** "12,500" or "$12,500.50" from a form field -> integer cents. Returns
+ * null for anything that isn't a number, so a caller can tell "nothing
+ * entered" from "zero". The inverse of toDollars, and the only other place
+ * cents are created from user input (D-007). */
+export function parseDollarsToCents(input: string): number | null {
+  const cleaned = input.replace(/[$,\s]/g, "");
+  if (!cleaned) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return null;
+  return Math.round(value * 100);
+}
+
 export function formatSignedMoney(cents: number, opts: { compact?: boolean } = {}): string {
   const formatted = formatMoney(Math.abs(cents), opts);
   return cents >= 0 ? `+${formatted}` : `−${formatted}`;

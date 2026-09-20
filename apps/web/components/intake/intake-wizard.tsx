@@ -3,21 +3,26 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/format/money";
+import { MemberCard, netWorthOf, surplusOf } from "./member-card";
+import {
+  GOAL_HORIZONS,
+  GOAL_OPTIONS,
+  INPUT_CLASS,
+  PRIORITIES,
+  emptyGoal,
+  emptyMember,
+  maskSsn,
+  ageFrom,
+  type GoalRow,
+  type MemberRow,
+} from "./intake-types";
+import { scoreRiskTolerance } from "@/lib/calc/risk";
 
 type Prospect = { id: string; name: string; estValueCents: number; advisorName: string };
 type Advisor = { id: string; name: string };
 
-type MemberRow = { name: string; role: string; age: string; occupation: string };
-type GoalRow = { name: string; priority: string };
-
 const STEPS = ["Start", "Household basics", "Members", "Goals", "Review"];
 const SEGMENTS = ["Core", "Premier", "Founding"];
-const ROLES = ["Primary", "Spouse", "Dependent"];
-const PRIORITIES = ["Low", "Medium", "High"];
-
-const emptyMember = (): MemberRow => ({ name: "", role: "Primary", age: "", occupation: "" });
-const emptyGoal = (): GoalRow => ({ name: "", priority: "Medium" });
-const INPUT_CLASS = "w-full rounded-control border border-rule bg-surface px-2.5 py-2 text-sm text-ink";
 
 /** New-client onboarding, distinct from Prospects (the pipeline before a
  * signed agreement) per CLAUDE.md §1's naming note — this starts once a
@@ -56,6 +61,9 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
   function updateGoal(i: number, patch: Partial<GoalRow>) {
     setGoals((rows) => rows.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
   }
+
+  const namedMembers = members.filter((m) => m.name.trim());
+  const namedGoals = goals.filter((g) => g.name.trim());
 
   const canAdvance =
     step === 0 ? true : step === 1 ? name.trim().length > 0 && advisorId : step === 2 ? members.some((m) => m.name.trim()) : true;
@@ -157,67 +165,119 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
         {step === 2 && (
           <div>
             <div className="mb-1 text-sm font-semibold">Members</div>
-            <div className="mb-4 text-xs text-ink-muted">Everyone in this household&rsquo;s plan.</div>
+            <div className="mb-4 text-xs text-ink-muted">
+              Everyone in this household&rsquo;s plan. Dates of birth rather than ages — an age typed
+              today is wrong within a year. Figures here seed the Cashflow and Balance sections;
+              the risk answers seed Allocation&rsquo;s suitability record.
+            </div>
             <div className="flex flex-col gap-3">
               {members.map((m, i) => (
-                <div key={i} className="grid grid-cols-[1.4fr_1fr_0.7fr_1.2fr_auto] items-center gap-2">
-                  <input value={m.name} onChange={(e) => updateMember(i, { name: e.target.value })} placeholder="Full name" className={INPUT_CLASS} />
-                  <select value={m.role} onChange={(e) => updateMember(i, { role: e.target.value })} className={INPUT_CLASS}>
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <input value={m.age} onChange={(e) => updateMember(i, { age: e.target.value })} placeholder="Age" className={INPUT_CLASS} />
-                  <input
-                    value={m.occupation}
-                    onChange={(e) => updateMember(i, { occupation: e.target.value })}
-                    placeholder="Occupation"
-                    className={INPUT_CLASS}
-                  />
-                  <button
-                    onClick={() => setMembers((rows) => rows.filter((_, ri) => ri !== i))}
-                    disabled={members.length === 1}
-                    className="rounded-control border border-rule px-2 py-1.5 text-xs text-ink-muted disabled:opacity-30"
-                  >
-                    Remove
-                  </button>
-                </div>
+                <MemberCard
+                  key={i}
+                  index={i}
+                  member={m}
+                  canRemove={members.length > 1}
+                  onChange={(patch) => updateMember(i, patch)}
+                  onRemove={() => setMembers((rows) => rows.filter((_, ri) => ri !== i))}
+                />
               ))}
             </div>
-            <button onClick={() => setMembers((rows) => [...rows, emptyMember()])} className="mt-3 text-sm font-semibold text-pine hover:underline">
+            <button
+              onClick={() => setMembers((rows) => [...rows, emptyMember()])}
+              className="mt-3 text-sm font-semibold text-pine hover:underline"
+            >
               + Add member
             </button>
+            <div className="mt-3 border-t border-rule pt-3 text-xs text-ink-muted">
+              Social security numbers are held in this form only. There is no encrypted column to
+              store one in yet (CLAUDE.md §11, Phase 9), so nothing here is saved or transmitted.
+            </div>
           </div>
         )}
 
         {step === 3 && (
           <div>
             <div className="mb-1 text-sm font-semibold">Initial goals</div>
-            <div className="mb-4 text-xs text-ink-muted">Optional — can also be added later from the Goals section.</div>
-            <div className="flex flex-col gap-3">
-              {goals.map((g, i) => (
-                <div key={i} className="grid grid-cols-[2fr_1fr_auto] items-center gap-2">
-                  <input value={g.name} onChange={(e) => updateGoal(i, { name: e.target.value })} placeholder="e.g. Retirement" className={INPUT_CLASS} />
-                  <select value={g.priority} onChange={(e) => updateGoal(i, { priority: e.target.value })} className={INPUT_CLASS}>
-                    {PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => setGoals((rows) => rows.filter((_, ri) => ri !== i))}
-                    disabled={goals.length === 1}
-                    className="rounded-control border border-rule px-2 py-1.5 text-xs text-ink-muted disabled:opacity-30"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+            <div className="mb-4 text-xs text-ink-muted">
+              Optional — can also be added later from the Goals section. Pick from the common ones or
+              choose Other to name your own.
             </div>
-            <button onClick={() => setGoals((rows) => [...rows, emptyGoal()])} className="mt-3 text-sm font-semibold text-pine hover:underline">
+            <div className="mb-1.5 grid grid-cols-[2fr_1fr_1fr_auto] gap-2 text-xs text-ink-muted">
+              <div>Goal</div>
+              <div>Priority</div>
+              <div>Time horizon</div>
+              <div className="w-[70px]" />
+            </div>
+            <div className="flex flex-col gap-2">
+              {goals.map((g, i) => {
+                const listed = GOAL_OPTIONS.includes(g.name);
+                // "Other" keeps the select on Other while the text box carries
+                // the real name, so picking Other doesn't blank the row.
+                const selectValue = g.name === "" ? "" : listed ? g.name : "Other";
+                return (
+                  <div key={i} className="grid grid-cols-[2fr_1fr_1fr_auto] items-start gap-2">
+                    <div className="flex flex-col gap-1.5">
+                      <select
+                        value={selectValue}
+                        onChange={(e) =>
+                          updateGoal(i, { name: e.target.value === "Other" ? " " : e.target.value })
+                        }
+                        className={INPUT_CLASS}
+                      >
+                        <option value="">Choose a goal…</option>
+                        {GOAL_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                      {selectValue === "Other" && (
+                        <input
+                          value={g.name.trim()}
+                          onChange={(e) => updateGoal(i, { name: e.target.value || " " })}
+                          placeholder="Name this goal"
+                          className={INPUT_CLASS}
+                          autoFocus
+                        />
+                      )}
+                    </div>
+                    <select
+                      value={g.priority}
+                      onChange={(e) => updateGoal(i, { priority: e.target.value })}
+                      className={INPUT_CLASS}
+                    >
+                      {PRIORITIES.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={g.horizon}
+                      onChange={(e) => updateGoal(i, { horizon: e.target.value })}
+                      className={INPUT_CLASS}
+                    >
+                      {GOAL_HORIZONS.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setGoals((rows) => rows.filter((_, ri) => ri !== i))}
+                      disabled={goals.length === 1}
+                      className="w-[70px] rounded-control border border-rule px-2 py-2 text-xs text-ink-muted disabled:opacity-30"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setGoals((rows) => [...rows, emptyGoal()])}
+              className="mt-3 text-sm font-semibold text-pine hover:underline"
+            >
               + Add goal
             </button>
           </div>
@@ -226,17 +286,13 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
         {step === 4 && (
           <div>
             <div className="mb-4 text-sm font-semibold">Review</div>
-            <dl className="mb-5 grid grid-cols-2 gap-y-3 text-sm">
+            <dl className="mb-5 grid grid-cols-[140px_1fr] gap-y-3 text-sm">
               <dt className="text-ink-muted">Household</dt>
               <dd className="font-medium">{name || "—"}</dd>
               <dt className="text-ink-muted">Segment</dt>
               <dd>{segment}</dd>
               <dt className="text-ink-muted">Advisor</dt>
               <dd>{advisors.find((a) => a.id === advisorId)?.name ?? "—"}</dd>
-              <dt className="text-ink-muted">Members</dt>
-              <dd>{members.filter((m) => m.name.trim()).map((m) => m.name).join(", ") || "—"}</dd>
-              <dt className="text-ink-muted">Initial goals</dt>
-              <dd>{goals.filter((g) => g.name.trim()).map((g) => g.name).join(", ") || "None yet"}</dd>
               {prospectId && (
                 <>
                   <dt className="text-ink-muted">Converted from</dt>
@@ -244,6 +300,87 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
                 </>
               )}
             </dl>
+
+            <div className="mb-2 text-sm font-semibold">Members</div>
+            <table className="mb-5 w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-rule text-xs font-semibold text-ink-muted">
+                  <th className="py-2 text-left">NAME</th>
+                  <th className="py-2 text-left">ROLE</th>
+                  <th className="py-2 text-right">AGE</th>
+                  <th className="py-2 text-right">SSN</th>
+                  <th className="py-2 text-right">NET WORTH</th>
+                  <th className="py-2 text-right">ANNUAL</th>
+                  <th className="py-2 text-left">RISK</th>
+                </tr>
+              </thead>
+              <tbody>
+                {namedMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-2.5 text-ink-muted">
+                      No members added.
+                    </td>
+                  </tr>
+                ) : (
+                  namedMembers.map((m, i) => {
+                    const age = ageFrom(m.birthDate);
+                    const netWorth = netWorthOf(m);
+                    const surplus = surplusOf(m);
+                    const risk = scoreRiskTolerance(m.risk);
+                    return (
+                      <tr key={i} className="border-b border-rule">
+                        <td className="py-2.5 font-medium">{m.name}</td>
+                        <td className="py-2.5 text-ink-muted">{m.role}</td>
+                        <td className="tabular py-2.5 text-right">{age ?? "—"}</td>
+                        <td className="tabular py-2.5 text-right text-ink-muted">{maskSsn(m.ssn)}</td>
+                        <td className="tabular py-2.5 text-right">
+                          {netWorth === null ? "—" : formatMoney(netWorth)}
+                        </td>
+                        <td
+                          className={`tabular py-2.5 text-right ${
+                            surplus === null ? "" : surplus >= 0 ? "text-gain" : "text-loss"
+                          }`}
+                        >
+                          {surplus === null
+                            ? "—"
+                            : `${surplus >= 0 ? "+" : "−"}${formatMoney(Math.abs(surplus))}`}
+                        </td>
+                        <td className="py-2.5">
+                          {risk.profile ?? (
+                            <span className="text-brass">{risk.answered}/4 answered</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            <div className="mb-2 text-sm font-semibold">Initial goals</div>
+            {namedGoals.length === 0 ? (
+              <div className="mb-5 text-sm text-ink-muted">None yet.</div>
+            ) : (
+              <table className="mb-5 w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-rule text-xs font-semibold text-ink-muted">
+                    <th className="py-2 text-left">GOAL</th>
+                    <th className="py-2 text-left">PRIORITY</th>
+                    <th className="py-2 text-left">TIME HORIZON</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {namedGoals.map((g, i) => (
+                    <tr key={i} className="border-b border-rule">
+                      <td className="py-2.5 font-medium">{g.name.trim()}</td>
+                      <td className="py-2.5 text-ink-muted">{g.priority}</td>
+                      <td className="py-2.5 text-ink-muted">{g.horizon}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
             <button
               disabled
               title="Not wired up in this build — see this component's file comment for why"
@@ -252,8 +389,9 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
               Create household
             </button>
             <div className="mt-2 text-xs text-ink-muted">
-              Not wired up in this build — creating a real household means populating every plan section&rsquo;s
-              starting state, a decision this pass doesn&rsquo;t make. See PROGRESS.md.
+              Not wired up in this build — creating a real household means populating every plan
+              section&rsquo;s starting state, a decision this pass doesn&rsquo;t make, and there is no
+              encrypted column for a social security number yet. See PROGRESS.md.
             </div>
           </div>
         )}
