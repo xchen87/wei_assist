@@ -36,7 +36,9 @@ export default async function ClientsPage({
   const q = (searchParams.q ?? "").trim().toLowerCase();
   const view = searchParams.view ?? "all";
 
-  const households = await prisma.household.findMany({ include: { advisor: true } });
+  const households = await prisma.household.findMany({
+    include: { advisor: true, members: { select: { name: true } } },
+  });
 
   let rows: ClientRow[] = households.map((h) => ({
     id: h.id,
@@ -53,10 +55,18 @@ export default async function ClientsPage({
     nextReviewDate: h.nextReviewDate.toISOString(),
     reviewStatus: h.reviewStatus,
     advisorName: h.advisor.name,
+    memberNames: h.members.map((m) => m.name),
   }));
 
   if (q) {
-    rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+    // Household name or any member's name — CLAUDE.md §6 also lists email
+    // and tags, neither of which is modelled yet. The assistant's
+    // search_households tool matches the same two fields.
+    rows = rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.memberNames.some((m) => m.toLowerCase().includes(q)),
+    );
   }
   if (view === "needs-review") {
     rows = rows.filter((r) => r.planHealthPct < 70);
@@ -96,7 +106,7 @@ export default async function ClientsPage({
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Search households…"
+            placeholder="Search households or people…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted"
           />
         </form>

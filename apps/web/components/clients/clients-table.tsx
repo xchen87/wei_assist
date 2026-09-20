@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, toDollars } from "@/lib/format/money";
+import { downloadCsv, toCsv } from "@/lib/export-csv";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatShortDate } from "@/lib/format/date";
 import { formatShortName } from "@/lib/format/name";
@@ -23,9 +24,30 @@ export type ClientRow = {
   nextReviewDate: string;
   reviewStatus: string;
   advisorName: string;
+  /** Searched against, not displayed — the list is one row per household. */
+  memberNames: string[];
 };
 
-const ACTIONS = ["Assign", "Tag", "Add to campaign", "Schedule review", "Export"];
+/** Everything here needs a model or an integration that doesn't exist yet
+ * (assignment, tags, campaigns, a Meeting entity) — except Export, which
+ * only needs the rows already on screen, so that one is real. */
+const UNBUILT_ACTIONS = ["Assign", "Tag", "Add to campaign", "Schedule review"];
+
+const CSV_COLUMNS: { header: string; value: (r: ClientRow) => string | number }[] = [
+  { header: "Household", value: (r) => r.name },
+  { header: "Segment", value: (r) => r.segment },
+  { header: "Advisor", value: (r) => r.advisorName },
+  { header: "AUM", value: (r) => toDollars(r.aumCents) },
+  { header: "Net worth", value: (r) => toDollars(r.netWorthCents) },
+  { header: "Held away", value: (r) => toDollars(r.heldAwayCents) },
+  { header: "YTD return %", value: (r) => r.ytdReturnPct },
+  { header: "Cash %", value: (r) => r.cashPct },
+  { header: "Drift %", value: (r) => r.driftPct },
+  { header: "Plan health %", value: (r) => r.planHealthPct },
+  { header: "Last contact (days)", value: (r) => r.lastContactDays },
+  { header: "Next review", value: (r) => r.nextReviewDate.slice(0, 10) },
+  { header: "Review status", value: (r) => r.reviewStatus },
+];
 
 /** Drift threshold for the "worth flagging" red highlight — matches the
  * Clients page's own "At risk" saved-view filter (driftPct >= 4), so the
@@ -43,6 +65,17 @@ export function ClientsTable({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  function exportSelected() {
+    const chosen = rows.filter((r) => selected.has(r.id));
+    downloadCsv(
+      `meridian-households-${new Date().toISOString().slice(0, 10)}.csv`,
+      toCsv(
+        CSV_COLUMNS.map((c) => c.header),
+        chosen.map((r) => CSV_COLUMNS.map((c) => c.value(r))),
+      ),
+    );
+  }
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -56,16 +89,19 @@ export function ClientsTable({
       {selected.size > 0 && (
         <div className="mb-0.5 flex items-center gap-4 rounded-control bg-pine-tint px-3.5 py-2">
           <div className="text-xs font-semibold text-pine">{selected.size} selected</div>
-          {ACTIONS.map((action) => (
+          {UNBUILT_ACTIONS.map((action) => (
             <button
               key={action}
               disabled
-              title="Not wired up in this build"
+              title="Needs a model this build doesn't have yet"
               className="text-xs text-pine opacity-70"
             >
               {action}
             </button>
           ))}
+          <button onClick={exportSelected} className="text-xs font-semibold text-pine hover:underline">
+            Export
+          </button>
         </div>
       )}
 

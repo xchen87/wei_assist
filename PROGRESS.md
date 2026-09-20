@@ -224,7 +224,10 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [ ] Responsive behavior: overlay chat < 1280px, bottom bar nav < 900px
 - [ ] Command palette (⌘K)
 - [~] Global search — Clients list has a working name search; nothing global yet
-- [ ] Keyboard map and visible focus states beyond browser defaults
+- [~] Keyboard map and visible focus states beyond browser defaults — a token-coloured
+      `:focus-visible` ring is global (keyboard only, never on mouse clicks), with an
+      inverted ring on pine fills where a pine ring would vanish. No keyboard map or
+      shortcut layer yet
 - [x] Theme switching, density switching — both real, in Settings → Appearance. Light /
       dark / system and comfortable / compact, applied as `data-theme` / `data-density` on
       `<html>` and persisted in localStorage (no User table to hang them on yet — D-015).
@@ -236,13 +239,16 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       don't need it; revisit once row count actually warrants it)
 - [~] Sort — real, URL-driven (`?sort=&dir=`), all 12 columns. Show/hide, reorder, and
       pin-the-household-column are not built
-- [~] Search — household name only; no member/email/tag search (no such data modeled)
+- [~] Search — household name or any member's name; no email or tag search (neither is
+      modelled). Matches the same two fields the assistant's `search_households` tool does
 - [ ] Filter chips (region, income, investable assets, segment, goals, life stage, risk,
       completeness, last contact, review status, account types, tags, advisor)
 - [x] Filter state in URL, shareable (sort, saved view, and search query all do this)
 - [x] Saved views: My book, Needs review, At risk
-- [~] Bulk select — real selection state and a bulk-action bar; the actions themselves
-      (Assign/Tag/Add to campaign/Schedule review/Export) are disabled stubs
+- [~] Bulk select — real selection state and a bulk-action bar. Export is real: it
+      writes a CSV of the selected rows with dollars as numbers and ISO dates, since
+      the destination is a spreadsheet. Assign/Tag/Add to campaign/Schedule review stay
+      disabled — each needs a model or integration that doesn't exist
 - [x] "Analyze this cohort" handoff into chat — the Clients toolbar hands the assistant
       the household ids the table is actually showing, not the URL, since a saved view
       like "At risk" is a filter the assistant can't reproduce from query params. The
@@ -303,8 +309,17 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       Recents, Notes — all ten present. Agenda/Tasks/Alerts/Pipeline/Book/Reviews are
       real queries against seeded data; Markets/Milestones/Recents/Notes are honestly
       static (no backing model — see notes above and each widget's file)
-- [ ] Widget error isolation and skeleton loading — `ErrorState` component exists but
-      isn't wired to a per-widget error boundary yet
+- [~] Widget error isolation and skeleton loading — there is now a route-level
+      boundary: `(app)/error.tsx` keeps a failed page inside the shell with a retry,
+      `(app)/not-found.tsx` does the same for a missing record, and `(app)/loading.tsx`
+      provides the skeleton *and* the Suspense boundary that makes the error boundary
+      work at all (without it a throwing server component took down the whole document,
+      nav and chat dock included — verified against an unreachable database). Per-widget
+      isolation is still not done: Today fetches all ten widgets' data in one block, so
+      one failing query fails the page. That needs each widget to fetch its own data,
+      which is the TanStack Query refactor CLAUDE.md §5 describes, not a wrapper.
+      Trade-off worth knowing: streaming the shell means a missing record now returns
+      200 with the not-found UI rather than a 404 — see `(app)/loading.tsx`
 
 ## Phase 5 — Remaining plan sections (M5)
 
@@ -502,6 +517,28 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — A batch of small items, no new dependencies. Clients search now
+  matches member names as well as household names (members are modelled, and the
+  assistant's own search tool already matched them — the list was the odd one out);
+  email and tag search stay unbuilt because neither is modelled. Export became the one
+  real bulk action — it writes a CSV of the selected rows with dollars as plain numbers
+  and ISO dates, since a spreadsheet is not a screen, with `toDollars` added to
+  lib/format as the only new place cents stop being cents. Verified by capturing the
+  actual blob in a browser: correct headers, only the selected rows, figures matching
+  the table. Keyboard focus is now visible: one token-coloured `:focus-visible` ring,
+  keyboard-only, inverted on pine fills — verified by tabbing for real, since
+  programmatic focus doesn't trigger it. And the workspace column finally has error,
+  not-found, and loading boundaries. That last one was the interesting find: `error.tsx`
+  alone did nothing, because a server component that throws while the shell is still
+  rendering takes down the whole document — proven by pointing the app at an unreachable
+  database, which rendered Next's bare error page with no nav and no chat dock. Adding
+  `loading.tsx` creates the Suspense boundary that lets the shell stream first; the same
+  failure now renders inside the shell with a retry and a digest. The cost, deliberately
+  taken: once the shell has streamed the status is already sent, so a missing household
+  returns 200 with the not-found UI instead of a 404. Also made the skeleton's pulse the
+  only ambient animation in the app, and disabled it under `prefers-reduced-motion`
+  (CLAUDE.md §7).
 
 - **2026-09-19** — Synced PROGRESS.md against the code and picked up two small spec'd
   items. The sync corrected seven stale claims: dark-mode tokens described as unswitchable

@@ -20,6 +20,13 @@ export function formatCompactMoney(dollars: number): string {
   return `${sign}$${abs.toFixed(0)}`;
 }
 
+/** Cents -> a plain dollar number, for export rather than display: a
+ * spreadsheet wants 8420000 as 8420000.00, not "$8.42M". Still the only
+ * place cents stop being cents (D-007). */
+export function toDollars(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
 export function formatSignedMoney(cents: number, opts: { compact?: boolean } = {}): string {
   const formatted = formatMoney(Math.abs(cents), opts);
   return cents >= 0 ? `+${formatted}` : `−${formatted}`;

@@ -64,6 +64,37 @@ body {
   background: var(--pine-tint);
 }
 
+/* CLAUDE.md §7: motion answers user actions, and respects the OS setting.
+   The skeleton pulse is the only ambient animation in the app; under
+   reduced motion it becomes a static placeholder. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Keyboard focus has to be visible without putting a ring around every
+   mouse click (Phase 1: "visible focus states beyond browser defaults").
+   :focus-visible is exactly that distinction, and the offset keeps the ring
+   off dense table rows where an inset outline reads as a border. */
+:focus-visible {
+  outline: 2px solid var(--pine);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* On a pine fill the pine ring disappears into the background. */
+.bg-pine:focus-visible,
+.text-on-accent:focus-visible {
+  outline-color: var(--on-accent);
+  outline-offset: -4px;
+}
+
 /* Density (CLAUDE.md §7): comfortable 40px rows, compact 32px. Table cells
    set their own vertical padding with utilities, so compact overrides them
    in one place here rather than threading a density prop through all
