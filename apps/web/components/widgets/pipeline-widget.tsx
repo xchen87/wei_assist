@@ -5,7 +5,7 @@ const STAGES = ["Inquiry", "Discovery", "Proposal", "Agreement"] as const;
 export function PipelineWidget({ counts }: { counts: Record<string, number> }) {
   const max = Math.max(1, ...STAGES.map((s) => counts[s] ?? 0));
   return (
-    <WidgetCard title="Pipeline" span={4}>
+    <WidgetCard title="Pipeline">
       {/* No fixed height here on purpose: a flex row's cross-size is the
        * tallest item's natural height, so this always fits count number +
        * bar + label for whichever stage has the tallest bar. A hardcoded

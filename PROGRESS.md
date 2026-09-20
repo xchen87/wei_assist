@@ -134,6 +134,14 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   no DOB, no view-tracking, no persistence). They're labeled as such in
   their component files. Agenda, Tasks, Alerts, Pipeline, Book, and Reviews
   are all real queries against seeded data.
+- **Today's grid places widgets; it never fetches for them.** The page
+  still does one query block and hands the rendered widgets to
+  `WidgetGrid` as content (D-020). Per-widget fetching is what §5's widget
+  contract wants and is still open — until then, one failing query fails
+  the page, which is why widget-level error isolation is still unchecked.
+  A widget's size lives in `components/widgets/catalog.ts`, not in the
+  widget: one that set its own width would fight the layout the advisor
+  dragged.
 - **Dates of birth are shown, not masked (D-019).** CLAUDE.md §11 says to
   mask them; this platform's users are all certified professionals working
   on wholly confidential records, so the rule buys nothing here and the
@@ -309,11 +317,22 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       the count that has actually drifted past the alert threshold, falling back to the
       weakest plan. A chip never names a household the advisor doesn't have
 - [x] Submit streams into the dock without navigating (shared Zustand store)
-- [ ] Widget grid drag/resize/add/remove/reset — grid is fixed, not customizable
-- [ ] Per-user per-breakpoint layout persistence
-- [ ] Org default layout + admin widget locking
+- [x] Widget grid drag/resize/add/remove/reset — real, on `react-grid-layout` (D-020).
+      Editing is a mode ("Edit layout"), so cards don't shift under the cursor while
+      being read; inside it, drag to move, drag the corner to resize, × to remove, "Add
+      widget" offers exactly the widgets not currently placed, and Reset restores the
+      default
+- [~] Per-user per-breakpoint layout persistence — per advisor, in a `DashboardLayout`
+      row written on drop (debounced) and read on page load. Not per breakpoint: the app
+      has one breakpoint until responsive behaviour exists (Phase 1). A layout equal to
+      the default is stored as no row, so Reset means "follow the default" rather than
+      freezing today's default into the record
+- [ ] Org default layout + admin widget locking — needs an Org and roles (D-014). The
+      built-in default lives in `components/widgets/catalog.ts` as the constant an
+      org-published layout would replace
 - [x] Widgets: Agenda, Tasks, Alerts, Pipeline, Markets, Book, Reviews, Milestones,
-      Recents, Notes — all ten present. Agenda/Tasks/Alerts/Pipeline/Book/Reviews are
+      Recents, Notes — all ten present, each with a catalog entry (title, description,
+      default and minimum size) driving both the grid and the add menu. Agenda/Tasks/Alerts/Pipeline/Book/Reviews are
       real queries against seeded data; Markets/Milestones/Recents/Notes are honestly
       static (no backing model — see notes above and each widget's file)
 - [~] Widget error isolation and skeleton loading — there is now a route-level
@@ -530,6 +549,25 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Made Today's widget grid configurable (CLAUDE.md §5), on
+  `react-grid-layout` as §2 specifies — the first new dependency since the Anthropic SDK,
+  recorded in D-020. Drag to move, drag the corner to resize, × to remove, an "Add widget"
+  menu listing exactly what isn't currently placed, and Reset. Editing is a mode rather
+  than always-on, because a dashboard whose cards move while you read them is worse than
+  one that doesn't. Layout persists per advisor in a new `DashboardLayout` row, written on
+  drop and debounced so a drag is one write rather than one per frame. Two findings worth
+  keeping: react-grid-layout v2 dropped `WidthProvider` for a `useContainerWidth` hook, so
+  the API here is nothing like the v1 examples; and the original default layout had
+  overlapping cells that the library silently compacted, which meant "reset to default"
+  could never recognise its own output — so reset deleted the layout row and the reflow
+  immediately wrote it back. Fixed by making the default collision-free and storing a
+  default-equal layout as no row at all, so Reset means "follow the default" rather than
+  freezing today's default into the advisor's record. Verified in a browser by actually
+  dragging: a widget moved, a resize grew it by one column and two rows, remove and re-add
+  round-tripped through the catalog, the arrangement survived a reload, and Reset left no
+  row behind. Still missing from §5 and marked as such: a layout per breakpoint (there is
+  one breakpoint), and an org default with admin-locked widgets (no Org, no roles).
 
 - **2026-09-19** — Added dates of birth to the Household section's Members panel, with a
   "turns 17 in 12 days" nudge shown only when a birthday is within sixty days — past that

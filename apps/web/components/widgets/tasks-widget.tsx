@@ -5,7 +5,7 @@ import { WidgetCard } from "./widget-card";
  * (see PROGRESS.md). */
 export function TasksWidget({ items }: { items: { id: string; householdName: string; text: string }[] }) {
   return (
-    <WidgetCard title="Tasks" span={3}>
+    <WidgetCard title="Tasks">
       <div className="flex flex-col gap-2.5">
         {items.map((item) => (
           <div key={item.id}>

@@ -9,7 +9,7 @@ export function AgendaWidget({
 }) {
   const dot = { ready: "bg-gain", partial: "bg-brass", "not-started": "bg-loss" };
   return (
-    <WidgetCard title="Agenda" span={6}>
+    <WidgetCard title="Agenda">
       <div className="flex flex-col gap-2.5">
         {items.map((item) => (
           <Link key={item.id} href={`/clients/${item.id}`} className="flex items-center gap-2.5 hover:opacity-80">

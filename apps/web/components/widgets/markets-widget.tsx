@@ -4,7 +4,7 @@ import { WidgetCard } from "./widget-card";
  * on purpose rather than faking a live feed. */
 export function MarketsWidget() {
   return (
-    <WidgetCard title="Markets" span={4}>
+    <WidgetCard title="Markets">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-sm">S&amp;P 500</div>
         <div className="tabular text-sm text-gain">+0.4%</div>

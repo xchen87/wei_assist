@@ -3,7 +3,7 @@ import { WidgetCard } from "./widget-card";
 
 export function ReviewsWidget({ items }: { items: { id: string; name: string; daysOver: number }[] }) {
   return (
-    <WidgetCard title="Reviews" span={3}>
+    <WidgetCard title="Reviews">
       <div className="flex flex-col gap-2.5">
         {items.map((item) => (
           <Link key={item.id} href={`/clients/${item.id}`} className="flex justify-between text-sm hover:opacity-80">

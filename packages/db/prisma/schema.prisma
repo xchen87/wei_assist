@@ -29,8 +29,9 @@ model Advisor {
   name           String
   initials       String
   capacityTarget Int // households this advisor is staffed to serve, for the Insights capacity bar
-  households     Household[]
-  prospects      Prospect[]
+  households      Household[]
+  prospects       Prospect[]
+  dashboardLayout DashboardLayout?
 }
 
 model Household {
@@ -346,4 +347,23 @@ model AiToolCall {
   errorMessage   String?
   durationMs     Int
   createdAt      DateTime       @default(now())
+}
+
+// Today's widget grid, per advisor (CLAUDE.md §5). Stored as JSON rather
+// than a row per widget: the whole layout is written at once on every drag,
+// read at once on every page load, and never queried by its parts — a
+// normalised table would buy nothing and cost a transaction per drop.
+//
+// §5 also asks for a layout per breakpoint and an org default an admin can
+// publish and lock. Neither is here: the app has one breakpoint and no
+// roles (D-014). `advisorId` is unique, so this becomes per-user the moment
+// advisors become users.
+model DashboardLayout {
+  id         String   @id @default(cuid())
+  advisor    Advisor  @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  advisorId  String   @unique
+  // [{ i, x, y, w, h }] — the widget ids present and where they sit.
+  // Absence of a widget id means the advisor removed it.
+  layoutJson String
+  updatedAt  DateTime @updatedAt
 }

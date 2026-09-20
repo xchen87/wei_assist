@@ -558,3 +558,54 @@ revisited before that ships, because the reasoning above depends entirely on who
 the screen. `Member.birthDate` is nullable and seeded with fictional dates consistent with
 each member's stated age at seed time; the two drift as real time passes, so `age` stays the
 field everything except the roster reads.
+
+---
+
+## D-020 — react-grid-layout for the Today grid, with editing as a mode
+
+2026-09-19 · Accepted
+
+**Context** — Today's widgets were a fixed 12-column CSS grid with each widget hardcoding
+its own span. CLAUDE.md §5 asks for the opposite: drag to move, drag an edge to resize, add
+from a catalog, remove, reset to default, and a layout that persists. §2 names
+`react-grid-layout` for exactly this, and §13 requires a decision entry before any new
+dependency lands.
+
+**Decision** — Add `react-grid-layout` (v2, which ships its own types — the `@types`
+package is for v1 and was removed again). It replaces nothing; the app had no drag or
+resize machinery, and hand-rolling pointer capture, collision resolution, compaction, and
+resize handles would be several hundred lines of subtle code to maintain against a library
+the spec already chose. Three choices around it are ours, not the library's:
+
+*Editing is a mode.* Drag and resize are off until "Edit layout" is on. A dashboard whose
+cards shift under the cursor while you are reading them is worse than one that doesn't move,
+and an advisor opens Today far more often than they rearrange it.
+
+*Widgets are server-rendered and handed to the grid as content.* The grid owns placement and
+never fetches. §5's widget contract eventually wants each widget owning its own query so one
+failure is one card; that refactor is still open, and coupling it to this one would have
+meant rewriting all ten widgets to make any of them draggable.
+
+*A layout equal to the default is stored as no row at all.* "Reset" deletes the row rather
+than writing the default into it, so an advisor who resets keeps following the default if it
+ever changes. This is also what caught a real bug: reset deleted the row and the resulting
+layout change wrote it straight back, until the default was made collision-free —
+react-grid-layout compacts anything that overlaps, so a default with overlapping cells can
+never compare equal to what actually renders.
+
+**Alternatives** — Hand-rolled drag and resize: no dependency, but it is the kind of code
+that looks done and then fails on touch, on scroll-during-drag, on collision. CSS grid with
+an order-only preference (no resize): much simpler and covers "rearrange", but §5 asks for
+resize and a widget catalog specifically. Persisting to localStorage like theme and density
+(D-015): no schema change, but a dashboard arrangement is worth more than a per-device
+convenience, and `Advisor` already exists to key it to.
+
+**Consequences** — `DashboardLayout` stores the whole layout as JSON keyed by advisor: it is
+written and read whole and never queried by its parts, so a normalised table would cost a
+transaction per drop and buy nothing. Two things §5 asks for are still missing and are
+marked as such: a layout per breakpoint (the app has one breakpoint — responsive behaviour
+is unbuilt), and an org default that an admin publishes with specific widgets locked (no Org,
+no roles — D-014). The default layout now lives in `components/widgets/catalog.ts` as the
+constant an org-published default would eventually replace. Widget sizes moved there too, so
+`WidgetCard` no longer carries a `span` — a widget that decided its own width would fight
+the layout the advisor dragged.
