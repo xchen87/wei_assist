@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { useChatContext } from "@/lib/chat-store";
 
-const CHIPS = [
-  "Prep me for the 2pm with the Whitakers",
-  "Which households drifted past 5% this week?",
-  "Draft the Q3 note for retirees",
-];
-
-export function PromptZone({ advisorFirstName }: { advisorFirstName: string }) {
+export function PromptZone({
+  advisorFirstName,
+  chips,
+}: {
+  advisorFirstName: string;
+  /** Computed from the book on the server (CLAUDE.md §5: chips are
+   * generated from real state, not hardcoded) — a chip that names a
+   * household the advisor doesn't have is worse than no chip. */
+  chips: string[];
+}) {
   const [draft, setDraft] = useState("");
   const send = useChatContext((s) => s.send);
 
@@ -42,7 +45,7 @@ export function PromptZone({ advisorFirstName }: { advisorFirstName: string }) {
       </form>
 
       <div className="mt-3.5 flex flex-wrap justify-center gap-2">
-        {CHIPS.map((chip) => (
+        {chips.map((chip) => (
           <button
             key={chip}
             onClick={() => send(chip)}

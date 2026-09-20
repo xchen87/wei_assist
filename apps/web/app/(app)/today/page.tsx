@@ -11,6 +11,7 @@ import { MilestonesWidget } from "@/components/widgets/milestones-widget";
 import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
+import { formatShortDate } from "@/lib/format/date";
 import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 
 /** Matches the "At risk" saved view's own threshold on the Clients page —
@@ -61,12 +62,41 @@ export default async function TodayPage() {
     return acc;
   }, {});
 
+  // Suggestion chips, built from this book rather than hardcoded
+  // (CLAUDE.md §5). Each one names something that is actually true right
+  // now — the household whose review is next, the households that really
+  // have drifted, the one that is most overdue — so a chip never invites a
+  // question the data can't answer.
+  const nextReview = households.find((h) => h.reviewStatus !== "overdue");
+  const mostOverdue = households
+    .filter((h) => h.reviewStatus === "overdue")
+    .sort((a, b) => b.lastContactDays - a.lastContactDays)[0];
+  const drifted = households.filter((h) => h.driftPct >= DRIFT_ALERT_THRESHOLD);
+  const worstPlanHealth = [...households].sort((a, b) => a.planHealthPct - b.planHealthPct)[0];
+
+  // "the The Whitakers" — household names carry their own article when they
+  // have one, so don't add a second.
+  const article = (name: string) => (/^the\s/i.test(name) ? "" : "the ");
+
+  const chips = [
+    nextReview
+      ? `Prep me for ${article(nextReview.name)}${nextReview.name} review on ${formatShortDate(nextReview.nextReviewDate)}`
+      : null,
+    mostOverdue ? `What should I raise with ${mostOverdue.name}?` : null,
+    drifted.length > 0
+      ? `Which ${drifted.length === 1 ? "household has" : `${drifted.length} households have`} drifted past ${formatPercent(DRIFT_ALERT_THRESHOLD, 0)}?`
+      : null,
+    worstPlanHealth ? `What's missing from ${article(worstPlanHealth.name)}${worstPlanHealth.name} plan?` : null,
+  ]
+    .filter((c): c is string => c !== null)
+    .slice(0, 3);
+
   const totalAum = households.reduce((sum, h) => sum + h.aumCents, 0);
   const monthlyFlow = Math.round(households.reduce((sum, h) => sum + h.balanceContributionsCents, 0) / 12);
 
   return (
     <div className="mx-auto max-w-[960px] px-10 pb-12 pt-14">
-      <PromptZone advisorFirstName={CURRENT_ADVISOR_NAME.split(" ")[0]!} />
+      <PromptZone advisorFirstName={CURRENT_ADVISOR_NAME.split(" ")[0]!} chips={chips} />
 
       <div className="grid grid-cols-12 gap-4">
         <AgendaWidget items={agenda} />

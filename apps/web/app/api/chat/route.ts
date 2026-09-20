@@ -41,6 +41,7 @@ export async function POST(req: Request) {
   const body = (await req.json()) as {
     messages?: ClientMessage[];
     contextPath?: string | null;
+    contextIds?: string[];
     conversationId?: string | null;
   };
   // Empty assistant turns (a stopped or failed stream) would be rejected by
@@ -78,13 +79,16 @@ export async function POST(req: Request) {
 }
 
 async function runTurn(
-  body: { contextPath?: string | null; conversationId?: string | null },
+  body: { contextPath?: string | null; contextIds?: string[]; conversationId?: string | null },
   history: ClientMessage[],
   latest: ClientMessage,
   send: (event: StreamEvent) => void,
 ) {
   // One append-only conversation row per thread (CLAUDE.md §9 rule 5).
-  const contextDescriptor = await buildContextDescriptor(body.contextPath ?? null);
+  const contextDescriptor = await buildContextDescriptor(
+    body.contextPath ?? null,
+    Array.isArray(body.contextIds) ? body.contextIds : [],
+  );
   let conversationId = body.conversationId ?? null;
   if (!conversationId) {
     const conversation = await prisma.aiConversation.create({

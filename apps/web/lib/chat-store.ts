@@ -44,11 +44,15 @@ export type ChatMessage = {
 type ChatState = {
   label: string | null;
   href: string | null;
+  /** Ids of the records the chip stands for, when it stands for a set — the
+   * Clients list hands over the cohort it is actually showing rather than
+   * making the assistant re-derive it from a URL it cannot interpret. */
+  contextIds: string[];
   collapsed: boolean;
   messages: ChatMessage[];
   streaming: boolean;
   conversationId: string | null;
-  setContext: (label: string, href: string) => void;
+  setContext: (label: string, href: string, ids?: string[]) => void;
   clearContext: () => void;
   send: (text: string) => void;
   stop: () => void;
@@ -65,13 +69,14 @@ function emptyAssistant(): ChatMessage {
 export const useChatContext = create<ChatState>((set, get) => ({
   label: null,
   href: null,
+  contextIds: [],
   collapsed: false,
   messages: [],
   streaming: false,
   conversationId: null,
 
-  setContext: (label, href) => set({ label, href }),
-  clearContext: () => set({ label: null, href: null }),
+  setContext: (label, href, ids = []) => set({ label, href, contextIds: ids }),
+  clearContext: () => set({ label: null, href: null, contextIds: [] }),
 
   stop: () => {
     controller?.abort();
@@ -115,6 +120,7 @@ export const useChatContext = create<ChatState>((set, get) => ({
           body: JSON.stringify({
             messages: history.map((m) => ({ role: m.role, text: m.text })),
             contextPath: get().href,
+            contextIds: get().contextIds,
             conversationId: get().conversationId,
           }),
         });

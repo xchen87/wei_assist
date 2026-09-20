@@ -97,13 +97,19 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   it. The one mutation that exists (dismissing an Insight) is a Next.js
   Server Action, not a tRPC call. Introduce tRPC when a client component
   actually needs to call back into the server after the initial load (the
-  chat dock, once it's wired to a model, is the likely first real
-  consumer) — not before.
+  chat dock, once it's wired to a model, was the expected first real
+  consumer) — not before. The chat dock has since been wired and still
+  didn't need it: it streams from a plain App Router route handler
+  (`app/api/chat/route.ts`) over `fetch`, because what it needs is a
+  streaming response, which is the one thing tRPC's request/response shape
+  is worst at.
 - **No Radix yet.** Nothing built so far needs a Dialog, Popover, Tooltip,
   or interactive Tabs widget — saved views and sort are plain links/URL
-  state, bulk-select is a handful of local `useState`. Add Radix when a
-  feature actually needs one of those primitives (the chat dock's
-  confirmation-card pattern is the likely first).
+  state, bulk-select is a handful of local `useState`. The chat dock's
+  confirmation card — expected to be the first real Radix consumer — turned
+  out to be an inline card in the message thread rather than a dialog, so it
+  needed nothing. Add Radix when a feature actually needs a real
+  Dialog/Popover/Tooltip/Tabs.
 - **No auth.** Every page runs as a hardcoded advisor (Dana Whitfield).
   Auth.js, org-scoped sessions, and RBAC are all still `[ ]` below.
 - **`packages/schemas` and `packages/integrations` don't exist yet.** Zod
@@ -180,22 +186,31 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       workspaces; `packages/schemas` and `packages/integrations` don't exist yet (see notes)
 - [x] Design tokens in CSS custom properties, Tailwind theme mapped to them
       (`apps/web/app/globals.css`, `apps/web/tailwind.config.ts` — exact values from
-      CLAUDE.md §7, including the dark-mode set, though nothing switches to it yet)
+      CLAUDE.md §7, including the dark-mode set, which Settings → Appearance now
+      switches between. One token is ours, not §7's: `--on-accent`, for text drawn on
+      a pine/brass/info fill, which white can't serve in both themes (D-015)
 - [x] Type setup: Public Sans + Source Serif 4 (`next/font/google`), `.tabular` utility
-- [~] `components/ui` primitives — built: Button, Badge, EmptyState, ErrorState.
-      Not built: Field, Input, Select, Checkbox (a real one, not the table's inline
-      one), Tabs, Sheet, Dialog, Popover, Tooltip — deferred until a feature needs
-      them (see notes)
+- [~] `components/ui` primitives — built: Button, Badge, EmptyState, ErrorState,
+      RouteEmptyState, FilterSelect (URL-driven select, shared by Documents/Tasks),
+      and the icon set. Not built: Field, Input, Select, Checkbox (a real one, not
+      the table's inline one), Tabs, Sheet, Dialog, Popover, Tooltip — deferred until
+      a feature needs them (see notes). Settings has its own local scaffold
+      (`components/settings/settings-panel.tsx`) rather than generalised primitives
 - [ ] Storybook with light/dark and density toggles
-- [~] Prisma schema v1 — shaped around what's actually implemented (Advisor,
-      Household, Member, Goal, Insight, Prospect), not the fuller
+- [~] Prisma schema v1 — sixteen models, shaped around what's actually implemented
+      (Advisor, Household, Member, Goal, Insight, Prospect, Policy, EstateAsset,
+      EstateDocument, Document, ActivityEvent, ComplianceItem, ReviewAttestation, and
+      the assistant's AiConversation/AiMessage/AiToolCall), not the
       Org/User/Role/Account/Position/Security model in CLAUDE.md §10 — see
       `packages/db/prisma/schema.prisma`'s header comment
 - [x] Seed script — 10 households + 10 prospects (the requested demo scope; CLAUDE.md's
       "40 households" is aspirational for later, not done)
 - [ ] Auth.js with org-scoped sessions, MFA stub
 - [ ] RBAC middleware and a `requireOrgScope` query helper
-- [ ] Append-only `AuditEvent` writer + logger PII scrubber
+- [~] Append-only `AuditEvent` writer + logger PII scrubber — the assistant has its
+      own append-only log (`AiToolCall`, recording tool inputs and the ids of records
+      touched), but there is no general `AuditEvent` covering ordinary reads and
+      writes, and no PII scrubber in the logger
 - [ ] CI: typecheck, lint, unit, build — all three commands run clean locally
       (`pnpm typecheck`, `pnpm lint`), just not wired into CI yet (no CI config exists)
 
@@ -204,7 +219,8 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [~] Three-column layout — built and fixed-width; not resizable, no persistence
 - [~] Nav rail — icon mode, groups, Settings pinned bottom all match the design exactly;
       no expand-on-hover/pin-to-expanded mode
-- [x] Route stubs for all 12 top-level entries with proper empty states
+- [x] Route stubs for all 12 top-level entries with proper empty states — every one
+      has since been built out for real; no stub routes remain
 - [ ] Responsive behavior: overlay chat < 1280px, bottom bar nav < 900px
 - [ ] Command palette (⌘K)
 - [~] Global search — Clients list has a working name search; nothing global yet
@@ -227,14 +243,20 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Saved views: My book, Needs review, At risk
 - [~] Bulk select — real selection state and a bulk-action bar; the actions themselves
       (Assign/Tag/Add to campaign/Schedule review/Export) are disabled stubs
-- [ ] "Analyze this cohort" handoff into chat
+- [x] "Analyze this cohort" handoff into chat — the Clients toolbar hands the assistant
+      the household ids the table is actually showing, not the URL, since a saved view
+      like "At risk" is a filter the assistant can't reproduce from query params. The
+      chat chip names the cohort ("3 households · At risk") and clearing it really does
+      drop those households from the next request
 - [x] Household detail route with section nav and the `PlanSection` scaffold
 - [ ] Completeness manifest engine + plan-health roll-up — `completenessPct` is a
       stored seed value, not computed from a per-field manifest
 - [~] Provenance — every built section shows a provenance line; it's static text, not
       a structured source/last-verified/verify-action model
-- [x] Sections: Overview, Household, Balance, Allocation — done, plus Cashflow and
-      Goals as a bonus (6 of 14 sections have real data + real visuals; see Phase 5)
+- [x] Sections: all thirteen build on the shared scaffold with real data and a real
+      summary visual — Overview, Household, Cashflow, Balance, Allocation, Goals,
+      Retirement, Tax, Protection, Estate, Documents, Activity, Compliance. Business
+      is correctly hidden (no seeded household has an entity, D-003). See Phase 5
 
 ## Phase 3 — Assistant (M3)
 
@@ -262,13 +284,17 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Append-only interaction log — `AiConversation` / `AiMessage` / `AiToolCall`
       record the tools called and the ids of records touched (§9 rule 5, §11), never
       the tool result payloads
-- [ ] Conversation history / threading
+- [~] Conversation history / threading — every turn is persisted and a thread keeps
+      one `conversationId` for its lifetime, but there's no UI to reopen a past
+      conversation and the dock's thread is lost on reload
 - [ ] Token and cost telemetry
 
 ## Phase 4 — Today (M4)
 
-- [x] Prompt zone: greeting, composer, the three example chips from the design
-      (static, not yet computed from live state)
+- [x] Prompt zone: greeting, composer, and three suggestion chips computed from the
+      book (CLAUDE.md §5) — the household whose review is next, the most overdue one,
+      the count that has actually drifted past the alert threshold, falling back to the
+      weakest plan. A chip never names a household the advisor doesn't have
 - [x] Submit streams into the dock without navigating (shared Zustand store)
 - [ ] Widget grid drag/resize/add/remove/reset — grid is fixed, not customizable
 - [ ] Per-user per-breakpoint layout persistence
@@ -476,6 +502,24 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-19** — Synced PROGRESS.md against the code and picked up two small spec'd
+  items. The sync corrected seven stale claims: dark-mode tokens described as unswitchable
+  (Settings → Appearance switches them), the `components/ui` inventory (RouteEmptyState
+  and FilterSelect were missing), the Prisma model list (six models behind), `AuditEvent`
+  as wholly unbuilt (the assistant's `AiToolCall` log exists and is append-only, the
+  general one doesn't), "route stubs" for pages long since built for real, "6 of 14
+  sections" when all thirteen are done, and both the tRPC and Radix notes, which named
+  the chat dock as their likely first consumer — it arrived and needed neither, since a
+  streaming route handler and an inline confirmation card cover it. Conversation
+  threading moved to partial: turns persist, but nothing reopens a past conversation.
+  Then built the two items: the "Analyze this cohort" handoff (CLAUDE.md §6), which hands
+  the assistant the household ids the table is showing rather than a URL it can't
+  interpret — verified by clicking it on the At risk view and asking which needs
+  attention first, which answered about exactly those three with correct figures per
+  household — and Today's suggestion chips, now computed from the book (§5) instead of
+  the design's hardcoded examples, which named a household and a meeting that don't
+  exist in this data.
 
 - **2026-09-19** — Fixed the citation-attribution problem the first live run surfaced.
   The cause was structural, not a bad turn of phrase: tool payloads gave the model no way

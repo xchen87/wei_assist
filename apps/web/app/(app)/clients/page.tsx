@@ -1,6 +1,7 @@
 import { prisma } from "@meridian/db";
 import Link from "next/link";
 import { ClientsTable, type ClientRow } from "@/components/clients/clients-table";
+import { AnalyzeButton } from "@/components/clients/analyze-button";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,14 @@ export default async function ClientsPage({
     rows = rows.filter((r) => r.driftPct >= 4 || r.reviewStatus === "overdue");
   }
 
+  // What the chat chip should say, and what it should link back to: the
+  // cohort as the advisor sees it, filters and search included.
+  const viewLabel = VIEWS.find((v) => v.key === view)?.label ?? "My book";
+  const cohortLabel =
+    `${rows.length} household${rows.length === 1 ? "" : "s"} · ${viewLabel}` + (q ? ` · "${searchParams.q}"` : "");
+  const cohortPath =
+    "/clients?" + new URLSearchParams({ view, sort, dir, ...(q ? { q: searchParams.q! } : {}) }).toString();
+
   const accessor = SORT_ACCESSORS[sort]!;
   rows.sort((a, b) => {
     const av = accessor(a);
@@ -91,7 +100,9 @@ export default async function ClientsPage({
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-muted"
           />
         </form>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
+          <AnalyzeButton label={cohortLabel} path={cohortPath} householdIds={rows.map((r) => r.id)} />
+          <span className="mx-1 h-5 w-px bg-rule" />
           {VIEWS.map((v) => (
             <Link
               key={v.key}
