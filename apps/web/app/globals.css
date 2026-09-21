@@ -77,6 +77,16 @@ body {
   width: 232px;
 }
 
+/* CLAUDE.md §4: the chat dock is resizable between 380 and 560px and
+   collapses to a rail. Width comes from the boot script as a custom
+   property so a dragged-wide dock doesn't start narrow and jump. */
+.chat-shell {
+  width: var(--chat-width, 380px);
+}
+:root[data-chat="collapsed"] .chat-shell {
+  width: 56px;
+}
+
 /* CLAUDE.md §7: motion answers user actions, and respects the OS setting.
    The skeleton pulse is the only ambient animation in the app; under
    reduced motion it becomes a static placeholder. */

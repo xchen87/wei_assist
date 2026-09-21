@@ -8,6 +8,13 @@
 export const THEME_KEY = "meridian.theme";
 export const DENSITY_KEY = "meridian.density";
 export const NAV_KEY = "meridian.nav";
+export const CHAT_KEY = "meridian.chat.dock";
+
+/** CLAUDE.md §4: the chat dock is 380px wide, draggable to 560px, and
+ * collapses to a rail button — with that state persisting per user. */
+export const CHAT_MIN_WIDTH = 380;
+export const CHAT_MAX_WIDTH = 560;
+export const CHAT_RAIL_WIDTH = 56;
 
 export type Theme = "light" | "dark" | "system";
 export type Density = "comfortable" | "compact";
@@ -36,6 +43,42 @@ export function applyPreferences(theme: Theme, density: Density): void {
   document.documentElement.setAttribute("data-density", density);
 }
 
+export type ChatDockState = { width: number; collapsed: boolean };
+
+export function clampChatWidth(width: number): number {
+  return Math.min(Math.max(Math.round(width), CHAT_MIN_WIDTH), CHAT_MAX_WIDTH);
+}
+
+/** Width lives as a CSS custom property so the boot script can set it
+ * before first paint — a dock that renders at 380px and then jumps to the
+ * 520px the advisor dragged it to is worse than one that never moved. */
+export function applyChatDock(state: ChatDockState): void {
+  const root = document.documentElement;
+  root.style.setProperty("--chat-width", `${clampChatWidth(state.width)}px`);
+  root.setAttribute("data-chat", state.collapsed ? "collapsed" : "open");
+  try {
+    localStorage.setItem(CHAT_KEY, JSON.stringify(state));
+  } catch {
+    // Applies for this session; just won't survive a reload.
+  }
+}
+
+export function readChatDock(): ChatDockState {
+  const fallback: ChatDockState = { width: CHAT_MIN_WIDTH, collapsed: false };
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(CHAT_KEY);
+    if (!raw) return fallback;
+    const saved = JSON.parse(raw) as Partial<ChatDockState>;
+    return {
+      width: clampChatWidth(typeof saved.width === "number" ? saved.width : CHAT_MIN_WIDTH),
+      collapsed: saved.collapsed === true,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export function applyNavMode(mode: NavMode): void {
   document.documentElement.setAttribute("data-nav", mode);
   try {
@@ -55,4 +98,6 @@ export const PREFERENCES_BOOT_SCRIPT = `(function(){try{var t=localStorage.getIt
   DENSITY_KEY,
 )})||"comfortable";var r=t==="system"?(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):t;var n=localStorage.getItem(${JSON.stringify(
   NAV_KEY,
-)})||"rail";var e=document.documentElement;e.setAttribute("data-theme",r);e.setAttribute("data-density",d);e.setAttribute("data-nav",n);}catch(_){}})();`;
+)})||"rail";var c={};try{c=JSON.parse(localStorage.getItem(${JSON.stringify(
+  CHAT_KEY,
+)})||"{}")}catch(_){}var cw=Math.min(Math.max(typeof c.width==="number"?c.width:${CHAT_MIN_WIDTH},${CHAT_MIN_WIDTH}),${CHAT_MAX_WIDTH});var e=document.documentElement;e.setAttribute("data-theme",r);e.setAttribute("data-density",d);e.setAttribute("data-nav",n);e.setAttribute("data-chat",c.collapsed===true?"collapsed":"open");e.style.setProperty("--chat-width",cw+"px");}catch(_){}})();`;

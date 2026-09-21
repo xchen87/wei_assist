@@ -247,7 +247,11 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 ## Phase 1 — Shell (M1)
 
-- [~] Three-column layout — built and fixed-width; not resizable, no persistence
+- [~] Three-column layout — the chat dock resizes between 380 and 560px by dragging its
+      edge (double-click resets), and its width and collapsed state persist per device
+      via the same boot-script pattern as theme, density, and the nav, so neither flashes
+      on load. The nav is 72px/232px by hover or pin (Phase 1 below). Not resizable: the
+      workspace column, which takes whatever is left
 - [x] Nav rail — icon mode, groups, Settings pinned bottom, plus expand-on-hover and
       pin-to-expanded (CLAUDE.md §4). Hovering overlays the workspace; pinning shifts it
       across, so content doesn't reflow every time the pointer crosses the rail. Group
@@ -295,6 +299,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       stored seed value, not computed from a per-field manifest
 - [~] Provenance — every built section shows a provenance line; it's static text, not
       a structured source/last-verified/verify-action model
+- [x] Overview's segmented completeness ring (CLAUDE.md §8) — one arc per plan section,
+      filled to that section's completeness, anything under 60% in brass, with a linked
+      legend beside it that doubles as the chart's table equivalent. The centre shows the
+      mean across sections, which is deliberately *not* the plan-health figure in the
+      header: that one is a separate stored roll-up, and the two only converge once the
+      completeness manifest exists. Said on the page, not just here
 - [x] Sections: all thirteen build on the shared scaffold with real data and a real
       summary visual — Overview, Household, Cashflow, Balance, Allocation, Goals,
       Retirement, Tax, Protection, Estate, Documents, Activity, Compliance. Business
@@ -416,11 +426,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 
 ## Phase 6 — Charts and reports
 
-- [~] Chart primitives — twelve real, data-driven chart components exist
+- [~] Chart primitives — thirteen real, data-driven chart components exist
       (`components/charts/`: cashflow-sankey, net-worth-waterfall, allocation-rings,
       goals-bubble-quadrant, book-treemap, revenue-concentration-curve,
       pipeline-funnel, retirement-fan-chart, tax-bracket-bar, protection-gap-bars,
-      estate-flow-diagram, attestation-timeline); no shared axis/legend/tooltip/
+      estate-flow-diagram, attestation-timeline, completeness-ring); no shared
+      axis/legend/tooltip/
       table-toggle abstraction yet — each chart implements its own axes inline.
       Compliance is the one section that ships its chart's table equivalent
       (CLAUDE.md §8) as a real Review history table rather than a toggle
@@ -582,6 +593,21 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Two more spec'd items. Overview now has the segmented completeness
+  ring CLAUDE.md §8 asks for: one arc per plan section, filled to that section's
+  completeness, under-60% arcs in brass, with a linked legend that doubles as the chart's
+  table equivalent (§8) and is the only keyboard route into the same numbers. A single
+  ring could only say "58%"; this says which twelve things that number is made of and
+  which ones to go finish. Its centre shows the mean across sections rather than the
+  header's plan-health figure — those are two different stored numbers until the
+  completeness manifest exists, and quietly showing one as the other would have been the
+  easy, wrong thing. And the chat dock is now resizable between 380 and 560px by dragging
+  its edge, double-click to reset, with width and collapsed state persisted per device
+  through the same boot-script attribute pattern as theme, density, and the nav — so a
+  dock dragged to 523px doesn't start at 380 and jump. Verified by dragging: 380 → 523,
+  stored and restored across a reload, clamped back to 380 when dragged past the minimum,
+  and collapse surviving a reload at 56px.
 
 - **2026-09-20** — Six adjustments to Intake, at the user's request. Members now take a
   date of birth instead of an age, with the age derived beside it — an age typed today is

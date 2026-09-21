@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatContext } from "@/lib/chat-store";
 import { ChatIcon, ChevronRightIcon, CloseIcon } from "@/components/ui/icons";
+import { applyChatDock, clampChatWidth, readChatDock } from "@/lib/preferences";
 import { CitedText, GuardrailNotice, ProposalCard, ToolRunList } from "./message-parts";
 
 /**
@@ -18,11 +19,57 @@ export function ChatDock() {
   const { label, href, clearContext, collapsed, messages, streaming, send, stop, retry, restore } =
     useChatContext();
   const threadRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState<number | null>(null);
+  const dragging = useRef(false);
+  // The live width during a drag: state updates are async, and the
+  // pointerup handler needs the value it is about to persist.
+  const widthRef = useRef<number | null>(null);
 
   // Pick the thread back up after a reload (sessionStorage, per tab).
   useEffect(() => {
     restore();
   }, [restore]);
+
+  // Collapse state is a preference, not part of the conversation, so it
+  // lives with theme and density rather than with the transcript.
+  useEffect(() => {
+    const saved = readChatDock();
+    setWidth(saved.width);
+    widthRef.current = saved.width;
+    useChatContext.setState({ collapsed: saved.collapsed });
+  }, []);
+
+  const setCollapsed = useCallback((next: boolean) => {
+    useChatContext.setState({ collapsed: next });
+    applyChatDock({ width: readChatDock().width, collapsed: next });
+  }, []);
+
+  // Dragging the left edge: pointer events so a drag that leaves the
+  // handle (or the window) still tracks and still ends.
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      if (!dragging.current) return;
+      const next = clampChatWidth(window.innerWidth - e.clientX);
+      widthRef.current = next;
+      setWidth(next);
+      // Drive the shell from the custom property during the drag so the
+      // workspace reflows with the pointer rather than a render behind it.
+      document.documentElement.style.setProperty("--chat-width", `${next}px`);
+    }
+    function onUp() {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      applyChatDock({ width: widthRef.current ?? readChatDock().width, collapsed: false });
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   // Follow the stream, but only while the advisor is already at the bottom —
   // yanking the view down mid-read is worse than a missed line.
@@ -35,9 +82,9 @@ export function ChatDock() {
 
   if (collapsed) {
     return (
-      <div className="flex h-full w-14 shrink-0 flex-col items-center border-l border-rule bg-surface pt-4">
+      <div className="chat-shell flex h-full shrink-0 flex-col items-center border-l border-rule bg-surface pt-4">
         <button
-          onClick={() => useChatContext.setState({ collapsed: false })}
+          onClick={() => setCollapsed(false)}
           title="Open assistant"
           className="flex h-9 w-9 items-center justify-center rounded-control text-pine hover:bg-pine-tint"
         >
@@ -48,15 +95,33 @@ export function ChatDock() {
   }
 
   return (
-    <div className="flex h-full w-[380px] shrink-0 flex-col border-l border-rule bg-surface">
+    <div className="chat-shell relative flex h-full shrink-0 flex-col border-l border-rule bg-surface">
+      {/* Resize handle, CLAUDE.md §4 (380–560px). Sits on the border so it
+          doesn't eat a column of the thread. */}
+      <div
+        onPointerDown={(e) => {
+          dragging.current = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          document.body.style.cursor = "col-resize";
+          document.body.style.userSelect = "none";
+        }}
+        onDoubleClick={() => {
+          // Back to the default width — easier than dragging to find it.
+          widthRef.current = 380;
+          setWidth(380);
+          applyChatDock({ width: 380, collapsed: false });
+          document.documentElement.style.setProperty("--chat-width", "380px");
+        }}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the assistant panel"
+        title={width ? `${width}px — drag to resize, double-click to reset` : "Drag to resize"}
+        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize hover:bg-pine-tint"
+      />
       <div className="border-b border-rule p-4">
         <div className="mb-2.5 flex items-center justify-between">
           <div className="text-sm font-semibold">Assistant</div>
-          <button
-            onClick={() => useChatContext.setState({ collapsed: true })}
-            className="text-ink-muted"
-            title="Collapse"
-          >
+          <button onClick={() => setCollapsed(true)} className="text-ink-muted" title="Collapse">
             <ChevronRightIcon />
           </button>
         </div>
