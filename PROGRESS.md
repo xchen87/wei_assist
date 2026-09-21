@@ -260,8 +260,18 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [x] Route stubs for all 12 top-level entries with proper empty states — every one
       has since been built out for real; no stub routes remain
 - [ ] Responsive behavior: overlay chat < 1280px, bottom bar nav < 900px
-- [ ] Command palette (⌘K)
-- [~] Global search — Clients list has a working name search; nothing global yet
+- [x] Command palette (⌘K) — every top-level surface, the two saved views, and every
+      household by name, which is what an advisor is usually reaching for and previously
+      cost a trip through Clients and its search box. Arrow keys, Enter, Escape; matches
+      that start with the query rank above ones that merely contain it. Hand-rolled
+      rather than pulling in Radix: an overlay, an input, and arrow keys don't need a
+      Dialog primitive (D-014's rule is to add Radix when something genuinely does). The
+      nav carries a Search row with the shortcut on it — a shortcut nobody can see is a
+      shortcut nobody uses
+- [~] Global search — ⌘K reaches every household and page by name, and the Clients list
+      searches household and member names. Not searched: documents, notes, activity,
+      insights — none of it is indexed, and scanning every table per keystroke is the
+      wrong shape for it
 - [~] Keyboard map and visible focus states beyond browser defaults — a token-coloured
       `:focus-visible` ring is global (keyboard only, never on mouse clicks), with an
       inverted ring on pine fills where a pine ring would vanish. No keyboard map or
@@ -593,6 +603,22 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Added the ⌘K command palette (Phase 1). It covers every top-level
+  surface, the two saved views, and every household by name — the last of which is the
+  point: jumping to a household previously meant Clients, then its search box, then the
+  row. Matches that start with the query rank above ones that merely contain it, so "ram"
+  puts Ramirez first. Hand-rolled rather than adding Radix, since an overlay plus an
+  input plus arrow keys isn't what D-014 meant by "a feature that needs a Dialog
+  primitive". The household list is fetched once in the app shell rather than by the
+  palette, which would otherwise need a client fetch on every page against the chance
+  someone presses ⌘K. The nav now carries a Search row showing the shortcut, because a
+  shortcut nobody can see is a shortcut nobody uses; it opens the palette through a
+  custom event rather than a shared store, since one boolean crossing one component
+  boundary doesn't earn one. Verified with real keystrokes: Ctrl+K opens, typing "ram"
+  narrows to Ramirez, Enter navigates and closes, arrows move the highlight (through a
+  multi-match query — the first attempt looked broken until I noticed "cl" matched
+  exactly one row), and Escape closes.
 
 - **2026-09-20** — Two more spec'd items. Overview now has the segmented completeness
   ring CLAUDE.md §8 asks for: one arc per plan section, filled to that section's

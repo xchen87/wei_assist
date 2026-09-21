@@ -18,7 +18,8 @@ import {
   SettingsIcon,
   PinIcon,
 } from "@/components/ui/icons";
-import { applyNavMode, NAV_KEY, type NavMode } from "@/lib/preferences";
+import { applyNavMode, type NavMode } from "@/lib/preferences";
+import { OPEN_PALETTE_EVENT } from "./command-palette";
 
 type NavItem = {
   href: string;
@@ -114,6 +115,34 @@ export function Nav() {
             </>
           ) : null}
         </div>
+
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT))}
+          title="Search households and pages (⌘K)"
+          className={`mb-2 flex h-10 items-center rounded-control text-ink-muted hover:bg-paper hover:text-ink ${
+            expanded ? "mx-2 gap-2.5 px-2.5" : "mx-auto w-10 justify-center"
+          }`}
+        >
+          <svg
+            width={18}
+            height={18}
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            className="shrink-0"
+          >
+            <circle cx="8.8" cy="8.8" r="5.2" />
+            <path d="M12.6 12.6l4 4" />
+          </svg>
+          {expanded ? (
+            <>
+              <span className="flex-1 truncate text-left text-sm">Search</span>
+              <span className="tabular rounded-control border border-rule px-1.5 text-xs">⌘K</span>
+            </>
+          ) : null}
+        </button>
 
         <div className="flex flex-col gap-1 overflow-y-auto">
           {GROUPS.map((group, gi) => (
