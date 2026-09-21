@@ -471,8 +471,11 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
           goals: h.goals.map((g) => ({
             name: g.name,
             priority: g.priority,
-            target: money(g.targetCents),
-            funded: formatPercent(g.fundedPct, 0),
+            // A goal captured at intake has no target yet; saying so beats
+            // reporting $0, which the model would read as fully funded.
+            target: g.targetCents === null ? "not set yet" : money(g.targetCents),
+            funded: g.targetCents === null ? "not applicable until a target is set" : formatPercent(g.fundedPct, 0),
+            time_horizon: g.horizonLabel ?? "not set",
             status: g.status,
           })),
         },

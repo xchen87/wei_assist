@@ -164,6 +164,11 @@ model Member {
   role        String // Primary | Spouse | Dependent
   age         Int
   occupation  String
+  // From the intake questionnaire (lib/calc/risk.ts): Conservative,
+  // Moderate, Growth or Aggressive. Null for members who predate intake or
+  // whose questionnaire wasn't completed — an unanswered questionnaire has
+  // no profile, rather than a default one.
+  riskProfile String?
   // CLAUDE.md §11 lists dates of birth as masked-by-default PII. Shown in
   // full instead, per D-019: every user of this platform is a certified
   // professional and the whole record is confidential, so masking a
@@ -181,9 +186,15 @@ model Goal {
   householdId String
   name        String
   priority    String // Low | Medium | High
-  targetCents Int
+  // Null on a goal captured at intake: the household has named the goal but
+  // not costed it yet. Zero would claim a $0 target, which reads as fully
+  // funded everywhere a percentage is computed.
+  targetCents Int?
   fundedPct   Float
-  status      String // onTrack | fullyFunded | behind
+  status      String // onTrack | fullyFunded | behind | unset
+  // "Under 3 years", "3–7 years", ... captured at intake (§6 lists goal
+  // time horizons); null on the seeded households, which predate it.
+  horizonLabel String?
 }
 
 model Insight {

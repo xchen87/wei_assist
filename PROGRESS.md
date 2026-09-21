@@ -24,9 +24,10 @@ tool runtime, and confirmation flow exist.
 | M3 | Assistant online | Chat dock streaming, 6 grounded tools, confirmation flow | Week 10 |
 | M4 | Today configurable | Prompt zone + widget grid with persistence | Week 12 |
 | M5 | Plan complete | All 14 household sections at parity with the scaffold | Week 17 |
-| M6 | Pipeline to plan | Prospects + Intake producing a real household | Week 20 |
+| M6 | Pipeline to plan | Prospects + Intake producing a real household — **intake half done 2026-09-20** | Week 20 |
 | M7 | Audit ready | Compliance, audit log, retention, RBAC verified | Week 23 |
 | M8 | Private beta | 5 design-partner firms on real data | Week 26 |
+| **M-demo** | **Advisor discovery demo** | **A demo that runs end to end for real advisors: a prospect becomes a household, the book is broad enough for impact analysis to look like a book, and a watched indicator change finds the households it affects and says why** | **next** |
 
 ---
 
@@ -78,6 +79,54 @@ Without it the chat dock says exactly that and every other surface is
 unaffected.
 
 Checks: `pnpm typecheck`, `pnpm lint`, `pnpm build`.
+
+## M-demo — advisor discovery demo
+
+Inserted ahead of M6–M8 on 2026-09-20. The goal is a demo shown to practising
+advisors to gauge interest and collect feedback — not a beta. No real
+custodian, market, or client data; no auth, RBAC, encryption, or retention,
+because none of it changes an advisor's reaction in a 30-minute call. What
+does change it is a complete workflow and something their current stack
+can't do.
+
+Four items, in build order. The first is small and unblocks a complete
+narrative; the second raises the quality of everything the third produces.
+
+1. ~~**Intake creates a real household.**~~ **Done 2026-09-20.** The wizard
+   now creates a Household, its Members (with dates of birth and risk
+   profiles), its Goals (named but uncosted), an opening activity event and
+   a three-item worklist, then converts the prospect and lands on the new
+   record. Sections it doesn't collect start empty: a household created this
+   morning reads 18% complete with $0 AUM, which is the demo beat — "here's
+   day one, here's the work" — rather than a seeded number that reads
+   finished.
+2. **Demo data breadth.** Ten households reads as a toy the moment the
+   signals engine says "6 of your households are affected". Forty, with
+   varied ages, allocations, mortgages and bracket positions, reads as a
+   book.
+3. **The signals engine** (new — on no existing milestone). Advisors watch
+   indicators: rates, market conditions, tax-code and policy changes. A
+   change runs every household profile, identifies who is affected and
+   *why*, and raises an alert with a suggested next action. Needs
+   `Indicator` / `IndicatorWatch` / `IndicatorChange` / a real `Alert`
+   model (§10 lists Alert; the schema has never had one — today's Alerts
+   widget computes drift and overdue inline at render), an impact engine in
+   `lib/calc`, an on-demand and scriptable runner (`pnpm signals:run` — no
+   BullMQ in this sandbox, and a script is more demoable anyway), the
+   surfaces to see it, and an assistant tool so the intelligence is
+   reachable by asking.
+4. **Demo reset.** One command that reseeds and clears AI transcripts, so
+   the sixth run of the demo starts like the first.
+
+**The credibility constraint that shapes item 3:** this audience spots an
+invented tax threshold instantly, and CLAUDE.md §13 forbids inventing one.
+So the indicator feed is explicitly a *simulated* feed with labelled
+fixtures, and suggested actions are phrased as prompts to review, never as
+advice. The mechanism is the product; the feed plugs in at Phase 8. The
+existing guardrails already enforce the same line in chat, which is itself
+worth demoing.
+
+---
 
 ## Implementation notes and deviations from the stack in CLAUDE.md §2
 
@@ -161,6 +210,13 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   `AuditEvent` model and a logged reveal action — was backed out rather
   than left unused. Encryption at rest is a separate §11 requirement and is
   still unbuilt.
+- **A household created at intake starts empty, on purpose.** Plan health
+  is the mean across its twelve sections, so a brand-new household reads
+  ~18%, AUM reads $0 until something is custodied, and goals are named but
+  uncosted (`Goal.targetCents` is nullable; status `unset` is not the same
+  as `behind`). Anything that fabricates a starting figure to make the
+  record look finished is the failure CLAUDE.md §1 calls a bug — and it
+  costs the demo its best beat.
 - **The assistant cites records by ref, never by describing them.** Every
   record a tool returns gets an `R1`-style ref (`lib/ai/refs.ts`) that the
   reply quotes and the dock renders as a link naming that record. A new
@@ -482,10 +538,13 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       which this wizard never collects and which a brand-new household
       wouldn't have data for yet; wiring a real create means deciding a
       freshly-onboarded household's starting state across every section, a
-      product decision this pass doesn't make, and there is no encrypted column for
-      a social security number to go in (CLAUDE.md §11, Phase 9). Explained in the
-      component's own comment, in the step's footer note, and in the disabled
-      button's tooltip, not silently disabled.
+      product decision. **Resolved 2026-09-20**: "Create household" creates one
+      (`app/(app)/intake/create-household.ts`). Collected figures carry across,
+      everything downstream of a custodian feed starts at zero, per-section
+      completeness is computed from what was actually provided, and the converted
+      prospect leaves the pipeline. The social security number is still not saved —
+      there is no encrypted column for one (CLAUDE.md §11, Phase 9), said on the
+      step itself.
 - [x] Schedule — built directly without a design pass, per explicit user direction
       (offered a design-first pass matching D-013's process; user chose to build
       page by page instead, reviewing each before the next). A real month
@@ -603,6 +662,32 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — M-demo item 1: Intake now creates a real household, closing the half
+  of M6 that was missing. The insert was never the hard part — the question was what the
+  seventy-odd fields the wizard doesn't collect should start as, and the answer is empty:
+  a household created this morning reads 18% complete with $0 AUM and a three-item
+  worklist, which is a worklist, where a seeded-looking 90% would be a lie the advisor has
+  to un-believe. Collected figures carry across (net worth from assets minus liabilities,
+  savings rate from income minus expenses), members keep their dates of birth and the risk
+  profile their questionnaire produced, goals are named but uncosted — which needed
+  `Goal.targetCents` to become nullable plus a fourth status, `unset`, since zero reads as
+  fully funded everywhere a percentage is computed; the compiler found all three places
+  that assumed otherwise. The converted prospect leaves the pipeline. Verified by driving
+  the whole wizard in a browser: the household landed, all thirteen sections render for a
+  day-one record with no NaN or Infinity anywhere, and the prospect was gone. One real bug
+  caught in the process: plan health came out 100% because the Household *section* score
+  (legitimately 100 when a member has name, date of birth, occupation and a completed
+  questionnaire) was being used as the roll-up across all twelve sections. Now the
+  roll-up is their mean — the same number the Overview ring shows in its centre, so the
+  two can't disagree.
+
+- **2026-09-20** — Recorded **M-demo** ahead of M6–M8: an advisor discovery demo, with
+  its four items and build order written down (Intake creating a household → demo data
+  breadth → the signals engine → a demo reset), plus the constraint that shapes the
+  third: a simulated, labelled indicator feed, because inventing tax thresholds in front
+  of practising advisors is both a credibility failure and against CLAUDE.md §13. M1–M5
+  are complete; M7 and M8 are explicitly not demo blockers.
 
 - **2026-09-20** — Added the ⌘K command palette (Phase 1). It covers every top-level
   surface, the two saved views, and every household by name — the last of which is the

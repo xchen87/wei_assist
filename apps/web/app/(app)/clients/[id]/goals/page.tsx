@@ -12,11 +12,13 @@ const STATUS_LABEL: Record<string, string> = {
   onTrack: "On track",
   fullyFunded: "Fully funded",
   behind: "Behind",
+  unset: "No target yet",
 };
-const STATUS_TONE: Record<string, "pine" | "brass" | "loss"> = {
+const STATUS_TONE: Record<string, "pine" | "brass" | "loss" | "neutral"> = {
   onTrack: "pine",
   fullyFunded: "pine",
   behind: "loss",
+  unset: "neutral",
 };
 
 export default async function GoalsPage({ params }: { params: { id: string } }) {
@@ -26,6 +28,12 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
   });
   if (!household) notFound();
 
+  // Split once: the chart can only plot goals that have been costed.
+  const costed = household.goals.filter(
+    (g): g is typeof g & { targetCents: number } => g.targetCents !== null,
+  );
+  const uncosted = household.goals.filter((g) => g.targetCents === null);
+
   return (
     <PlanSection
       title="Goals"
@@ -33,8 +41,15 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
       updatedLabel="Recalculated today · Balance + Goals sections"
       actions={<SectionActions />}
       summaryTitle="Priority vs. funded status"
-      summarySubtitle="Bubble size shows target amount"
-      summary={<GoalsBubbleQuadrant goals={household.goals} />}
+      summarySubtitle={
+        uncosted.length === 0
+          ? "Bubble size shows target amount"
+          : `Bubble size shows target amount · ${uncosted.length} goal${uncosted.length === 1 ? "" : "s"} not costed yet, listed below but not plotted`
+      }
+      // A goal with no target has no bubble size and no funded percentage,
+      // so it can't be placed on this chart honestly — it stays in the
+      // table underneath, where "No target yet" is the useful statement.
+      summary={<GoalsBubbleQuadrant goals={costed} />}
       detailTitle="All goals"
       detail={
         <table className="w-full border-collapse text-sm">
@@ -44,6 +59,7 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
               <th className="py-2 text-left">PRIORITY</th>
               <th className="py-2 text-right">TARGET</th>
               <th className="py-2 text-right">FUNDED</th>
+              <th className="py-2 text-left">HORIZON</th>
               <th className="py-2 text-left">STATUS</th>
             </tr>
           </thead>
@@ -52,10 +68,15 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
               <tr key={g.id} className="border-b border-rule">
                 <td className="py-2.5 font-medium">{g.name}</td>
                 <td className="py-2.5 text-ink-muted">{g.priority}</td>
-                <td className="tabular py-2.5 text-right">{formatMoney(g.targetCents)}</td>
-                <td className="tabular py-2.5 text-right">{g.fundedPct}%</td>
+                <td className="tabular py-2.5 text-right">
+                  {g.targetCents === null ? <span className="text-ink-muted">—</span> : formatMoney(g.targetCents)}
+                </td>
+                <td className="tabular py-2.5 text-right">
+                  {g.targetCents === null ? <span className="text-ink-muted">—</span> : `${g.fundedPct}%`}
+                </td>
+                <td className="py-2.5 text-ink-muted">{g.horizonLabel ?? "—"}</td>
                 <td className="py-2.5">
-                  <Badge tone={STATUS_TONE[g.status]}>{STATUS_LABEL[g.status]}</Badge>
+                  <Badge tone={STATUS_TONE[g.status] ?? "neutral"}>{STATUS_LABEL[g.status] ?? g.status}</Badge>
                 </td>
               </tr>
             ))}

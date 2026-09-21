@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format/money";
 import { MemberCard, netWorthOf, surplusOf } from "./member-card";
 import {
@@ -17,6 +18,7 @@ import {
   type MemberRow,
 } from "./intake-types";
 import { scoreRiskTolerance } from "@/lib/calc/risk";
+import { createHouseholdFromIntake } from "@/app/(app)/intake/create-household";
 
 type Prospect = { id: string; name: string; estValueCents: number; advisorName: string };
 type Advisor = { id: string; name: string };
@@ -36,6 +38,9 @@ const SEGMENTS = ["Core", "Premier", "Founding"];
  * freshly-onboarded household's starting state looks like across every
  * section, which is a schema/product decision this pass doesn't make. */
 export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; advisors: Advisor[] }) {
+  const router = useRouter();
+  const [isCreating, startCreating] = useTransition();
+  const [createError, setCreateError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [prospectId, setProspectId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -60,6 +65,39 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
   }
   function updateGoal(i: number, patch: Partial<GoalRow>) {
     setGoals((rows) => rows.map((r, ri) => (ri === i ? { ...r, ...patch } : r)));
+  }
+
+  function create() {
+    setCreateError(null);
+    startCreating(async () => {
+      const result = await createHouseholdFromIntake({
+        name,
+        segment,
+        advisorId,
+        prospectId,
+        members: members.map((m) => ({
+          name: m.name,
+          role: m.role,
+          birthDate: m.birthDate,
+          occupation: m.occupation,
+          annualIncome: m.annualIncome,
+          annualExpenses: m.annualExpenses,
+          assets: m.assets,
+          liabilities: m.liabilities,
+          risk: m.risk,
+          // The social security number is deliberately not sent: there is
+          // no encrypted column for it (CLAUDE.md §11, Phase 9), and a
+          // plaintext one is not the thing to make easy.
+        })),
+        goals: goals.map((g) => ({ name: g.name, priority: g.priority, horizon: g.horizon })),
+      });
+
+      if (!result.ok) {
+        setCreateError(result.error);
+        return;
+      }
+      router.push(`/clients/${result.householdId}`);
+    });
   }
 
   const namedMembers = members.filter((m) => m.name.trim());
@@ -382,16 +420,18 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
             )}
 
             <button
-              disabled
-              title="Not wired up in this build — see this component's file comment for why"
-              className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-on-accent opacity-50"
+              onClick={create}
+              disabled={isCreating || namedMembers.length === 0 || !name.trim()}
+              className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-40"
             >
-              Create household
+              {isCreating ? "Creating…" : "Create household"}
             </button>
+            {createError ? <div className="mt-2 text-xs text-loss">{createError}</div> : null}
             <div className="mt-2 text-xs text-ink-muted">
-              Not wired up in this build — creating a real household means populating every plan
-              section&rsquo;s starting state, a decision this pass doesn&rsquo;t make, and there is no
-              encrypted column for a social security number yet. See PROGRESS.md.
+              Sections this form doesn&rsquo;t cover — allocation, retirement, tax, protection,
+              estate — start empty, and each section&rsquo;s completeness ring says so. Nothing is
+              custodied on day one, so AUM starts at zero. The social security number is not saved:
+              there is no encrypted column for one yet (CLAUDE.md §11, Phase 9).
             </div>
           </div>
         )}
