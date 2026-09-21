@@ -1,11 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@meridian/db";
-import { formatMoney, type Cents } from "@/lib/format/money";
+import { centsToNumber, formatMoney, type Cents } from "@/lib/format/money";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatDate } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
 import { bySeverity } from "@/lib/calc/signals";
 import { sectionPath, sectionPathFromName, type SectionKey } from "@/lib/sections";
+import { ASSET_CLASS_LABEL, summarisePortfolio } from "@/lib/calc/holdings";
 
 /** Tools are the only way the model touches data (CLAUDE.md §9) — there is
  * no free-form SQL, and nothing here takes a table or column name from the
@@ -438,6 +439,7 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
       documents: true,
       complianceItems: { orderBy: { sortOrder: "asc" } },
       attestations: { orderBy: { occurredAt: "desc" } },
+      positions: { include: { security: true } },
     },
   });
   if (!h) return { payload: { error: "No household with that id." }, recordIds: [] };
@@ -513,20 +515,58 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
           },
         },
       };
-    case "allocation":
+    case "allocation": {
+      // Rolled up from the positions rather than read off the household's
+      // stored columns, so what the assistant says and what the page shows
+      // come from one place (D-029).
+      const portfolio = summarisePortfolio(
+        h.positions.map((p) => ({
+          id: p.id,
+          ticker: p.security.ticker,
+          name: p.security.name,
+          kind: p.security.kind,
+          assetClass: p.security.assetClass,
+          sector: p.security.sector,
+          region: p.security.region,
+          expenseRatioPct: p.security.expenseRatioPct,
+          marketValueCents: centsToNumber(p.marketValueCents),
+          costBasisCents: centsToNumber(p.costBasisCents),
+        })),
+      );
       return {
-        recordIds: [h.id],
+        recordIds: [h.id, ...h.positions.map((p) => p.id)],
         payload: {
           ...base,
           equity: `${formatPercent(h.equityActualPct)} actual against a ${formatPercent(h.equityTargetPct)} target`,
           fixed_income: `${formatPercent(h.fixedIncomeActualPct)} actual against a ${formatPercent(h.fixedIncomeTargetPct)} target`,
           cash: `${formatPercent(h.cashPct)} actual against a ${formatPercent(h.targetCashPct)} target`,
           drift: formatPercent(h.driftPct),
-          top_holding: `${h.topHoldingName} (${h.topHoldingTicker}) at ${formatPercent(h.topHoldingPct)}`,
-          distinct_holdings: h.distinctHoldings,
-          blended_expense_ratio: formatPercent(h.blendedExpenseRatioPct, 2),
+          distinct_holdings: portfolio.distinctHoldings,
+          blended_expense_ratio: formatPercent(portfolio.blendedExpenseRatioPct, 2),
+          largest_position: portfolio.largest
+            ? `${portfolio.largest.name} (${portfolio.largest.ticker}) at ${formatPercent(portfolio.largest.portfolioPct)} of the portfolio`
+            : "none on file",
+          // Every position, so a question about what is actually held in a
+          // sleeve is answered from the record instead of from priors (§9).
+          holdings: portfolio.groups.map((group) => ({
+            asset_class: ASSET_CLASS_LABEL[group.assetClass] ?? group.assetClass,
+            value: money(group.valueCents),
+            share_of_portfolio: formatPercent(group.portfolioPct),
+            positions: group.holdings.map((holding) => ({
+              ticker: holding.ticker,
+              name: holding.name,
+              type: holding.kind,
+              sector: holding.sector ?? "diversified",
+              value: money(holding.marketValueCents),
+              share_of_class: formatPercent(holding.classPct),
+              share_of_portfolio: formatPercent(holding.portfolioPct),
+              unrealised: money(holding.gainCents),
+              expense_ratio: holding.expenseRatioPct > 0 ? formatPercent(holding.expenseRatioPct, 2) : "none",
+            })),
+          })),
         },
       };
+    }
     case "goals":
       return {
         recordIds: [h.id, ...h.goals.map((g) => g.id)],

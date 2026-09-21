@@ -526,6 +526,185 @@ function fundedStatus(pct: number): GoalStatus {
 /** Pure, deterministic derivation of section-level financials from a
  * household's headline numbers. Seeded by name so re-running the seed
  * produces identical data. */
+
+// ---------------------------------------------------------------------------
+// The securities the seeded portfolios are built from.
+//
+// Every one is invented: no real ticker, issuer, or fee (CLAUDE.md §13).
+// They exist so the Allocation section can answer "what is actually in the
+// 62% equities" with rows rather than an adjective. Expense ratios are
+// fixtures too — plausible in shape (an index fund cheaper than a
+// small-cap fund, a single share costing nothing to hold) without being
+// copied from any real product.
+type SecuritySeed = {
+  ticker: string;
+  name: string;
+  kind: "ETF" | "Fund" | "Stock" | "Cash";
+  assetClass: "Equity" | "FixedIncome" | "Cash";
+  sector: string | null;
+  region: string;
+  expenseRatioPct: number;
+};
+
+const EQUITY_FUNDS: SecuritySeed[] = [
+  { ticker: "MBEI", name: "Meridian Broad Equity Index", kind: "ETF", assetClass: "Equity", sector: null, region: "US", expenseRatioPct: 0.04 },
+  { ticker: "CTMF", name: "Cascadia Total Market Fund", kind: "ETF", assetClass: "Equity", sector: null, region: "US", expenseRatioPct: 0.06 },
+  { ticker: "AGIE", name: "Aldergrove International Equity", kind: "ETF", assetClass: "Equity", sector: null, region: "International", expenseRatioPct: 0.12 },
+  { ticker: "KSCG", name: "Kestrel Small-Cap Growth", kind: "Fund", assetClass: "Equity", sector: null, region: "US", expenseRatioPct: 0.21 },
+];
+
+const EQUITY_STOCKS: SecuritySeed[] = [
+  { ticker: "HALD", name: "Halden Corp", kind: "Stock", assetClass: "Equity", sector: "Technology", region: "US", expenseRatioPct: 0 },
+  { ticker: "BRLN", name: "Brightline Systems", kind: "Stock", assetClass: "Equity", sector: "Technology", region: "US", expenseRatioPct: 0 },
+  { ticker: "NPKE", name: "Northpeak Energy", kind: "Stock", assetClass: "Equity", sector: "Energy", region: "US", expenseRatioPct: 0 },
+  { ticker: "VSTA", name: "Vesta Materials", kind: "Stock", assetClass: "Equity", sector: "Materials", region: "US", expenseRatioPct: 0 },
+  { ticker: "ARBR", name: "Arbor Health", kind: "Stock", assetClass: "Equity", sector: "Health care", region: "US", expenseRatioPct: 0 },
+  { ticker: "CDFN", name: "Caldera Financial", kind: "Stock", assetClass: "Equity", sector: "Financials", region: "US", expenseRatioPct: 0 },
+  { ticker: "SBCG", name: "Sable Consumer Group", kind: "Stock", assetClass: "Equity", sector: "Consumer", region: "US", expenseRatioPct: 0 },
+];
+
+const FIXED_INCOME_FUNDS: SecuritySeed[] = [
+  { ticker: "MCBI", name: "Meridian Core Bond Index", kind: "Fund", assetClass: "FixedIncome", sector: null, region: "US", expenseRatioPct: 0.06 },
+  { ticker: "TRMB", name: "Tanner Ridge Municipal Bond", kind: "Fund", assetClass: "FixedIncome", sector: null, region: "US", expenseRatioPct: 0.11 },
+  { ticker: "ELSD", name: "Ellsworth Short Duration", kind: "Fund", assetClass: "FixedIncome", sector: null, region: "US", expenseRatioPct: 0.16 },
+];
+
+const CASH_SECURITY: SecuritySeed = {
+  ticker: "MMKT", name: "Meridian Government Money Market", kind: "Cash", assetClass: "Cash", sector: null, region: "US", expenseRatioPct: 0.1,
+};
+
+export const SECURITIES: SecuritySeed[] = [
+  ...EQUITY_FUNDS,
+  ...EQUITY_STOCKS,
+  ...FIXED_INCOME_FUNDS,
+  CASH_SECURITY,
+];
+
+type PositionSeed = { ticker: string; marketValueCents: number; costBasisCents: number };
+
+/** Decreasing weights summing to 1 — a portfolio has a core and a tail,
+ * not N equal slices. */
+function decreasingWeights(count: number, rand: () => number): number[] {
+  const raw = Array.from({ length: count }, (_, i) => count - i + rand());
+  const total = raw.reduce((a, b) => a + b, 0);
+  return raw.map((w) => w / total);
+}
+
+/** Splits cents by weight with the remainder pushed onto the largest
+ * slice, so the parts add up to the whole exactly. Without this the
+ * percentages derived back off the positions drift from the household's
+ * stated allocation by a cent's worth of rounding per holding. */
+function allocateCents(totalCents: number, weights: number[]): number[] {
+  const parts = weights.map((w) => Math.round(totalCents * w));
+  const drift = totalCents - parts.reduce((a, b) => a + b, 0);
+  if (parts.length > 0) parts[0] = parts[0]! + drift;
+  return parts;
+}
+
+/**
+ * Builds a household's positions from the allocation it already has.
+ *
+ * The percentages come first and the holdings are cut to fit them, which
+ * is the only way the two can agree: the sleeves are sized off
+ * `equityActualPct` / `fixedIncomeActualPct` with cash taking the
+ * remainder, so re-deriving the mix from the positions reproduces the
+ * stored figures rather than contradicting them on the same page.
+ */
+function buildPositions(
+  portfolioCents: number,
+  equityPct: number,
+  fixedIncomePct: number,
+  index: number,
+  rand: () => number,
+): PositionSeed[] {
+  if (portfolioCents <= 0) return [];
+
+  const equityCents = Math.round(portfolioCents * (equityPct / 100));
+  const fixedIncomeCents = Math.round(portfolioCents * (fixedIncomePct / 100));
+  const cashCents = portfolioCents - equityCents - fixedIncomeCents;
+
+  const positions: PositionSeed[] = [];
+
+  // Cost basis: most positions are up, some are down. The losers are the
+  // ones the Tax section's harvesting story needs to exist.
+  const withBasis = (ticker: string, marketValueCents: number): PositionSeed => {
+    const gain = -0.12 + rand() * 0.55;
+    return {
+      ticker,
+      marketValueCents,
+      costBasisCents: Math.max(1, Math.round(marketValueCents / (1 + gain))),
+    };
+  };
+
+  // Equities: a fund core, then single names. Every household starts from
+  // a different fund so the Markets watchlist isn't forty rows of one
+  // ticker.
+  const fundCount = 2 + Math.floor(rand() * 2);
+  const stockCount = 3 + Math.floor(rand() * 4);
+  const funds = Array.from(
+    { length: fundCount },
+    (_, i) => EQUITY_FUNDS[(index + i) % EQUITY_FUNDS.length]!,
+  );
+  const stocks = Array.from(
+    { length: stockCount },
+    (_, i) => EQUITY_STOCKS[(index * 3 + i) % EQUITY_STOCKS.length]!,
+  );
+
+  // Roughly one household in three carries a position large enough to be
+  // a conversation — an exercised grant, an inheritance never sold. It is
+  // what gives the concentration bar something to mark.
+  const concentrated = rand() < 0.35;
+  const coreShare = concentrated ? 0.45 + rand() * 0.1 : 0.62 + rand() * 0.16;
+
+  const coreCents = Math.round(equityCents * coreShare);
+  const satelliteCents = equityCents - coreCents;
+
+  for (const [i, cents] of allocateCents(coreCents, decreasingWeights(funds.length, rand)).entries()) {
+    positions.push(withBasis(funds[i]!.ticker, cents));
+  }
+
+  const stockWeights = decreasingWeights(stocks.length, rand);
+  if (concentrated) {
+    // Push the first single name well clear of the rest, then renormalise.
+    stockWeights[0] = stockWeights[0]! + 0.9;
+    const total = stockWeights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < stockWeights.length; i++) stockWeights[i] = stockWeights[i]! / total;
+  }
+  for (const [i, cents] of allocateCents(satelliteCents, stockWeights).entries()) {
+    positions.push(withBasis(stocks[i]!.ticker, cents));
+  }
+
+  const bondCount = 1 + Math.floor(rand() * 3);
+  const bonds = Array.from(
+    { length: bondCount },
+    (_, i) => FIXED_INCOME_FUNDS[(index + i) % FIXED_INCOME_FUNDS.length]!,
+  );
+  for (const [i, cents] of allocateCents(fixedIncomeCents, decreasingWeights(bonds.length, rand)).entries()) {
+    positions.push(withBasis(bonds[i]!.ticker, cents));
+  }
+
+  if (cashCents > 0) {
+    // Cash is held at par; there is no gain to have on it.
+    positions.push({ ticker: CASH_SECURITY.ticker, marketValueCents: cashCents, costBasisCents: cashCents });
+  }
+
+  // One row per security: a household drawn the same fund twice holds one
+  // position in it, which is what the schema's uniqueness says too.
+  const merged = new Map<string, PositionSeed>();
+  for (const p of positions) {
+    const existing = merged.get(p.ticker);
+    if (existing) {
+      existing.marketValueCents += p.marketValueCents;
+      existing.costBasisCents += p.costBasisCents;
+    } else {
+      merged.set(p.ticker, { ...p });
+    }
+  }
+  return [...merged.values()].filter((p) => p.marketValueCents > 0);
+}
+
+const SECURITY_BY_TICKER = new Map(SECURITIES.map((s) => [s.ticker, s]));
+
 function deriveFinancials(h: HouseholdSeed, index: number) {
   const aumCents = centsFrom(h.aum);
   const netWorthCents = centsFrom(h.netWorth);
@@ -568,14 +747,30 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
   const fixedIncomeTarget = Math.round((100 - equityTarget - cashTarget) * 10) / 10;
   const fixedIncomeActual = Math.round((100 - equityActual - h.cashPct) * 10) / 10;
 
-  const holdingNames: [string, string][] = [
-    ["Halden Corp", "HALD"],
-    ["Brightline Systems", "BRLN"],
-    ["Northpeak Energy", "NPK"],
-    ["Vesta Materials", "VSTA"],
-    ["Arbor Health", "ARBR"],
-  ];
-  const [topHoldingName, topHoldingTicker] = holdingNames[index % holdingNames.length];
+  // The positions come from the allocation, and then every figure the
+  // Allocation section states about holdings comes back off the positions.
+  // These used to be four independent random numbers — "41 distinct
+  // holdings", a top holding picked round-robin, an expense ratio from
+  // thin air — which was harmless only while there was no holdings table
+  // to contradict them.
+  const positions = buildPositions(investmentAccountsCents, equityActual, fixedIncomeActual, index, rand);
+  const portfolioCents = positions.reduce((sum, p) => sum + p.marketValueCents, 0);
+  const largest = positions.reduce<(typeof positions)[number] | null>(
+    (max, p) => (max === null || p.marketValueCents > max.marketValueCents ? p : max),
+    null,
+  );
+  const largestSecurity = largest ? SECURITY_BY_TICKER.get(largest.ticker)! : null;
+  const blendedExpenseRatioPct =
+    portfolioCents === 0
+      ? 0
+      : Math.round(
+          (positions.reduce(
+            (sum, p) => sum + SECURITY_BY_TICKER.get(p.ticker)!.expenseRatioPct * p.marketValueCents,
+            0,
+          ) /
+            portfolioCents) *
+            100,
+        ) / 100;
 
   const goals = GOAL_TEMPLATES.map((g, gi) => {
     const targetCents = Math.round(netWorthCents * g.targetMultiple);
@@ -1117,11 +1312,18 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     equityActualPct: equityActual,
     fixedIncomeTargetPct: fixedIncomeTarget,
     fixedIncomeActualPct: fixedIncomeActual,
-    topHoldingName,
-    topHoldingTicker,
-    topHoldingPct: Math.round((6 + rand() * 6) * 10) / 10,
-    distinctHoldings: 18 + Math.round(rand() * 30),
-    blendedExpenseRatioPct: Math.round((0.3 + rand() * 0.35) * 100) / 100,
+    positions,
+    // Share of the whole portfolio, which is what a concentration figure
+    // means; the section used to quote it as a share of equities, which
+    // made it incomparable with the threshold an advisor actually sets.
+    topHoldingName: largestSecurity?.name ?? "\u2014",
+    topHoldingTicker: largestSecurity?.ticker ?? "\u2014",
+    topHoldingPct:
+      largest && portfolioCents > 0
+        ? Math.round((largest.marketValueCents / portfolioCents) * 1000) / 10
+        : 0,
+    distinctHoldings: positions.length,
+    blendedExpenseRatioPct,
     whatChanged,
     goals,
     insights,
@@ -1323,6 +1525,8 @@ async function main() {
   await prisma.indicatorWatch.deleteMany();
   await prisma.indicator.deleteMany();
   await prisma.insight.deleteMany();
+  await prisma.position.deleteMany();
+  await prisma.security.deleteMany();
   await prisma.goal.deleteMany();
   await prisma.member.deleteMany();
   await prisma.prospect.deleteMany();
@@ -1345,6 +1549,16 @@ async function main() {
   const ines = await prisma.advisor.create({
     data: { name: "Inés Okonjo", initials: "IO", capacityTarget: 9 },
   });
+  // Securities are shared across the book — forty households holding the
+  // same index fund hold the same security, which is what lets the
+  // Markets watchlist group by ticker and what Position's uniqueness
+  // constraint assumes.
+  const securityIdByTicker = new Map<string, string>();
+  for (const sec of SECURITIES) {
+    const created = await prisma.security.create({ data: sec });
+    securityIdByTicker.set(sec.ticker, created.id);
+  }
+
   const advisorId: Record<AdvisorKey, string> = {
     dana: dana.id,
     maya: maya.id,
@@ -1436,6 +1650,13 @@ async function main() {
         activityEvents: { create: extra.activityEvents },
         complianceItems: { create: extra.complianceItems },
         attestations: { create: extra.attestations },
+        positions: {
+          create: extra.positions.map((position) => ({
+            securityId: securityIdByTicker.get(position.ticker)!,
+            marketValueCents: big(position.marketValueCents),
+            costBasisCents: big(position.costBasisCents),
+          })),
+        },
       },
     });
   }

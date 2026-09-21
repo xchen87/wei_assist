@@ -291,6 +291,24 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **A figure about the holdings is derived from the holdings** (D-029).
+  The mix, the blended expense ratio, the distinct-holdings count and the
+  largest position are all rolled up from `Position` rows rather than
+  stored beside them. They used to be four independent random numbers,
+  which was harmless only while nothing could contradict them. If you add
+  a figure that describes the portfolio, compute it — do not add a column.
+- **Concentration means single names, not large holdings** (D-029). The
+  largest fund in this book runs a median 24% of the portfolio and the
+  largest single stock a median 8%, so a threshold tuned to catch the
+  second flags every household on the first. A broad index fund at a
+  quarter of the book is diversification. 10% of the portfolio selects
+  seventeen of forty — the same tuning lesson as the signal rules.
+- **Within-class and whole-portfolio percentages are different scales.**
+  Bars inside an asset class are drawn as shares of that class; a
+  concentration limit is a share of the whole portfolio. `lib/calc/
+  holdings.ts` has `thresholdWithinClass` for the conversion, because
+  drawing one against the other put the marker 25 points left of where it
+  belonged and implied a breach on holdings nowhere near the limit.
 - **An interactive chart is built out of links, not click handlers**
   (D-028). A treemap cell is an SVG `<a href>`, so middle-click, open in
   a new tab, copy link and Enter all work without being implemented, and
@@ -790,6 +808,34 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Allocation now holds real positions (D-029). The section could say a
+  household was 62% equities and could not say what the equities *were*. `Security` and
+  `Position` land, seeded per household from the allocation it already had — the sleeves are
+  cut from `equityActualPct` and `fixedIncomeActualPct` with cash taking the remainder — so
+  re-deriving the mix off the positions reproduces the stored percentages to 0.000 points
+  across all forty households. 15 securities, 415 positions, 7–13 holdings each, every ticker
+  and fee fictional.
+  Everything the section states about holdings is now computed from them: the blended expense
+  ratio, the largest position, and `distinctHoldings`, which drops from an invented 18–48 to a
+  true 7–13. Those were four independent random numbers before, which is harmless right up
+  until there is a table underneath capable of contradicting them.
+  The rings had to be rebuilt as SVG arcs to make any of it selectable — a `conic-gradient`
+  draws the right picture and has no segments to click. The legend rows are the accessible
+  control (a radio group, one tab stop, arrow keys), and the ring segments click through to
+  the same selection. Picking a class shows its holdings as bars with a concentration marker,
+  and the full holdings table sits below, grouped by class with subtotals.
+  Two things worth remembering. Concentration is measured on **single names only** — the
+  largest fund in this book is a median 24% of the portfolio against a median 8% for the
+  largest single stock, so counting funds flags all forty households instead of the seventeen
+  that have an actual concentrated position. And the marker was initially drawn in the wrong
+  units: bars inside a class are shares *of the class*, the limit is a share *of the
+  portfolio*, so a 10% limit landed at 36% of the track instead of 59% and implied a breach on
+  holdings nowhere near it. Caught by measuring the rendered bars against the marker in the
+  browser rather than trusting the arithmetic; `thresholdWithinClass` now does the conversion
+  and is tested. The marker is also drawn only on single-name rows, since a line a fund's bar
+  visibly crosses reads as a breach whatever the caption underneath says.
+  §10's `Account` layer is still not built; positions hang off the household for now.
 
 - **2026-09-21** — Book composition is now something you can get into (D-028). Every cell
   is an SVG `<a href>` to its household, so middle-click, open-in-new-tab, copy-link and the

@@ -144,6 +144,7 @@ model Household {
 
   members         Member[]
   goals           Goal[]
+  positions       Position[]
   insights        Insight[]
   policies        Policy[]
   estateAssets    EstateAsset[]
@@ -546,4 +547,48 @@ model PlanScenarioMember {
   pensionHasCola        Boolean?
 
   @@unique([scenarioId, memberId])
+}
+
+// ---------------------------------------------------------------------------
+// Holdings: what the allocation percentages are actually made of.
+//
+// CLAUDE.md §10 puts an Account between Household and Position, and that is
+// still the intended spine — taxable versus IRA versus Roth changes
+// withdrawal ordering, and the Clients list wants an "account types held"
+// filter. Nothing in the app needs it yet, so Position hangs off Household
+// for now and the account layer is a later migration rather than an empty
+// table (D-029).
+model Security {
+  id              String  @id @default(cuid())
+  ticker          String  @unique
+  name            String
+  // ETF | Fund | Stock | Cash — what it is, which is the thing an advisor
+  // means by "are we in funds or single names".
+  kind            String
+  // Equity | FixedIncome | Cash. The three sleeves the allocation rings
+  // divide the portfolio into, so a position always rolls up to exactly one.
+  assetClass      String
+  // Null for anything diversified: a broad index fund has no one sector,
+  // and naming one would be inventing a fact about it.
+  sector          String?
+  region          String
+  // Zero for a single stock, which has no fund to charge a fee.
+  expenseRatioPct Float
+
+  positions Position[]
+}
+
+model Position {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  security    Security  @relation(fields: [securityId], references: [id])
+  securityId  String
+
+  marketValueCents BigInt
+  costBasisCents   BigInt
+
+  // One row per security per household; adding to a position changes the
+  // value rather than creating a second row.
+  @@unique([householdId, securityId])
 }

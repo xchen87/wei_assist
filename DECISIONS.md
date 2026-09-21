@@ -1010,3 +1010,66 @@ Hover and focus share one highlight. Verified in the accessibility tree: a `grou
 the chart, described by the keyboard hint, containing forty `link` children each named
 "{household}, {segment}, {AUM} under management". The table equivalent §8 asks for is still
 not built.
+
+---
+
+## D-029 — Allocation holds real positions, and every figure about them is derived from them
+
+2026-09-21 · Accepted
+
+**Context** — The Allocation section could say a household was 62% equities and could not say
+what the equities *were*. CLAUDE.md §6 lists "holdings, concentration" as part of the section
+and §10 puts `Position` and `Security` in the data model; neither existed. What existed
+instead was four stored columns — `topHoldingName`, `topHoldingTicker`, `topHoldingPct`,
+`distinctHoldings`, `blendedExpenseRatioPct` — seeded as independent random numbers. A
+"distinct holdings: 41" that answers to nothing is harmless only while there is no table under
+it; the moment there is, it is a page contradicting itself.
+
+**Decision** — `Security` and `Position`, with every figure the section states about holdings
+computed from the positions rather than stored beside them. The seed builds a household's
+positions *from* its allocation percentages — the sleeves are sized off `equityActualPct` and
+`fixedIncomeActualPct` with cash taking the remainder, and the remainder trick means the parts
+add to the whole exactly — so re-deriving the mix off the positions reproduces the stored
+percentages to 0.000 points across all forty households. The blended expense ratio, the
+distinct-holdings count and the largest position are likewise rolled up, which took
+`distinctHoldings` from an invented 18–48 to a true 7–13.
+
+`Account` is **not** included, though §10 puts one between Household and Position. Taxable
+versus IRA versus Roth genuinely matters — it drives withdrawal ordering and §6 wants an
+"account types held" filter — but nothing in the app needs it today, and an empty table
+modelling a distinction no surface makes is worse than a later migration. Position hangs off
+Household and the account layer is deferred.
+
+**Concentration is measured on single names only.** Across the seeded book the largest *fund*
+is a median 24% of the portfolio and the largest *single stock* a median 8%; a threshold that
+catches the second flags all forty households on the first. A broad index fund at a quarter of
+the portfolio is diversification. One company at a quarter is the conversation. At 10% of the
+portfolio the rule selects seventeen of forty, which is a finding rather than a description of
+the book — the same tuning lesson as D-022's signal rules.
+
+**Alternatives** — Keep the stored columns and add positions beside them: no migration of the
+seed, and two sources of truth that disagree the first time either changes. Store the
+positions and keep the percentages authoritative: the percentages are what the advisor set in
+the IPS, so this is nearly right, but then the holdings table is decorative and cannot be
+edited. Model `Account` now: correct per §10 and unused by anything, so it would be seeded
+fiction in a shape no page reads.
+
+**Consequences** — The rings became SVG arcs (`lib/charts/donut.ts`). A `conic-gradient` draws
+the right picture and gives you nothing to hold — a gradient has no segments, so a slice
+cannot be hovered, clicked, or named — and "select equities to see what is in it" is not
+possible over one. The legend rows are the accessible control, a radio group with one tab stop
+and arrow keys, since choosing one of three classes is exactly what a radio group is; the ring
+segments click through to the same selection as a pointer-only affordance.
+
+Two scales meet in the holdings chart and mixing them is a live trap. Bars inside a class are
+drawn as shares *of that class*; the concentration limit is a share *of the portfolio*. Drawn
+against each other the marker sat far left of where it belonged — a 10% portfolio limit is
+16.7% of a class that is 60% of the book — and holdings nowhere near the limit appeared to
+cross it. `thresholdWithinClass` does the conversion and is tested. The marker is also drawn
+only on single-name rows: across a fund's bar it is a line the bar visibly crosses, which
+reads as a breach whatever the caption says.
+
+The assistant's `allocation` section reader now returns the positions too, rolled up through
+the same function the page uses, so what it says and what the page shows come from one place.
+Securities are shared across the book, which is what keeps the Markets watchlist grouping by
+ticker meaningful — thirteen distinct top holdings across forty households.
