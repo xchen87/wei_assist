@@ -274,6 +274,20 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   ones, and both store only what the scenario *changes* — null inherits
   from the record, so a saved scenario survives an update to the plan and
   its summary row can say what it actually did.
+- **Every scenario lever defaults to a value that changes nothing**
+  (D-025). No pension, no part-time work, no tax drag, no survivor
+  reduction, no care cost, no legacy target, zero inflation. A default
+  that moved the projection would be the app inventing a financial
+  assumption on the advisor's behalf (§13), and the advisor would have no
+  way to tell which figures were theirs. The test for it is concrete: the
+  Whitaker plan of record reads 69% before and after eleven levers were
+  added. Add a lever, give it a neutral default, and prove the baseline
+  didn't move — `pnpm --filter @meridian/web check:planning`.
+- **One describer writes both the live chips and the saved-scenario
+  summary** (`lib/planning/describe.ts`). It compares baseline against
+  current rather than reading the scenario record field by field, which is
+  what the saved-scenario table used to do — every lever added after it
+  would have been silently missing from the rows.
 - **Signal rule thresholds are tuned against this book, and that tuning is
   the work.** At the first cut, a 14% drawdown flagged 32 of 40 households
   and the harvesting rule fired on 31 — which describes the book rather
@@ -567,11 +581,16 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       completeness ring is computed from the record rather than seeded like the other
       eleven
 - [x] Planning — a Planning section after Goals holding the scenario explorer and the
-      four disciplines it drives (D-024). Levers are per member — retirement age, Social
-      Security claim age, the SSA estimate, annual savings — plus household spending and
-      a real-return assumption, recomputed in the browser on every move against the plan
-      of record. Scenarios save as deltas, compare side by side with the probability and
-      the points gained, and one can be marked as the recommendation
+      four disciplines it drives (D-024). Seventeen levers (D-025) split by who owns the
+      decision: per member, retirement age, plan-to age, part-time income and through-age,
+      SS claim age and SSA estimate, pension amount/start/COLA, savings and a real
+      step-up; per household, retirement spending, a spending shift from a stated age,
+      survivor spending, long-term care, real return, volatility, inflation, an effective
+      tax rate on withdrawals, a one-time inflow, a legacy target and the plan horizon.
+      Grouped into a four-tab workbench with the outcome sticky beside it, recomputed in
+      the browser on every move against the plan of record. Scenarios save as deltas,
+      compare side by side with the probability and the points gained, and one can be
+      marked as the recommendation
 - [ ] `PlanSnapshot` versioning + "what changed since last review" diff — the Overview
       page's "what changed" list and the Activity timeline's plan-change entries are
       static/seeded, not a real diff engine
@@ -748,6 +767,39 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Widened the scenario model from six levers to seventeen and rebuilt the
+  explorer around them (D-025). The six that shipped with D-024 were enough to show the
+  idea and not enough to plan with: an advisor's actual review questions — she drops to
+  three days a week at 62, his pension has no COLA, assume care from 85, what does the tax
+  drag on withdrawals cost, what if the practice sells in five years, do they still leave
+  something behind — had nowhere to go. Added per member: plan-to age, part-time income
+  and through-age, pension amount/start age/COLA flag, and a real savings step-up. Added
+  per household: a spending shift of ±N% from a stated age, survivor spending, long-term
+  care from a stated age, volatility, inflation, an effective tax rate on withdrawals, a
+  labelled one-time inflow, and a legacy target that changes what counts as success rather
+  than moving a dollar of the projection.
+  The rule that made this safe is that **every new lever defaults to a value that changes
+  nothing** — a default that moved the number would be the app inventing an assumption the
+  advisor couldn't see (§13). Verified rather than asserted: the Whitaker plan of record
+  reads 69% before and after. `pnpm --filter @meridian/web check:planning` now checks the
+  direction of all seventeen and that the baseline is unmoved; it caught nothing wrong in
+  the model, but it did catch two of my own test expectations being wrong, which is the
+  same value.
+  Seventeen levers don't fit beside a chart, so the explorer became a four-tab workbench —
+  People, Spending, Markets & tax, Events — with the outcome panel sticky alongside. Each
+  tab carries a count of what's been moved inside it and the chips under the chart spell
+  out every change, so grouping hides nothing. Controls know their baseline: a moved lever
+  says "was 62" and clicking that puts it back, because an advisor mid-conversation needs
+  to undo one lever without resetting the scenario. Money fields carry their own $ and
+  unit and group their thousands on blur.
+  Two things found while wiring it up. Moving one retirement slider reported *three*
+  changes, because the pension start age and part-time through-age park on the retirement
+  age to mean "not set" and travel with it — they now count, and save, only once there is
+  an income attached to them. And the saved-scenario table built its summary by reading
+  the scenario record field by field, so all eleven new levers would have been invisible
+  in the saved rows; both it and the live chips now come from one baseline-vs-current
+  describer.
 
 - **2026-09-20** — Added financial planning (D-024). A **Planning** section now sits after
   Goals in the household nav, with Retirement, Tax, Protection and Estate moved inside it as

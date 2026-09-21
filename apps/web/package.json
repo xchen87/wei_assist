@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "signals": "tsx scripts/run-signals.ts",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
+    "check:planning": "tsx scripts/check-planning.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

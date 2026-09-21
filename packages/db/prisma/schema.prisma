@@ -476,9 +476,33 @@ model PlanScenario {
   kind        String    @default("whatif")
   note        String?
 
-  // Household-level levers. Null inherits.
+  // Household-level levers. Null inherits from the plan of record, which
+  // is what keeps a saved scenario meaningful after the record changes.
   retirementSpendingCents BigInt?
   realReturnPct           Float?
+  volatilityPct           Float?
+  // Only erodes level (non-COLA) pension income — everything else in the
+  // projection is in today's dollars. See lib/calc/planning.ts.
+  inflationPct            Float?
+  // Retirement spending rarely holds flat: a shift of -15 at age 78 is the
+  // "spends less later" case. Null age means no shift.
+  spendingShiftPct        Float?
+  spendingShiftAge        Int?
+  // What the household spends once one member is gone, as a percent of
+  // joint spending. Null inherits 100 — no reduction is assumed.
+  survivorSpendingPct     Float?
+  // A health or long-term-care cost, per year, from a stated age.
+  healthcareAnnualCents   BigInt?
+  healthcareFromAge       Int?
+  // One effective rate applied to portfolio withdrawals. Not a tax
+  // calculation: there is no withdrawal ordering or bracket model here.
+  effectiveTaxRatePct     Float?
+  // An inheritance, business sale or downsize being tested.
+  oneTimeInflowCents      BigInt?
+  oneTimeInflowYear       Int?
+  oneTimeInflowLabel      String?
+  // Success means ending at or above this, not merely above zero.
+  legacyTargetCents       BigInt?
   endAge                  Int?
 
   members   PlanScenarioMember[]
@@ -498,12 +522,28 @@ model PlanScenarioMember {
   memberId   String
 
   retirementAge         Int?
+  // Per member, because a couple's outcome depends on which of them the
+  // portfolio has to outlast. Null inherits the scenario's end age.
+  planToAge             Int?
   ssClaimAge            Int?
   // The SSA estimate, entered by the advisor. Not derived: benefit amounts
   // depend on an earnings record this app does not hold, and inventing one
-  // would be inventing a financial figure (CLAUDE.md §13).
+  // would be inventing a financial figure (CLAUDE.md §13). The same is true
+  // of the pension and part-time figures below.
   ssMonthlyBenefitCents BigInt?
   annualSavingsCents    BigInt?
+  // Real step-up in contributions per year.
+  savingsGrowthPct      Float?
+  // Phased retirement: earnings after this member's retirement age, and
+  // the age they stop. A through-age at or below the retirement age means
+  // no phased retirement.
+  partTimeIncomeCents   BigInt?
+  partTimeThroughAge    Int?
+  // Defined-benefit income, when it starts, and whether it adjusts for
+  // inflation. A level pension is eroded at the scenario's inflation rate.
+  pensionMonthlyCents   BigInt?
+  pensionStartAge       Int?
+  pensionHasCola        Boolean?
 
   @@unique([scenarioId, memberId])
 }

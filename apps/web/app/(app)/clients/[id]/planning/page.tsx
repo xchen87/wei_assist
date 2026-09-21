@@ -4,7 +4,7 @@ import { ScenarioExplorer } from "@/components/planning/scenario-explorer";
 import { SavedScenarios, type SavedScenarioRow } from "@/components/planning/saved-scenarios";
 import { projectScenario } from "@/lib/calc/planning";
 import { applyScenario, buildBaseline, seedFor } from "@/lib/planning/baseline";
-import { formatMoney } from "@/lib/format/money";
+import { describeChanges } from "@/lib/planning/describe";
 
 export const dynamic = "force-dynamic";
 
@@ -34,31 +34,6 @@ export default async function PlanningPage({ params }: { params: { id: string } 
     const applied = applyScenario(baseline, scenario);
     const result = projectScenario({ ...applied, seed });
 
-    // Say what the scenario actually changed, in the advisor's words —
-    // a row called "Scenario 2" tells nobody anything six weeks later.
-    const changes: string[] = [];
-    for (const adjustment of scenario.members) {
-      const member = baseline.members.find((m) => m.id === adjustment.memberId);
-      if (!member) continue;
-      const first = member.name.split(" ")[0];
-      if (adjustment.retirementAge !== null && adjustment.retirementAge !== member.retirementAge) {
-        changes.push(`${first} retires at ${adjustment.retirementAge}`);
-      }
-      if (adjustment.ssClaimAge !== null && adjustment.ssClaimAge !== member.ssClaimAge) {
-        changes.push(`${first} claims at ${adjustment.ssClaimAge}`);
-      }
-      if (adjustment.annualSavingsCents !== null) {
-        changes.push(`${first} saves ${formatMoney(adjustment.annualSavingsCents, { compact: true })}/yr`);
-      }
-      if (adjustment.ssMonthlyBenefitCents !== null) {
-        changes.push(`${first} SS ${formatMoney(adjustment.ssMonthlyBenefitCents)}/mo`);
-      }
-    }
-    if (scenario.retirementSpendingCents !== null) {
-      changes.push(`spends ${formatMoney(scenario.retirementSpendingCents, { compact: true })}/yr`);
-    }
-    if (scenario.realReturnPct !== null) changes.push(`${scenario.realReturnPct}% real return`);
-
     return {
       id: scenario.id,
       name: scenario.name,
@@ -66,7 +41,11 @@ export default async function PlanningPage({ params }: { params: { id: string } 
       successProbabilityPct: result.successProbabilityPct,
       deltaPts: result.successProbabilityPct - baseResult.successProbabilityPct,
       medianEndingCents: result.medianEndingCents,
-      summary: changes.join(" · ") || "No changes from the plan of record",
+      // Say what the scenario actually changed, in the advisor's words — a
+      // row called "Scenario 2" tells nobody anything six weeks later. The
+      // same function writes the chips under the live explorer, so the two
+      // can't drift apart.
+      summary: describeChanges(baseline, applied).join(" · ") || "No changes from the plan of record",
     };
   });
 
@@ -81,9 +60,10 @@ export default async function PlanningPage({ params }: { params: { id: string } 
         </div>
       </div>
       <p className="mb-5 max-w-[760px] text-sm text-ink-muted">
-        Move a lever and the projection recomputes against the plan of record. Retirement and claim
-        ages are per member, because two people in one household rarely stop on the same day and the
-        outcome is the interaction of the two.
+        Move a lever and the projection recomputes against the plan of record. Retirement, longevity,
+        claiming, pensions, phased work and saving are per member, because two people in one household
+        rarely stop on the same day and the outcome is the interaction of the two. Spending, market
+        assumptions, tax and one-off events belong to the household.
       </p>
 
       {planners === 0 ? (
@@ -104,14 +84,19 @@ export default async function PlanningPage({ params }: { params: { id: string } 
         </>
       )}
 
-      <div className="mt-7 border-t border-rule pt-3 text-xs text-ink-muted">
-        Illustrative projection: real returns are a single mean-and-volatility draw, with no mortality
-        table, no tax-aware withdrawal ordering and no inflation path — the shape of the answer is
-        real, the precision is not. Social Security is an input, not a calculation: benefits depend on
-        an earnings record this app doesn&rsquo;t hold, so the advisor enters the figure from the
-        client&rsquo;s SSA statement. Per-member savings splits the household&rsquo;s recorded savings
-        evenly across working members until intake&rsquo;s per-member figures reach the seeded
-        households.
+      <div className="mt-7 max-w-[860px] border-t border-rule pt-3 text-xs leading-relaxed text-ink-muted">
+        <span className="font-semibold text-ink">Illustrative projection.</span> Returns are a single
+        real mean-and-volatility draw. Longevity is a stated plan-to age, not a mortality table. Tax is
+        one effective rate grossed up on portfolio withdrawals — there is no withdrawal ordering,
+        bracket model or account-type sequencing. The shape of the answer is real; the precision is
+        not.{" "}
+        <span className="font-semibold text-ink">Figures you enter, not figures we derive.</span>{" "}
+        Social Security, pensions and part-time earnings each depend on a record this app
+        doesn&rsquo;t hold — an earnings history, a plan document, an employment agreement — so the
+        advisor enters them. Every lever starts at a value that changes nothing, so no assumption
+        reaches the projection without an advisor putting it there. Per-member savings splits the
+        household&rsquo;s recorded savings evenly across working members until intake&rsquo;s
+        per-member figures reach the seeded households.
       </div>
     </div>
   );

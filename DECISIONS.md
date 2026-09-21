@@ -791,3 +791,66 @@ with the gap stated on each member's card. Per-member savings splits the househo
 savings evenly across working members until intake's per-member figures reach the seeded
 households; that is stated on the page. The projection remains illustrative in the same terms
 as the existing one: no mortality table, no tax-aware withdrawal ordering, no inflation path.
+
+---
+
+## D-025 — Scenario levers are the advisor's assumptions, and every one of them starts neutral
+
+2026-09-21 · Accepted
+
+**Context** — D-024 shipped the scenario explorer with six levers: retirement age, Social
+Security claim age, SSA estimate and annual savings per member, plus household spending and
+a real return. That is enough to demonstrate the idea and not enough to plan with. The
+questions an advisor actually brings to a review — she goes to three days a week at 62, his
+pension has no COLA, what if we assume long-term care from 85, what does the tax drag on
+withdrawals do, what if the practice sells for a million in five years, do they still leave
+the house to the kids — have no lever to pull. So the model gained eleven more, and the six
+that existed gained a professional context to sit in.
+
+**Decision** — Seventeen levers, split by who owns the decision. Per member: retirement age,
+plan-to age, part-time income and through-age, Social Security claim age and SSA estimate,
+pension amount, start age and COLA flag, annual savings and a real step-up rate. Per
+household: retirement spending, a spending shift of ±N% from a stated age, survivor
+spending, long-term-care cost from a stated age, real return, volatility, inflation, an
+effective tax rate on withdrawals, a one-time inflow with a label and a year, a legacy
+target, and the plan horizon.
+
+**Every new lever defaults to a value that changes nothing.** No pension, no part-time work,
+no tax drag, no survivor reduction, no care cost, no legacy target, zero inflation. This is
+the load-bearing rule, not a convenience: a default that moved the projection would be the
+application inventing a financial assumption on the advisor's behalf (§13), and — worse — the
+advisor would have no way to tell which figures were theirs. The check for it is concrete:
+the Whitaker plan of record reads 69% before and after this change.
+
+Three modelling choices follow from keeping everything in today's dollars. **Inflation
+erodes level income only** — a pension without a COLA, and nothing else, since the portfolio
+return is already real; Social Security is treated as keeping pace because its COLA is
+statutory rather than an assumption. **Longevity is a stated plan-to age per member**, not a
+mortality table, and when one member passes theirs the household spends the survivor
+percentage of joint spending. **Tax is one effective rate** grossed up on portfolio
+withdrawals so the household nets its spending; guaranteed income is taken as stated net,
+because its treatment depends on facts this app does not hold.
+
+A legacy target changes what counts as success — ending at or above it, rather than merely
+not running out — which is the only lever here that moves the probability without moving a
+single dollar of the projection.
+
+**Alternatives** — A JSON blob column for levers: one migration instead of eighteen nullable
+columns, but null-means-inherit stops being expressible in the schema and every read needs a
+parse and a cast. Nominal-dollar modelling with a full inflation path: more conventional, and
+it would have made every existing figure on the page mean something different. Named risk
+profiles (conservative/balanced/aggressive) instead of a return-and-volatility pair: friendlier,
+but the mapping from a name to a return is exactly the invented benchmark §13 rules out.
+
+**Consequences** — Seventeen levers do not fit in a column beside a chart, so the explorer
+became a four-tab workbench (People, Spending, Markets & tax, Events) with the outcome panel
+sticky beside it; each tab carries a count of what has been moved inside it and the chips
+under the chart spell out every active change, so grouping hides nothing. `lib/planning/
+describe.ts` writes those chips *and* the summary column of the saved-scenario table from one
+baseline-vs-current comparison — the previous version read the scenario record field by field,
+and every lever added here would have been silently missing from the saved rows.
+
+`pnpm --filter @meridian/web check:planning` asserts the direction each lever moves the
+projection and that the plan of record is unmoved. It belongs in Vitest and will move there
+when the runner is wired up; it asserts on direction rather than values because it reads a
+seeded household, so reseeding cannot break it.

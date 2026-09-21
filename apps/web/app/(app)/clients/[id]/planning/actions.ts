@@ -5,20 +5,48 @@ import { revalidatePath } from "next/cache";
 
 /** Saving a scenario is a write, so it is a deliberate action — the
  * explorer recomputes locally as levers move and only persists when the
- * advisor decides the scenario is worth keeping. */
+ * advisor decides the scenario is worth keeping.
+ *
+ * Every field is nullable and null means "inherit from the plan of
+ * record". The explorer sends null for any lever still sitting at its
+ * baseline, so a scenario records the two things it changed rather than a
+ * frozen copy of twenty figures that were never touched. */
 export type ScenarioLevers = {
   name: string;
   note: string;
   retirementSpendingCents: number | null;
   realReturnPct: number | null;
+  volatilityPct: number | null;
+  inflationPct: number | null;
+  spendingShiftPct: number | null;
+  spendingShiftAge: number | null;
+  survivorSpendingPct: number | null;
+  healthcareAnnualCents: number | null;
+  healthcareFromAge: number | null;
+  effectiveTaxRatePct: number | null;
+  oneTimeInflowCents: number | null;
+  oneTimeInflowYear: number | null;
+  oneTimeInflowLabel: string | null;
+  legacyTargetCents: number | null;
+  endAge: number | null;
   members: {
     memberId: string;
     retirementAge: number | null;
+    planToAge: number | null;
     ssClaimAge: number | null;
     ssMonthlyBenefitCents: number | null;
     annualSavingsCents: number | null;
+    savingsGrowthPct: number | null;
+    partTimeIncomeCents: number | null;
+    partTimeThroughAge: number | null;
+    pensionMonthlyCents: number | null;
+    pensionStartAge: number | null;
+    pensionHasCola: boolean | null;
   }[];
 };
+
+/** Money crosses to bigint here, at the database boundary (D-023). */
+const toBig = (v: number | null) => (v === null ? null : BigInt(Math.round(v)));
 
 export async function saveScenario(householdId: string, levers: ScenarioLevers) {
   const name = levers.name.trim() || "Untitled scenario";
@@ -29,18 +57,35 @@ export async function saveScenario(householdId: string, levers: ScenarioLevers) 
       name,
       kind: "whatif",
       note: levers.note.trim() || null,
-      retirementSpendingCents:
-        levers.retirementSpendingCents === null ? null : BigInt(Math.round(levers.retirementSpendingCents)),
+      retirementSpendingCents: toBig(levers.retirementSpendingCents),
       realReturnPct: levers.realReturnPct,
+      volatilityPct: levers.volatilityPct,
+      inflationPct: levers.inflationPct,
+      spendingShiftPct: levers.spendingShiftPct,
+      spendingShiftAge: levers.spendingShiftAge,
+      survivorSpendingPct: levers.survivorSpendingPct,
+      healthcareAnnualCents: toBig(levers.healthcareAnnualCents),
+      healthcareFromAge: levers.healthcareFromAge,
+      effectiveTaxRatePct: levers.effectiveTaxRatePct,
+      oneTimeInflowCents: toBig(levers.oneTimeInflowCents),
+      oneTimeInflowYear: levers.oneTimeInflowYear,
+      oneTimeInflowLabel: levers.oneTimeInflowLabel?.trim() || null,
+      legacyTargetCents: toBig(levers.legacyTargetCents),
+      endAge: levers.endAge,
       members: {
         create: levers.members.map((m) => ({
           memberId: m.memberId,
           retirementAge: m.retirementAge,
+          planToAge: m.planToAge,
           ssClaimAge: m.ssClaimAge,
-          ssMonthlyBenefitCents:
-            m.ssMonthlyBenefitCents === null ? null : BigInt(Math.round(m.ssMonthlyBenefitCents)),
-          annualSavingsCents:
-            m.annualSavingsCents === null ? null : BigInt(Math.round(m.annualSavingsCents)),
+          ssMonthlyBenefitCents: toBig(m.ssMonthlyBenefitCents),
+          annualSavingsCents: toBig(m.annualSavingsCents),
+          savingsGrowthPct: m.savingsGrowthPct,
+          partTimeIncomeCents: toBig(m.partTimeIncomeCents),
+          partTimeThroughAge: m.partTimeThroughAge,
+          pensionMonthlyCents: toBig(m.pensionMonthlyCents),
+          pensionStartAge: m.pensionStartAge,
+          pensionHasCola: m.pensionHasCola,
         })),
       },
     },
