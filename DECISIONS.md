@@ -609,3 +609,41 @@ no roles — D-014). The default layout now lives in `components/widgets/catalog
 constant an org-published default would eventually replace. Widget sizes moved there too, so
 `WidgetCard` no longer carries a `span` — a widget that decided its own width would fight
 the layout the advisor dragged.
+
+---
+
+## D-021 — Money stays in Int cents for now, with a documented $21.47M ceiling
+
+2026-09-20 · Accepted
+
+**Context** — Expanding the demo book from ten households to forty (M-demo item 2) failed
+on the first generated household above about $21.5M: *"Value 2555305500 does not fit in an
+INT column."* Money is integer minor units per D-007, and Prisma's `Int` is 32-bit, so the
+largest value any single money column can hold is 2,147,483,647 cents — **$21,474,836.47**.
+That is a per-field ceiling, not a per-book one, and it applies to `netWorthCents`,
+`aumCents`, goal targets, and everything else denominated in cents.
+
+**Decision** — Keep `Int` and cap the generated demo book beneath the ceiling, with a guard
+in `centsFrom()` that throws a sentence naming the household and the limit rather than
+letting Prisma fail with a column-type error. The forty-household book tops out at $14.75M
+per household and $232M across the firm, which sits inside CLAUDE.md §1's $50M–$800M
+practice and exercises every part of the app — so the ceiling costs the demo nothing today.
+
+**Alternatives** — Migrate every money column to `BigInt` now: correct, and the right
+eventual answer, but it turns every money read in the app into `bigint` — `formatMoney`,
+every `reduce` that sums cents, every ratio a chart computes — which is a broad mechanical
+refactor across roughly forty files, and doing it in the middle of the demo milestone would
+have delayed the thing actually being built. Store dollars as `Float` instead: smaller
+change, but it abandons exact arithmetic on money, which D-007 exists to prevent and which
+a financial product cannot afford. Silently cap the data and say nothing: cheapest, and the
+reason this entry exists — a $25M household is not exotic for a Founding-tier client, and
+finding this ceiling from a production write would be far worse than finding it from a seed.
+
+**Consequences** — A single household over $21.47M cannot be stored, and neither can a goal
+with a target above it. For a demo book that is invisible; for a real firm with an
+ultra-high-net-worth client it is a hard failure, so **this must be fixed before any real
+data lands** — ahead of M8, and probably alongside the first custodian integration, since
+that is where large balances arrive. The guard in `centsFrom()` means the next person to
+hit it gets told what the problem is. Sums across the book are computed in JavaScript
+numbers, which are exact to 2^53 cents (~$90 trillion), so firm-level aggregates are not at
+risk — only individual stored fields.

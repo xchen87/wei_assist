@@ -17,6 +17,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 
+type AdvisorKey = "dana" | "maya" | "theo" | "ines";
+
 // SQLite has no native enum type (see schema.prisma) — these unions are the
 // app-layer substitute, kept next to the seed data that uses them.
 type Segment = "Core" | "Premier" | "Founding";
@@ -26,8 +28,22 @@ type PipelineStage = "Inquiry" | "Discovery" | "Proposal" | "Agreement";
 
 const prisma = new PrismaClient();
 
+/** Money is integer cents (D-007) in an `Int` column, so the largest value
+ * any single money field can hold is 2,147,483,647 cents — $21,474,836.47.
+ * That ceiling is real and will eventually need BigInt columns; until then
+ * this guard turns a silent seed failure ("Value does not fit in an INT
+ * column") into a sentence that says which household broke it. */
+const MAX_INT_CENTS = 2_147_483_647;
+
 function centsFrom(dollars: number) {
-  return Math.round(dollars * 100);
+  const cents = Math.round(dollars * 100);
+  if (cents > MAX_INT_CENTS) {
+    throw new Error(
+      `$${dollars.toLocaleString()} exceeds the Int cents ceiling of $${(MAX_INT_CENTS / 100).toLocaleString()}. ` +
+        "Money columns need to move to BigInt before a household this size can exist (see PROGRESS.md).",
+    );
+  }
+  return cents;
 }
 
 function dollarsLabel(cents: number) {
@@ -41,7 +57,7 @@ function clampPct(v: number, min = 40, max = 100) {
 type HouseholdSeed = {
   name: string;
   segment: Segment;
-  advisor: "dana" | "maya";
+  advisor: AdvisorKey;
   aum: number;
   netWorth: number;
   heldAway: number;
@@ -58,7 +74,7 @@ type HouseholdSeed = {
 
 // Clients-list figures below match design/Clients.dc.html exactly for the
 // eight named households that already appear there.
-const HOUSEHOLDS: HouseholdSeed[] = [
+const DESIGNED_HOUSEHOLDS: HouseholdSeed[] = [
   {
     name: "Ramirez Household",
     segment: "Premier",
@@ -262,6 +278,240 @@ const HOUSEHOLDS: HouseholdSeed[] = [
     ],
   },
 ];
+
+/**
+ * The rest of the book (M-demo item 2). Ten households read as a toy the
+ * moment the signals engine says "six of your households are affected";
+ * forty reads as a book. Everything below is generated deterministically
+ * from the household name, so reseeding never reshuffles the demo, and the
+ * section-level detail still comes from deriveFinancials() — these
+ * archetypes only set the inputs it derives from.
+ *
+ * The archetypes exist for one reason: the impact rules the signals engine
+ * will run need households that genuinely differ along the axes those rules
+ * test. A book of forty lookalike households would let any rule match
+ * everyone or no one. So ages cluster deliberately around the thresholds
+ * that matter (59, 65, 73), cash weightings run from 1.5% to 14%, and
+ * mortgage exposure, taxable income and drift all spread accordingly.
+ */
+type Archetype = {
+  key: string;
+  ageRange: [number, number];
+  /** Ages worth landing on exactly — 59½, 65 and 73 all trigger something. */
+  thresholdAges?: number[];
+  aumRange: [number, number];
+  netWorthMultiple: [number, number];
+  cashRange: [number, number];
+  driftRange: [number, number];
+  ytdRange: [number, number];
+  planHealthRange: [number, number];
+  dependents: [number, number];
+  spouseChance: number;
+  occupations: string[];
+};
+
+const ARCHETYPES: Archetype[] = [
+  {
+    key: "accumulator",
+    ageRange: [29, 39],
+    aumRange: [0.35, 1.6],
+    netWorthMultiple: [1.1, 1.5],
+    cashRange: [1.5, 4.5],
+    driftRange: [0.4, 2.6],
+    ytdRange: [6.5, 12.5],
+    planHealthRange: [45, 78],
+    dependents: [0, 2],
+    spouseChance: 0.6,
+    occupations: ["Software engineer", "Product designer", "Nurse practitioner", "Associate attorney", "Data scientist"],
+  },
+  {
+    key: "family",
+    ageRange: [40, 52],
+    aumRange: [1.1, 4.8],
+    netWorthMultiple: [1.2, 1.6],
+    cashRange: [2.5, 7.0],
+    driftRange: [0.8, 5.4],
+    ytdRange: [4.5, 10.5],
+    planHealthRange: [52, 88],
+    dependents: [1, 3],
+    spouseChance: 0.85,
+    occupations: ["Hospital administrator", "Civil engineer", "Marketing director", "Pharmacist", "School principal"],
+  },
+  {
+    key: "preRetiree",
+    ageRange: [55, 64],
+    thresholdAges: [59, 60, 63, 64],
+    aumRange: [2.8, 9.5],
+    netWorthMultiple: [1.15, 1.45],
+    cashRange: [4.0, 9.5],
+    driftRange: [1.2, 6.8],
+    ytdRange: [3.5, 9.5],
+    planHealthRange: [58, 92],
+    dependents: [0, 1],
+    spouseChance: 0.8,
+    occupations: ["Partner, accounting firm", "Operations director", "Airline captain", "University dean", "Sales VP"],
+  },
+  {
+    key: "newRetiree",
+    ageRange: [65, 72],
+    thresholdAges: [65, 66, 70, 72],
+    aumRange: [3.4, 11.0],
+    netWorthMultiple: [1.1, 1.4],
+    cashRange: [6.5, 14.0],
+    driftRange: [1.5, 7.2],
+    ytdRange: [1.5, 7.5],
+    planHealthRange: [55, 90],
+    dependents: [0, 0],
+    spouseChance: 0.75,
+    occupations: ["Retired", "Retired physician", "Retired teacher", "Consultant, part-time", "Retired engineer"],
+  },
+  {
+    key: "rmdAge",
+    ageRange: [73, 84],
+    thresholdAges: [73, 74, 76, 79],
+    aumRange: [4.0, 13.0],
+    netWorthMultiple: [1.05, 1.35],
+    cashRange: [5.5, 12.0],
+    driftRange: [0.9, 5.8],
+    ytdRange: [1.0, 6.5],
+    planHealthRange: [50, 86],
+    dependents: [0, 0],
+    spouseChance: 0.55,
+    occupations: ["Retired", "Retired executive", "Retired farmer", "Retired librarian", "Emeritus professor"],
+  },
+  {
+    key: "businessOwner",
+    ageRange: [45, 61],
+    // Capped so aum x netWorthMultiple stays under the Int cents ceiling
+    // described at centsFrom() — not because a $30M household is unusual.
+    aumRange: [4.5, 10.0],
+    netWorthMultiple: [1.3, 1.9],
+    cashRange: [3.0, 10.5],
+    driftRange: [2.2, 8.4],
+    ytdRange: [2.5, 13.5],
+    planHealthRange: [44, 84],
+    dependents: [0, 2],
+    spouseChance: 0.8,
+    occupations: ["Founder, logistics firm", "Owner, dental practice", "Restaurant group owner", "Owner, machining shop", "Founder, staffing agency"],
+  },
+  {
+    key: "transfer",
+    ageRange: [34, 58],
+    aumRange: [1.8, 8.0],
+    netWorthMultiple: [1.2, 1.7],
+    cashRange: [5.0, 12.5],
+    driftRange: [1.0, 6.0],
+    ytdRange: [3.0, 9.0],
+    planHealthRange: [40, 80],
+    dependents: [0, 2],
+    spouseChance: 0.6,
+    occupations: ["Gallery director", "Vineyard owner", "Trustee, family foundation", "Architect", "Documentary producer"],
+  },
+];
+
+const SURNAMES = [
+  "Abernathy", "Balogun", "Castellanos", "Duarte", "Eriksen", "Fairbanks", "Ghosh", "Halvorsen",
+  "Ibarra", "Jandali", "Kowalski", "Lindqvist", "Moreau", "Nwachukwu", "Oyelaran", "Pahlavi",
+  "Quintero", "Rosenthal", "Salvatierra", "Tanaka", "Ueda", "Vasquez", "Whitlock", "Xiang",
+  "Yamamoto", "Zabala", "Achebe", "Brennan", "Cazares", "Dlamini",
+];
+
+const FIRST_NAMES = [
+  "Arjun", "Beatrix", "Caleb", "Dagny", "Emeka", "Farah", "Gustav", "Helena", "Ibrahim", "Juno",
+  "Kwame", "Liesel", "Mateo", "Nadia", "Oskar", "Priya", "Quentin", "Rosa", "Soren", "Tamsin",
+  "Ulises", "Vera", "Wendell", "Ximena", "Yusuf", "Zora", "Anders", "Bianca", "Cyrus", "Delphine",
+];
+
+const CHILD_NAMES = ["Milo", "Ada", "Teodor", "Inés", "Kofi", "Runa", "Nils", "Amara", "Hugo", "Sena"];
+
+function generateHouseholds(): HouseholdSeed[] {
+  const advisors: AdvisorKey[] = ["dana", "maya", "theo", "ines"];
+  const today = new Date();
+
+  return SURNAMES.map((surname, i) => {
+    const name = `${surname} Household`;
+    const rand = mulberry32(hashCode(`book:${name}`));
+    const pick = <T,>(items: T[]) => items[Math.floor(rand() * items.length)]!;
+    const between = ([lo, hi]: [number, number]) => lo + rand() * (hi - lo);
+    const round1 = (v: number) => Math.round(v * 10) / 10;
+
+    const archetype = ARCHETYPES[i % ARCHETYPES.length]!;
+    const aum = Math.round(between(archetype.aumRange) * 100) / 100 * 1_000_000;
+    const netWorth = Math.round(aum * between(archetype.netWorthMultiple));
+    const heldAway = Math.round(aum * (rand() * 0.22));
+
+    // Review status spread: roughly a fifth overdue, a fifth due soon, the
+    // rest scheduled — enough overdue work to be worth a demo, not so much
+    // that the book looks neglected.
+    const statusRoll = rand();
+    const reviewStatus: ReviewStatus = statusRoll < 0.18 ? "overdue" : statusRoll < 0.36 ? "due" : "scheduled";
+    const dayOffset =
+      reviewStatus === "overdue"
+        ? -(10 + Math.round(rand() * 80))
+        : reviewStatus === "due"
+          ? Math.round(rand() * 25)
+          : 30 + Math.round(rand() * 150);
+    const reviewDate = new Date(today.getTime() + dayOffset * 86_400_000);
+
+    // Threshold ages are assigned by position, not by chance: households
+    // cycle through the archetypes, so the nth household of an archetype
+    // takes the nth threshold age. Leaving it to rand() left the book with
+    // one member at 59 and none at 65 — which would make an age-triggered
+    // rule look broken when it is the data that is thin.
+    const archetypeIndex = Math.floor(i / ARCHETYPES.length);
+    const primaryAge = archetype.thresholdAges
+      ? archetype.thresholdAges[archetypeIndex % archetype.thresholdAges.length]!
+      : Math.round(between(archetype.ageRange));
+
+    const members: HouseholdSeed["members"] = [
+      {
+        name: `${pick(FIRST_NAMES)} ${surname}`,
+        role: "Primary",
+        age: primaryAge,
+        occupation: pick(archetype.occupations),
+      },
+    ];
+    if (rand() < archetype.spouseChance) {
+      members.push({
+        name: `${pick(FIRST_NAMES)} ${surname}`,
+        role: "Spouse",
+        age: Math.max(21, primaryAge + Math.round((rand() - 0.5) * 8)),
+        occupation: pick(archetype.occupations),
+      });
+    }
+    const dependents = archetype.dependents[0] + Math.round(rand() * (archetype.dependents[1] - archetype.dependents[0]));
+    for (let d = 0; d < dependents; d++) {
+      members.push({
+        name: `${pick(CHILD_NAMES)} ${surname}`,
+        role: "Dependent",
+        age: Math.max(1, Math.min(24, primaryAge - 28 - Math.round(rand() * 12))),
+        occupation: "Student",
+      });
+    }
+
+    return {
+      name,
+      segment: aum >= 9_000_000 ? "Founding" : aum >= 3_000_000 ? "Premier" : "Core",
+      advisor: advisors[i % advisors.length]!,
+      aum,
+      netWorth,
+      heldAway,
+      ytdReturnPct: round1(between(archetype.ytdRange) - (rand() < 0.12 ? 8 : 0)),
+      cashPct: round1(between(archetype.cashRange)),
+      driftPct: round1(between(archetype.driftRange)),
+      planHealthPct: Math.round(between(archetype.planHealthRange)),
+      lastContactDays:
+        reviewStatus === "overdue" ? 45 + Math.round(rand() * 70) : 2 + Math.round(rand() * 40),
+      nextReviewDate: reviewDate.toISOString().slice(0, 10),
+      reviewStatus,
+      clientSinceYear: 2005 + Math.round(rand() * 20),
+      members,
+    };
+  });
+}
+
+const HOUSEHOLDS: HouseholdSeed[] = [...DESIGNED_HOUSEHOLDS, ...generateHouseholds()];
+
 
 const GOAL_TEMPLATES = [
   { name: "Retirement", priority: "High", targetMultiple: 0.75 },
@@ -947,7 +1197,7 @@ const PROSPECTS: {
   stage: PipelineStage;
   daysInStage: number;
   stalled?: boolean;
-  advisor: "dana" | "maya";
+  advisor: AdvisorKey;
 }[] = [
   { name: "Bishop Family", source: "Referral: Ramirez Household", estValue: 1_200_000, stage: "Inquiry", daysInStage: 3, advisor: "dana" },
   { name: "Okonkwo Household", source: "Web inquiry", estValue: 650_000, stage: "Inquiry", daysInStage: 6, advisor: "maya" },
@@ -959,6 +1209,14 @@ const PROSPECTS: {
   { name: "Whitcombe Family", source: "Referral: Ogundele Household", estValue: 1_100_000, stage: "Discovery", daysInStage: 2, advisor: "maya" },
   { name: "Marchetti Household", source: "Web inquiry", estValue: 780_000, stage: "Inquiry", daysInStage: 1, advisor: "maya" },
   { name: "Osei Family", source: "Referral: Bergström Household", estValue: 2_050_000, stage: "Inquiry", daysInStage: 5, advisor: "dana" },
+  // Enough pipeline to match a forty-household book: a funnel with one
+  // prospect per stage reads as a diagram rather than a practice.
+  { name: "Thibodeaux Household", source: "Referral: Tanaka Household", estValue: 3_400_000, stage: "Discovery", daysInStage: 8, advisor: "theo" },
+  { name: "Aaltonen Family", source: "Seminar attendee", estValue: 1_450_000, stage: "Inquiry", daysInStage: 12, advisor: "ines" },
+  { name: "Варна Holdings Trust", source: "COI: estate attorney", estValue: 6_900_000, stage: "Proposal", daysInStage: 19, advisor: "theo" },
+  { name: "Mbeki–Strand Household", source: "Referral: Ogundele Household", estValue: 2_750_000, stage: "Discovery", daysInStage: 31, stalled: true, advisor: "ines" },
+  { name: "Quiñones Family", source: "Web inquiry", estValue: 890_000, stage: "Inquiry", daysInStage: 2, advisor: "maya" },
+  { name: "Leclerc Household", source: "Referral: Kowalski Household", estValue: 4_100_000, stage: "Agreement", daysInStage: 6, advisor: "theo" },
 ];
 
 async function main() {
@@ -969,13 +1227,28 @@ async function main() {
   await prisma.household.deleteMany();
   await prisma.advisor.deleteMany();
 
+  // Four advisors for forty households — CLAUDE.md §1's practice is
+  // solo-to-ten people carrying 60-400 households, so ten each is a
+  // plausible load and keeps the Insights capacity bars meaningful rather
+  // than pinned at 300%.
   const dana = await prisma.advisor.create({
     data: { name: "Dana Whitfield", initials: "DW", capacityTarget: 12 },
   });
   const maya = await prisma.advisor.create({
     data: { name: "Maya Reyes", initials: "MR", capacityTarget: 10 },
   });
-  const advisorId = { dana: dana.id, maya: maya.id };
+  const theo = await prisma.advisor.create({
+    data: { name: "Theo Lindgren", initials: "TL", capacityTarget: 11 },
+  });
+  const ines = await prisma.advisor.create({
+    data: { name: "Inés Okonjo", initials: "IO", capacityTarget: 9 },
+  });
+  const advisorId: Record<AdvisorKey, string> = {
+    dana: dana.id,
+    maya: maya.id,
+    theo: theo.id,
+    ines: ines.id,
+  };
 
   for (const [index, h] of HOUSEHOLDS.entries()) {
     const extra = deriveFinancials(h, index);
