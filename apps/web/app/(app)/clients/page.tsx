@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ClientsTable, type ClientRow } from "@/components/clients/clients-table";
 import { AnalyzeButton } from "@/components/clients/analyze-button";
 import { centsToNumber } from "@/lib/format/money";
+import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,16 @@ const SORT_ACCESSORS: Record<string, (r: ClientRow) => number | string> = {
   advisor: (r) => r.advisorName,
 };
 
+/** "My book" meant "every household in the firm" until the book grew to
+ * forty across four advisors, at which point the label was simply untrue —
+ * the acting advisor carries fourteen of them. The three personal views are
+ * scoped to whoever is signed in (one hardcoded advisor until auth, D-014);
+ * the firm view is the one that shows everything. */
 const VIEWS = [
-  { key: "all", label: "My book" },
+  { key: "mine", label: "My book" },
   { key: "needs-review", label: "Needs review" },
   { key: "at-risk", label: "At risk" },
+  { key: "firm", label: "Whole firm" },
 ] as const;
 
 export default async function ClientsPage({
@@ -35,7 +42,7 @@ export default async function ClientsPage({
   const sort = searchParams.sort && SORT_ACCESSORS[searchParams.sort] ? searchParams.sort : "aum";
   const dir = searchParams.dir === "asc" ? "asc" : "desc";
   const q = (searchParams.q ?? "").trim().toLowerCase();
-  const view = searchParams.view ?? "all";
+  const view = searchParams.view ?? "mine";
 
   const households = await prisma.household.findMany({
     include: { advisor: true, members: { select: { name: true } } },
@@ -70,6 +77,10 @@ export default async function ClientsPage({
         r.name.toLowerCase().includes(q) ||
         r.memberNames.some((m) => m.toLowerCase().includes(q)),
     );
+  }
+  // Everything but the firm view is this advisor's own book.
+  if (view !== "firm") {
+    rows = rows.filter((r) => r.advisorName === CURRENT_ADVISOR_NAME);
   }
   if (view === "needs-review") {
     rows = rows.filter((r) => r.planHealthPct < 70);

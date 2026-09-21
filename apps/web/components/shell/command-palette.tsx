@@ -32,6 +32,7 @@ const ROUTES: Command[] = [
   { id: "settings", label: "Settings", hint: "Go to", href: "/settings" },
   { id: "needs-review", label: "Needs review", hint: "Saved view", href: "/clients?view=needs-review" },
   { id: "at-risk", label: "At risk", hint: "Saved view", href: "/clients?view=at-risk" },
+  { id: "firm", label: "Whole firm", hint: "Saved view", href: "/clients?view=firm" },
 ];
 
 /** Anything can open the palette by dispatching this — the nav's search row

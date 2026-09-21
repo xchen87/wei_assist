@@ -417,7 +417,9 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
 - [ ] Filter chips (region, income, investable assets, segment, goals, life stage, risk,
       completeness, last contact, review status, account types, tags, advisor)
 - [x] Filter state in URL, shareable (sort, saved view, and search query all do this)
-- [x] Saved views: My book, Needs review, At risk
+- [x] Saved views: My book, Needs review, At risk, Whole firm — the first three are
+      scoped to the acting advisor (14 of the 40 households), which "My book" claimed
+      but didn't do once the book grew to four advisors
 - [~] Bulk select — real selection state and a bulk-action bar. Export is real: it
       writes a CSV of the selected rows with dollars as numbers and ISO dates, since
       the destination is a spreadsheet. Assign/Tag/Add to campaign/Schedule review stay
@@ -729,6 +731,12 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Pre-demo fix: "My book" was showing all forty households across four
+  advisors. It had been honest when the whole book was ten and everything belonged to one
+  advisor; expanding the book made the label a lie, and it is the kind of thing an advisor
+  notices in the first minute. The three personal views now scope to the acting advisor
+  (14 households, 6 needing review, 6 at risk) and a fourth, "Whole firm", shows all forty.
 
 - **2026-09-20** — Migrated every money column to BigInt (D-023), closing the
   $21,474,836.47 per-field ceiling that D-021 had deferred. Twenty-five columns, 268
