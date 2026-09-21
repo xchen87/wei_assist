@@ -1317,6 +1317,11 @@ const INDICATORS: {
 ];
 
 async function main() {
+  // Runtime artifacts go too, so seeding is a true reset: a demo that
+  // opens with the previous demo's chat transcript still in the dock, or
+  // its dragged-about widget layout, is not the demo that was rehearsed.
+  await prisma.aiConversation.deleteMany();
+  await prisma.dashboardLayout.deleteMany();
   await prisma.alert.deleteMany();
   await prisma.indicatorChange.deleteMany();
   await prisma.indicatorWatch.deleteMany();

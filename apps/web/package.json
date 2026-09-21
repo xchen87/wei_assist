@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "signals": "tsx scripts/run-signals.ts",
+    "demo:scenarios": "tsx scripts/demo-scenarios.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

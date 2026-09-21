@@ -27,7 +27,7 @@ tool runtime, and confirmation flow exist.
 | M6 | Pipeline to plan | Prospects + Intake producing a real household — **intake half done 2026-09-20** | Week 20 |
 | M7 | Audit ready | Compliance, audit log, retention, RBAC verified | Week 23 |
 | M8 | Private beta | 5 design-partner firms on real data | Week 26 |
-| **M-demo** | **Advisor discovery demo** | **A demo that runs end to end for real advisors: a prospect becomes a household, the book is broad enough for impact analysis to look like a book, and a watched indicator change finds the households it affects and says why** | **next** |
+| **M-demo** | **Advisor discovery demo** | **A demo that runs end to end for real advisors: a prospect becomes a household, the book is broad enough for impact analysis to look like a book, and a watched indicator change finds the households it affects and says why** | **done 2026-09-20** |
 
 ---
 
@@ -115,8 +115,48 @@ narrative; the second raises the quality of everything the third produces.
    <value>` for cron, and the assistant via `get_open_alerts`. Alerts
    surface on `/signals`, on the affected household's Overview, and in
    Today's Alerts widget.
-4. **Demo reset.** One command that reseeds and clears AI transcripts, so
-   the sixth run of the demo starts like the first.
+4. ~~**Demo reset.**~~ **Done 2026-09-20.** `pnpm demo:reset` reseeds the
+   book, clears the runtime artifacts a demo leaves behind — chat
+   transcripts, dragged widget layouts, acknowledged alerts, dismissed
+   insights — and re-runs the two opening scenarios, printing what the
+   demo now contains. Verified by dirtying all of it and resetting.
+
+### Running the demo
+
+```bash
+pnpm demo:reset   # 40 households, 16 prospects, 8 indicators, 42 open alerts
+pnpm dev
+```
+
+A sequence that shows the whole loop in about ten minutes:
+
+1. **Today** — the morning view. The suggestion chips are computed from
+   this book, so they name real households and real counts. Drag a widget
+   to show the grid is theirs.
+2. **Clients** — forty households. Pick the "At risk" view, then
+   **Analyze**: it hands that cohort to the assistant. Ask *"which of these
+   needs attention first, and why?"* — every figure in the answer is cited
+   to a record you can click.
+3. **Prospects → Intake** — take an Agreement-stage prospect through the
+   five steps and create the household. It lands at ~18% complete with $0
+   AUM and a three-item worklist. That is the "day one, here's the work"
+   beat; the empty sections are the point.
+4. **Signals** — the part nothing else on their desk does. Run a scenario
+   live: policy rate to 5.0, or the estate threshold to $7M. Watch it name
+   the affected households and say why each one matched, in that
+   household's own figures.
+5. **Ask the assistant** *"which households did that touch, and what should
+   I do about the worst one?"* — it reads the alerts, ranks them, and cites
+   each one.
+6. **Open a flagged household** — the alert and its reason are on the
+   Overview, with a link into the section to act on.
+7. **Settings → AI** — if the conversation turns to trust: the grounding
+   rules, what enforces each one, the tool list, and the interaction log.
+
+Two things to say out loud, because an advisor will ask: the indicator
+feed is simulated and labelled as such everywhere, and every suggested
+action is a prompt to review with the household or their tax or legal
+adviser, never advice from the product.
 
 **The credibility constraint that shapes item 3:** this audience spots an
 invented tax threshold instantly, and CLAUDE.md §13 forbids inventing one.
@@ -685,6 +725,18 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — M-demo item 4, and with it the milestone: `pnpm demo:reset` reseeds the
+  book, clears what a demo leaves behind — chat transcripts, dragged widget layouts,
+  acknowledged alerts, dismissed insights — re-runs the two opening scenarios, and prints
+  what the demo now contains. Making `db:seed` clear runtime artifacts was the substance of
+  it: a demo that opens with the last demo's chat still in the dock, or its rearranged
+  widgets, is not the demo that was rehearsed. Verified by dirtying every one of those
+  (41 households, a leftover transcript, a dragged layout, every alert acknowledged, every
+  insight dismissed) and confirming one command restored all of it. Added a demo runbook
+  above — the seven-step sequence through Today, Clients, Intake, Signals and the
+  assistant, plus the two things to say out loud about the simulated feed and the framing
+  of suggested actions. **M-demo is complete.**
 
 - **2026-09-20** — M-demo item 3: the signals engine (D-022). Eight watched indicators —
   policy rate, 10-year, mortgage rate, equity drawdown, equity YTD, and scenario versions of
