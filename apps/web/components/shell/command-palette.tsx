@@ -23,6 +23,7 @@ const ROUTES: Command[] = [
   { id: "clients", label: "Clients", hint: "Go to", href: "/clients" },
   { id: "prospects", label: "Prospects", hint: "Go to", href: "/prospects" },
   { id: "intake", label: "Intake", hint: "Go to", href: "/intake" },
+  { id: "signals", label: "Signals", hint: "Go to", href: "/signals" },
   { id: "markets", label: "Markets", hint: "Go to", href: "/markets" },
   { id: "insights", label: "Insights", hint: "Go to", href: "/insights" },
   { id: "documents", label: "Documents", hint: "Go to", href: "/documents" },

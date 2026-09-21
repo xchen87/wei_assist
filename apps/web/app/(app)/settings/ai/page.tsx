@@ -38,7 +38,7 @@ const GROUNDING_RULES: { text: string; enforcement: string }[] = [
 /** CLAUDE.md §9 names six tool families. These three have no data behind
  * them yet, and a tool that invents its own answer is worse than no tool. */
 const UNBUILT_FAMILIES: { name: string; why: string }[] = [
-  { name: "market.*", why: "No Security or Quote model — the Markets page is a static snapshot, so a quote tool would fabricate." },
+  { name: "market.*", why: "No Security or Quote model — the Markets page is a static snapshot, so a quote tool would fabricate. The signals engine's watched indicators are a different thing: simulated fixtures the assistant can read through get_open_alerts." },
   { name: "calendar.* / task.*", why: "No Meeting or Task model; Schedule stands in with review dates and Tasks with insights." },
   { name: "report.*", why: "The report builder has no renderer or delivery path yet (Phase 8)." },
 ];

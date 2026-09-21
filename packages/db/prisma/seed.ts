@@ -1219,7 +1219,108 @@ const PROSPECTS: {
   { name: "Leclerc Household", source: "Referral: Kowalski Household", estValue: 4_100_000, stage: "Agreement", daysInStage: 6, advisor: "theo" },
 ];
 
+/** Watched indicators (M-demo item 3). Every one is a fixture and says so:
+ * CLAUDE.md §13 forbids inventing tax thresholds or regulatory rules, and
+ * the advisors this is demoed to would spot an invented bracket instantly.
+ * The mechanism is the product — a real feed replaces `sourceLabel`, not
+ * the engine. */
+const INDICATORS: {
+  key: string;
+  name: string;
+  category: string;
+  unit: string;
+  value: number;
+  previousValue: number | null;
+  watchedBy: AdvisorKey[];
+  threshold: number;
+}[] = [
+  {
+    key: "fed_funds_rate",
+    name: "Short-term policy rate",
+    category: "Rates",
+    unit: "%",
+    value: 4.25,
+    previousValue: 4.5,
+    watchedBy: ["dana", "maya", "theo", "ines"],
+    threshold: 0.25,
+  },
+  {
+    key: "treasury_10y",
+    name: "10-year Treasury yield",
+    category: "Rates",
+    unit: "%",
+    value: 4.12,
+    previousValue: 4.05,
+    watchedBy: ["dana", "theo"],
+    threshold: 0.2,
+  },
+  {
+    key: "mortgage_30y",
+    name: "30-year mortgage rate",
+    category: "Rates",
+    unit: "%",
+    value: 6.4,
+    previousValue: 6.55,
+    watchedBy: ["dana", "ines"],
+    threshold: 0.25,
+  },
+  {
+    key: "equity_drawdown",
+    name: "US equity drawdown from high",
+    category: "Market",
+    unit: "%",
+    value: -3.2,
+    previousValue: -1.1,
+    watchedBy: ["dana", "maya", "theo"],
+    threshold: 5,
+  },
+  {
+    key: "equity_ytd",
+    name: "US equity index, year to date",
+    category: "Market",
+    unit: "%",
+    value: 7.4,
+    previousValue: 9.1,
+    watchedBy: ["maya"],
+    threshold: 5,
+  },
+  {
+    key: "rmd_age",
+    name: "Required distribution age (scenario)",
+    category: "Policy",
+    unit: "age",
+    value: 73,
+    previousValue: null,
+    watchedBy: ["dana", "maya"],
+    threshold: 1,
+  },
+  {
+    key: "estate_exclusion",
+    name: "Estate transfer threshold (scenario)",
+    category: "Tax",
+    unit: "USD",
+    value: 13_000_000,
+    previousValue: null,
+    watchedBy: ["dana", "theo"],
+    threshold: 500_000,
+  },
+  {
+    key: "bracket_edge",
+    name: "Upper bracket edge (scenario)",
+    category: "Tax",
+    unit: "USD",
+    value: 250_000,
+    previousValue: null,
+    watchedBy: ["maya", "ines"],
+    threshold: 5_000,
+  },
+];
+
 async function main() {
+  await prisma.alert.deleteMany();
+  await prisma.indicatorChange.deleteMany();
+  await prisma.indicatorWatch.deleteMany();
+  await prisma.indicator.deleteMany();
   await prisma.insight.deleteMany();
   await prisma.goal.deleteMany();
   await prisma.member.deleteMany();
@@ -1352,7 +1453,28 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${HOUSEHOLDS.length} households and ${PROSPECTS.length} prospects.`);
+  for (const ind of INDICATORS) {
+    const created = await prisma.indicator.create({
+      data: {
+        key: ind.key,
+        name: ind.name,
+        category: ind.category,
+        unit: ind.unit,
+        value: ind.value,
+        previousValue: ind.previousValue,
+        sourceLabel: "Simulated feed · demo fixture",
+      },
+    });
+    for (const key of ind.watchedBy) {
+      await prisma.indicatorWatch.create({
+        data: { indicatorId: created.id, advisorId: advisorId[key], threshold: ind.threshold },
+      });
+    }
+  }
+
+  console.log(
+    `Seeded ${HOUSEHOLDS.length} households, ${PROSPECTS.length} prospects and ${INDICATORS.length} watched indicators.`,
+  );
 }
 
 main()

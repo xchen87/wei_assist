@@ -106,17 +106,15 @@ narrative; the second raises the quality of everything the third produces.
    cash from 1.8% to 14%, drift from 0.5% to 7.3% (16 households at or past
    the 4% alert line), mortgages on all forty from $59K to $1.29M, taxable
    income $49K to $350K. Uncovered a real ceiling on the way (D-021).
-3. **The signals engine** (new — on no existing milestone). Advisors watch
-   indicators: rates, market conditions, tax-code and policy changes. A
-   change runs every household profile, identifies who is affected and
-   *why*, and raises an alert with a suggested next action. Needs
-   `Indicator` / `IndicatorWatch` / `IndicatorChange` / a real `Alert`
-   model (§10 lists Alert; the schema has never had one — today's Alerts
-   widget computes drift and overdue inline at render), an impact engine in
-   `lib/calc`, an on-demand and scriptable runner (`pnpm signals:run` — no
-   BullMQ in this sandbox, and a script is more demoable anyway), the
-   surfaces to see it, and an assistant tool so the intelligence is
-   reachable by asking.
+3. ~~**The signals engine**~~ **Done 2026-09-20** (D-022). Eight watched
+   indicators across Rates, Market, Tax and Policy, all simulated fixtures
+   and labelled as such. Moving one runs all forty households through eight
+   rules in `lib/calc/signals.ts` and raises alerts that each say why that
+   household matched, in its own figures. Reachable three ways: a "Run now"
+   control on `/signals`, `pnpm --filter @meridian/web signals <key>
+   <value>` for cron, and the assistant via `get_open_alerts`. Alerts
+   surface on `/signals`, on the affected household's Overview, and in
+   Today's Alerts widget.
 4. **Demo reset.** One command that reseeds and clears AI transcripts, so
    the sixth run of the demo starts like the first.
 
@@ -222,6 +220,19 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   `AuditEvent` model and a logged reveal action — was backed out rather
   than left unused. Encryption at rest is a separate §11 requirement and is
   still unbuilt.
+- **Signal rule thresholds are tuned against this book, and that tuning is
+  the work.** At the first cut, a 14% drawdown flagged 32 of 40 households
+  and the harvesting rule fired on 31 — which describes the book rather
+  than selecting from it, and an advisor who sees three-quarters of their
+  clients flagged stops reading the feed. The gates in
+  `lib/calc/signals.ts` now sit where the distributions say they should
+  (24 of 40 on that scenario, 8 on harvesting). Re-tune them against any
+  new book; the numbers are judgements, not constants.
+- **Alert severity must be sorted through `bySeverity()`.** It is a string
+  column, so ordering it ascending in a query sorts alphabetically — high,
+  low, medium — which silently buries every medium alert below the low
+  ones. That shipped briefly and was only caught because the assistant
+  summarised a run and said "all ten are high severity".
 - **A household created at intake starts empty, on purpose.** Plan health
   is the mean across its twelve sections, so a brand-new household reads
   ~18%, AUM reads $0 until something is custodied, and goals are named but
@@ -674,6 +685,27 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — M-demo item 3: the signals engine (D-022). Eight watched indicators —
+  policy rate, 10-year, mortgage rate, equity drawdown, equity YTD, and scenario versions of
+  the distribution age, estate threshold and bracket edge — every one a simulated fixture
+  labelled as one, because §13 forbids inventing tax thresholds and this audience checks.
+  Moving an indicator runs all forty households through eight rules and raises alerts that
+  explain themselves in the household's own figures: "14.0% in cash against a 3.8% target —
+  $664K, 10.2 points above where the plan puts it". Reachable from a Run-now control on the
+  new `/signals` page, from `pnpm --filter @meridian/web signals <key> <value>` for a cron,
+  and from the assistant through a new `get_open_alerts` tool. Alerts appear on `/signals`
+  grouped by what moved, on the affected household's Overview, and in Today's Alerts widget,
+  which previously computed drift and overdue inline and now leads with real signals.
+  Most of the work was tuning: the first cut flagged 32 of 40 households on a 14% drawdown
+  with a harvesting rule firing on 31, which describes a book rather than selecting from
+  one. Gates were reset from the actual distributions — 24 of 40 on that scenario, 8 on
+  harvesting, 5 on the distribution-age scenario. Two real bugs found by looking at output
+  rather than code: the drift rationale quoted equities when the drift was almost entirely
+  in cash, and alert severity was ordered by string ascending — high, low, medium — quietly
+  burying every medium alert, which surfaced only because the assistant summarised a run as
+  "all ten are high severity". Verified end to end by asking the assistant which households
+  a rate move touched: it named ten with their own figures, ranked them, and cited each one.
 
 - **2026-09-20** — M-demo item 2: the book is forty households across four advisors,
   $232M AUM, 93 members, 16 prospects. Thirty are generated deterministically from seven

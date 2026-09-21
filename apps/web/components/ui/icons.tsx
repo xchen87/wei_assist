@@ -149,3 +149,12 @@ export function PinIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Signals — a pulse crossing a threshold. */
+export function SignalsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={18} height={18} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M2 12h3.2l2-6 2.8 11 2.4-7 1.6 2H18" />
+    </svg>
+  );
+}

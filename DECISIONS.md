@@ -647,3 +647,54 @@ that is where large balances arrive. The guard in `centsFrom()` means the next p
 hit it gets told what the problem is. Sums across the book are computed in JavaScript
 numbers, which are exact to 2^53 cents (~$90 trillion), so firm-level aggregates are not at
 risk — only individual stored fields.
+
+---
+
+## D-022 — The signals engine watches simulated indicators and explains every match
+
+2026-09-20 · Accepted
+
+**Context** — M-demo item 3: advisors watch indicators — rates, market conditions, tax and
+policy scenarios — and want to know which households a change touches and what to do about
+it. Nothing else in the demo does something their current stack can't, so this is the piece
+the demo turns on. Two things had to be decided before writing a rule: what the indicator
+feed is, and what an alert is allowed to say.
+
+**Decision** — The feed is **simulated and labelled as such on every surface**. CLAUDE.md §13
+forbids inventing tax thresholds or regulatory rules, and the audience for this demo spots an
+invented bracket instantly; an engine demoed on a wrong number is worse than no demo. So
+every `Indicator` carries `sourceLabel: "Simulated feed · demo fixture"`, the Signals page
+says so in its footer, and the assistant's `get_open_alerts` tool repeats it in every payload.
+Where a rule needs a threshold, the threshold comes from the scenario's own indicator value,
+never from a constant in the rules file — no rule asserts what any real rule says.
+
+An **alert must explain itself**. `Alert.rationale` is required and is built from that
+household's own figures ("14.0% in cash against a 3.8% target — $664K, 10.2 points above
+where the plan puts it"), not a template with a name dropped in. An alert that can't say why
+this household matched is indistinguishable from a guess, and one of those costs the advisor's
+trust in the whole feed. Suggested actions are prompts to review — "worth confirming with
+them", "worth raising with their estate attorney" — never instructions, per §9 rule 4.
+
+Rules live in `lib/calc/signals.ts`, pure and free of Prisma; the runner that writes alerts
+lives in `lib/signals/run.ts`; and the same runner is reachable from a "Run now" button and
+from `pnpm --filter @meridian/web signals`, which is what a cron would call. No BullMQ —
+there is no Redis here (D-014), and a script is more demoable anyway: you can fire it
+mid-sentence.
+
+**Alternatives** — Use real published rates and thresholds so the demo looks authentic: it
+would look authentic right up until an advisor checked one, and §13 rules it out. Let the
+assistant run the engine on request: tempting, but running a scenario writes alerts against
+every household, and §9 rule 3 keeps effects behind a human click. Score every household
+every night regardless of whether anything moved: simpler scheduling, but an alert with no
+change behind it has nothing to explain itself with.
+
+**Consequences** — Rule thresholds are tuned against this seeded book and are visibly
+arbitrary; every one of them is a judgement that a real deployment would re-tune per firm.
+Tuning them was most of the work and the numbers show why: at the first thresholds, a 14%
+drawdown flagged 32 of 40 households and a harvesting rule fired on 31 — which is not a
+signal, it is a description of the book. The gates now sit where they select rather than
+describe (24 of 40 on that scenario; 8 on harvesting). Alerts accumulate per change and are
+replaced on a re-run rather than duplicated. Severity is a string, so it must be sorted
+through `bySeverity()` — ordering the column ascending sorts alphabetically and quietly
+buries every medium alert beneath the low ones, which is exactly what happened until the
+assistant's summary of a run made it visible.

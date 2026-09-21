@@ -32,6 +32,7 @@ model Advisor {
   households      Household[]
   prospects       Prospect[]
   dashboardLayout DashboardLayout?
+  indicatorWatches IndicatorWatch[]
 }
 
 model Household {
@@ -151,6 +152,7 @@ model Household {
   activityEvents ActivityEvent[]
   complianceItems ComplianceItem[]
   attestations    ReviewAttestation[]
+  alerts          Alert[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -377,4 +379,78 @@ model DashboardLayout {
   // Absence of a widget id means the advisor removed it.
   layoutJson String
   updatedAt  DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Signals: watched indicators, the changes they record, and the alerts a
+// change raises against specific households (M-demo item 3).
+//
+// The feed is simulated and says so on every surface — CLAUDE.md §13 forbids
+// inventing tax thresholds or regulatory rules, and this audience spots an
+// invented bracket instantly. What is real is the mechanism: a change runs
+// every household profile through the rules in lib/calc/signals.ts, and each
+// alert carries the reason this household matched.
+model Indicator {
+  id            String  @id @default(cuid())
+  key           String  @unique // fed_funds_rate | equity_drawdown | rmd_age | ...
+  name          String
+  category      String // Rates | Market | Tax | Policy
+  unit          String // % | pts | age | USD
+  value         Float
+  previousValue Float?
+  // Where this number would come from in production. Always marked as a
+  // fixture today; a real feed replaces the label, not the mechanism.
+  sourceLabel   String
+  updatedAt     DateTime          @updatedAt
+  watches       IndicatorWatch[]
+  changes       IndicatorChange[]
+}
+
+// An advisor watching an indicator, and how big a move they care about.
+// Watching is per advisor because attention is: the advisor with the
+// mortgage-heavy book cares about rates at a finer grain than one without.
+model IndicatorWatch {
+  id          String    @id @default(cuid())
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicatorId String
+  advisor     Advisor   @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  advisorId   String
+  // Smallest move worth a run, in the indicator's own unit.
+  threshold   Float
+  createdAt   DateTime  @default(now())
+
+  @@unique([indicatorId, advisorId])
+}
+
+model IndicatorChange {
+  id          String    @id @default(cuid())
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicatorId String
+  fromValue   Float
+  toValue     Float
+  // What a human would say happened, e.g. "Simulated scenario: short rates
+  // up 75bp over the quarter".
+  note        String
+  occurredAt  DateTime  @default(now())
+  alerts      Alert[]
+}
+
+// One household, one reason. An alert that can't say why this household
+// matched is indistinguishable from a guess, so `rationale` is required and
+// is built from that household's own figures.
+model Alert {
+  id              String           @id @default(cuid())
+  household       Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId     String
+  change          IndicatorChange? @relation(fields: [changeId], references: [id], onDelete: SetNull)
+  changeId        String?
+  ruleKey         String // which rule matched, for tuning later
+  severity        String // high | medium | low
+  title           String
+  rationale       String
+  suggestedAction String
+  // Where to go to act on it, e.g. "allocation".
+  section         String?
+  status          String           @default("open") // open | acknowledged | dismissed
+  createdAt       DateTime         @default(now())
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import {
+  SignalsIcon,
   TodayIcon,
   ScheduleIcon,
   TasksIcon,
@@ -49,6 +50,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Intelligence",
     items: [
+      { href: "/signals", label: "Signals", Icon: SignalsIcon },
       { href: "/markets", label: "Markets", Icon: MarketsIcon },
       { href: "/insights", label: "Insights", Icon: InsightsIcon },
     ],

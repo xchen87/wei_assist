@@ -12,6 +12,7 @@ import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
 import { formatShortDate } from "@/lib/format/date";
+import { bySeverity } from "@/lib/calc/signals";
 import { WidgetGrid } from "@/components/widgets/widget-grid";
 import { DEFAULT_LAYOUT, sanitizeLayout, type WidgetId } from "@/components/widgets/catalog";
 import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
@@ -23,7 +24,7 @@ const DRIFT_ALERT_THRESHOLD = 4;
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const [households, prospects, openInsights, savedLayout] = await Promise.all([
+  const [households, prospects, openInsights, openAlerts, savedLayout] = await Promise.all([
     prisma.household.findMany({ orderBy: { nextReviewDate: "asc" } }),
     prisma.prospect.findMany(),
     prisma.insight.findMany({
@@ -33,6 +34,11 @@ export default async function TodayPage() {
     }),
     // The advisor's own arrangement, if they've made one. A row that fails
     // to parse falls back to the default rather than breaking the page.
+    prisma.alert.findMany({
+      where: { status: "open" },
+      include: { household: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.dashboardLayout.findFirst({
       where: { advisor: { name: CURRENT_ADVISOR_NAME } },
       select: { layoutJson: true },
@@ -59,17 +65,32 @@ export default async function TodayPage() {
       | "not-started",
   }));
 
-  const alerts = households
-    .filter((h) => h.driftPct >= DRIFT_ALERT_THRESHOLD || h.reviewStatus === "overdue")
-    .slice(0, 4)
-    .map((h) => ({
-      id: h.id,
-      householdId: h.id,
-      text:
-        h.driftPct >= DRIFT_ALERT_THRESHOLD
-          ? `Drift ${formatPercent(h.driftPct)} over target — ${h.name}`
-          : `Review overdue — ${h.name}`,
-    }));
+  // Signals the engine raised come first: those know which household and
+  // why. The inline drift and overdue conditions fill the rest of the card
+  // so it still says something useful before any scenario has been run.
+  const alerts = [
+    ...[...openAlerts].sort(bySeverity).map((a) => ({
+      id: a.id,
+      householdId: a.household.id,
+      householdName: a.household.name,
+      severity: a.severity,
+      title: a.title,
+      source: "Signals",
+    })),
+    ...households
+      .filter((h) => h.driftPct >= DRIFT_ALERT_THRESHOLD || h.reviewStatus === "overdue")
+      .map((h) => ({
+        id: `inline-${h.id}`,
+        householdId: h.id,
+        householdName: h.name,
+        severity: h.driftPct >= DRIFT_ALERT_THRESHOLD ? "medium" : "low",
+        title:
+          h.driftPct >= DRIFT_ALERT_THRESHOLD
+            ? `Drift ${formatPercent(h.driftPct)} over target`
+            : "Review overdue",
+        source: "Clients list",
+      })),
+  ].slice(0, 6);
 
   const overdue = households
     .filter((h) => h.reviewStatus === "overdue")

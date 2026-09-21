@@ -3,6 +3,8 @@ import { prisma } from "@meridian/db";
 import { PlanSection } from "@/components/plan/plan-section";
 import { SectionActions } from "@/components/plan/section-actions";
 import { SegmentedCompletenessRing } from "@/components/charts/completeness-ring";
+import { AlertCard } from "@/components/signals/alert-card";
+import { bySeverity } from "@/lib/calc/signals";
 import { formatLongDate } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,16 @@ export default async function OverviewPage({ params }: { params: { id: string } 
   if (!household) notFound();
 
   const primary = household.members.find((m) => m.role === "Primary") ?? household.members[0];
+
+  // Open signals for this household, newest first — an advisor who opens a
+  // flagged household should find the reason here rather than having to go
+  // back to Signals for it.
+  const alerts = await prisma.alert.findMany({
+    where: { householdId: household.id, status: "open" },
+    include: { change: { include: { indicator: { select: { name: true } } } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const rankedAlerts = [...alerts].sort(bySeverity).slice(0, 4);
 
   // The twelve sections that carry a completeness figure — Overview is the
   // rollup, so it isn't one of its own segments, and Business is hidden
@@ -49,6 +61,32 @@ export default async function OverviewPage({ params }: { params: { id: string } 
       summarySubtitle="Each arc is one section; how much of it is filled is how complete that section is. Anything under 60% is called out."
       summary={
         <div className="flex flex-col gap-6">
+          {rankedAlerts.length > 0 ? (
+            <div className="rounded-card border border-brass bg-brass-tint p-4">
+              <div className="mb-2.5 text-sm font-semibold">
+                {alerts.length} open signal{alerts.length === 1 ? "" : "s"} for this household
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {rankedAlerts.map((alert) => (
+                  <AlertCard
+                    key={alert.id}
+                    showHousehold={false}
+                    alert={{
+                      id: alert.id,
+                      householdId: alert.householdId,
+                      householdName: household.name,
+                      severity: alert.severity,
+                      title: alert.title,
+                      rationale: alert.rationale,
+                      suggestedAction: alert.suggestedAction,
+                      section: alert.section,
+                      status: alert.status,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
           <SegmentedCompletenessRing sections={sectionCompleteness} />
           <div className="rounded-card border border-rule p-4">
             <div className="mb-3 text-sm font-semibold">What changed since your last visit</div>

@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/format/money";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatDate } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
+import { bySeverity } from "@/lib/calc/signals";
 
 /** Tools are the only way the model touches data (CLAUDE.md §9) — there is
  * no free-form SQL, and nothing here takes a table or column name from the
@@ -272,6 +273,72 @@ const getOpenInsights: ToolDef = {
   },
 };
 
+const getOpenAlerts: ToolDef = {
+  name: "get_open_alerts",
+  effect: "read",
+  definition: {
+    name: "get_open_alerts",
+    description:
+      "Open signals raised by the monitoring engine when a watched indicator moved — which households a change affected and the reason each one matched. Use for 'who is affected by', 'what did the rate move touch', or when asked about a specific household's alerts. Each alert already contains the household's own figures; quote them rather than recomputing.",
+    input_schema: {
+      type: "object",
+      properties: {
+        household_id: { type: "string", description: "Omit for the whole book." },
+        indicator: { type: "string", description: "Filter by indicator name fragment, e.g. 'rate' or 'equity'." },
+        severity: { type: "string", enum: ["high", "medium", "low"] },
+        limit: { type: "number", description: "Default 10, maximum 25." },
+      },
+      required: [],
+    },
+  },
+  async run(input, refs) {
+    const limit = Math.min(Math.max(num(input, "limit") ?? 10, 1), 25);
+    const indicatorFilter = str(input, "indicator");
+
+    const alerts = await prisma.alert.findMany({
+      where: {
+        status: "open",
+        ...(str(input, "household_id") ? { householdId: str(input, "household_id") } : {}),
+        ...(str(input, "severity") ? { severity: str(input, "severity") } : {}),
+        ...(indicatorFilter
+          ? { change: { indicator: { name: { contains: indicatorFilter } } } }
+          : {}),
+      },
+      include: {
+        household: { select: { id: true, name: true } },
+        change: { include: { indicator: { select: { name: true, unit: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    // Highest severity first — and sorted here rather than in the query,
+    // because ordering the string column ascending puts "low" above
+    // "medium".
+    const ranked = [...alerts].sort(bySeverity).slice(0, limit);
+
+    return {
+      recordIds: ranked.map((a) => a.id),
+      payload: {
+        count: ranked.length,
+        note: "Indicator values are simulated fixtures. Suggested actions are prompts to review with the household or their tax or legal adviser, never advice.",
+        alerts: ranked.map((a) => ({
+          ref: refs.issue(
+            `${a.household.name} · ${a.title}`,
+            `/clients/${a.household.id}${a.section ? `/${a.section}` : ""}`,
+          ),
+          household: a.household.name,
+          household_id: a.household.id,
+          severity: a.severity,
+          title: a.title,
+          why_this_household: a.rationale,
+          suggested_action: a.suggestedAction,
+          indicator: a.change?.indicator.name ?? "—",
+          indicator_moved: a.change ? `${a.change.fromValue} to ${a.change.toValue}` : "—",
+        })),
+      },
+    };
+  },
+};
+
 const proposeNavigation: ToolDef = {
   name: "propose_navigation",
   effect: "proposal",
@@ -341,6 +408,7 @@ export const TOOLS: ToolDef[] = [
   getHouseholdSection,
   getHouseholdActivity,
   getOpenInsights,
+  getOpenAlerts,
   proposeNavigation,
   proposeDismissInsight,
 ];
