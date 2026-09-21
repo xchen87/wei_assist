@@ -224,10 +224,14 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   chance, because leaving them to `rand()` left one member at 59 and none
   at 65, which would make an age-triggered rule look broken when the data
   was thin. Firm totals: $232M AUM, 93 members, 16 prospects.
-- **Money has a $21.47M ceiling per field (D-021).** Integer cents in an
-  `Int` column tops out at 2,147,483,647. `centsFrom()` guards it with a
-  named error; the demo book is capped beneath it. Must move to `BigInt`
-  before real data — a Founding-tier household above $21.5M is not exotic.
+- **Money is `bigint` in the database layer, `number` at the boundary
+  (D-023).** Cents live in BigInt columns — the old `Int` ceiling of
+  $21,474,836.47 per field is gone — and every formatter in
+  `lib/format/money.ts` accepts either. Convert with `centsToNumber` when
+  a value is serialised, handed to a client component, or passed into
+  `lib/calc` (whose functions multiply cents by fractions, which bigint
+  cannot do). `bigint` crossing into a client component throws at render,
+  and `JSON.stringify` throws on it, so the boundary is not optional.
 - **Several Today widgets are honestly static**, not fake-dynamic: Markets,
   Milestones, Recents, and Notes have no backing model (no Security/Quote,
   no DOB, no view-tracking, no persistence). They're labeled as such in
@@ -725,6 +729,22 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Migrated every money column to BigInt (D-023), closing the
+  $21,474,836.47 per-field ceiling that D-021 had deferred. Twenty-five columns, 268
+  references across 37 files; the compiler found all of them, in four rounds from 61 errors
+  to zero. The migration is really one rule applied consistently: cents are `bigint` in the
+  database layer and in server-side arithmetic, and become `number` at the boundary where
+  they are serialised or handed to a client component — because `bigint` cannot be JSON
+  serialised, so React throws on the prop and `JSON.stringify` throws in the assistant's
+  tool payloads. `lib/format/money.ts` owns the crossings (`centsToNumber`, `toCents`,
+  `absCents`), and `lib/calc` stays on plain numbers since its functions multiply cents by
+  fractions. Verified by storing a household with $97M in net worth — 4.5x the old ceiling
+  — reading it back exactly, rendering all thirteen of its sections, listing it in the
+  client-component Clients table, and asking the assistant about it, which exercises the
+  serialisation path bigint would have broken. With the ceiling gone, the archetype ranges
+  capped beneath it were restored: the book's largest household is now $25.6M in net worth
+  and the firm total $255.6M, neither of which the previous schema could represent.
 
 - **2026-09-20** — M-demo item 4, and with it the milestone: `pnpm demo:reset` reseeds the
   book, clears what a demo leaves behind — chat transcripts, dragged widget layouts,

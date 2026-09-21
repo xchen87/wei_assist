@@ -4,7 +4,7 @@ import { PlanSection } from "@/components/plan/plan-section";
 import { SectionActions } from "@/components/plan/section-actions";
 import { TaxBracketBar } from "@/components/charts/tax-bracket-bar";
 import { bracketPosition } from "@/lib/calc/tax";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, centsToNumber } from "@/lib/format/money";
 import { formatPercent } from "@/lib/format/percent";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,8 @@ export default async function TaxPage({ params }: { params: { id: string } }) {
   });
   if (!household) notFound();
 
-  const position = bracketPosition(household.taxableIncomeCents);
+  const taxableIncome = centsToNumber(household.taxableIncomeCents);
+  const position = bracketPosition(taxableIncome);
   const isTopBracket = position.roomToNextBracketCents === Infinity;
 
   return (
@@ -30,7 +31,7 @@ export default async function TaxPage({ params }: { params: { id: string } }) {
       summary={
         <div>
           <div className="mb-3.5 text-right text-xs text-ink-muted">{household.filingStatus}</div>
-          <TaxBracketBar taxableIncomeCents={household.taxableIncomeCents} />
+          <TaxBracketBar taxableIncomeCents={taxableIncome} />
           <div className="grid grid-cols-3 gap-3.5">
             <Stat value={formatMoney(household.taxableIncomeCents)} label="Estimated taxable income" />
             <Stat value={`${position.marginalRatePct}%`} label="Current marginal bracket" />

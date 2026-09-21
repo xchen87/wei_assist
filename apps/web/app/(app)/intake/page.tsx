@@ -1,5 +1,6 @@
 import { prisma } from "@meridian/db";
 import { IntakeWizard } from "@/components/intake/intake-wizard";
+import { centsToNumber } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function IntakePage() {
         Onboard a new client household — the guided flow from a signed agreement to a plan on file.
       </p>
       <IntakeWizard
-        prospects={prospects.map((p) => ({ id: p.id, name: p.name, estValueCents: p.estValueCents, advisorName: p.advisor.name }))}
+        prospects={prospects.map((p) => ({ id: p.id, name: p.name, estValueCents: centsToNumber(p.estValueCents), advisorName: p.advisor.name }))}
         advisors={advisors}
       />
     </div>

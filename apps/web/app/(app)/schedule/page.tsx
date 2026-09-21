@@ -4,7 +4,7 @@ import { MonthCalendar, type CalendarEvent } from "@/components/schedule/month-c
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatDaysAgo, daysUntil } from "@/lib/format/date";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, type Cents } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -153,7 +153,7 @@ function ReviewRow({
     id: string;
     name: string;
     segment: string;
-    aumCents: number;
+    aumCents: Cents;
     nextReviewDate: Date;
     reviewStatus: string;
     planHealthPct: number;

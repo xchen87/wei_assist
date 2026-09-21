@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, Row, SettingsPage, Unset } from "@/components/settings/settings-panel";
 import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
-import { formatMoney } from "@/lib/format/money";
+import { centsToNumber, formatMoney } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function TeamSettingsPage() {
     initials: a.initials,
     capacityTarget: a.capacityTarget,
     householdCount: a.households.length,
-    aumCents: a.households.reduce((sum, h) => sum + h.aumCents, 0),
+    aumCents: a.households.reduce((sum, h) => sum + centsToNumber(h.aumCents), 0),
     prospectCount: a.prospects.length,
   }));
 

@@ -1,5 +1,6 @@
 import { prisma } from "@meridian/db";
 import { evaluateHousehold, type IndicatorSnapshot, type SignalHousehold } from "@/lib/calc/signals";
+import { centsToNumber } from "@/lib/format/money";
 
 /** The runner: applies a change to its indicator, evaluates every household
  * against the rules, and writes the alerts. Called two ways — a "Run now"
@@ -42,6 +43,49 @@ const SELECT = {
   members: { select: { age: true } },
 } as const;
 
+/** Money leaves the database as bigint and the rules work in plain numbers
+ * (lib/calc stays free of bigint, D-023) — this is the one place the
+ * conversion happens for the engine. */
+function toSignalHousehold(row: {
+  id: string;
+  name: string;
+  aumCents: bigint;
+  netWorthCents: bigint;
+  cashPct: number;
+  targetCashPct: number;
+  cashCents: bigint;
+  driftPct: number;
+  equityActualPct: number;
+  equityTargetPct: number;
+  mortgageCents: bigint;
+  taxableIncomeCents: bigint;
+  harvestableLossesCents: bigint;
+  monthlySpendingNeedCents: bigint;
+  retirementAgePrimary: number;
+  reviewStatus: string;
+  members: { age: number }[];
+}): SignalHousehold {
+  return {
+    id: row.id,
+    name: row.name,
+    aumCents: centsToNumber(row.aumCents),
+    netWorthCents: centsToNumber(row.netWorthCents),
+    cashPct: row.cashPct,
+    targetCashPct: row.targetCashPct,
+    cashCents: centsToNumber(row.cashCents),
+    driftPct: row.driftPct,
+    equityActualPct: row.equityActualPct,
+    equityTargetPct: row.equityTargetPct,
+    mortgageCents: centsToNumber(row.mortgageCents),
+    taxableIncomeCents: centsToNumber(row.taxableIncomeCents),
+    harvestableLossesCents: centsToNumber(row.harvestableLossesCents),
+    monthlySpendingNeedCents: centsToNumber(row.monthlySpendingNeedCents),
+    retirementAgePrimary: row.retirementAgePrimary,
+    memberAges: row.members.map((m) => m.age),
+    reviewStatus: row.reviewStatus,
+  };
+}
+
 export async function runScenario(input: ScenarioInput): Promise<RunResult | { error: string }> {
   const indicator = await prisma.indicator.findUnique({ where: { key: input.indicatorKey } });
   if (!indicator) return { error: `No indicator with key "${input.indicatorKey}".` };
@@ -81,10 +125,7 @@ export async function runScenario(input: ScenarioInput): Promise<RunResult | { e
   }[] = [];
 
   for (const row of households) {
-    const household: SignalHousehold = {
-      ...row,
-      memberAges: row.members.map((m) => m.age),
-    };
+    const household = toSignalHousehold(row);
     for (const match of evaluateHousehold(household, snapshot)) {
       affected.add(row.id);
       alerts.push({
@@ -140,7 +181,7 @@ export async function rerunLatest(indicatorKey: string): Promise<RunResult | { e
   let created = 0;
 
   for (const row of households) {
-    const matches = evaluateHousehold({ ...row, memberAges: row.members.map((m) => m.age) }, snapshot);
+    const matches = evaluateHousehold(toSignalHousehold(row), snapshot);
     if (matches.length === 0) continue;
     affected.add(row.id);
     await prisma.alert.createMany({

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@meridian/db";
 import { SectionNav } from "@/components/plan/section-nav";
+import { centsToNumber } from "@/lib/format/money";
 
 export default async function HouseholdLayout({
   children,
@@ -22,7 +23,7 @@ export default async function HouseholdLayout({
         householdId={household.id}
         name={household.name}
         segment={household.segment}
-        aumCents={household.aumCents}
+        aumCents={centsToNumber(household.aumCents)}
       />
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>

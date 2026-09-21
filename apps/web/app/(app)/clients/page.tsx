@@ -2,6 +2,7 @@ import { prisma } from "@meridian/db";
 import Link from "next/link";
 import { ClientsTable, type ClientRow } from "@/components/clients/clients-table";
 import { AnalyzeButton } from "@/components/clients/analyze-button";
+import { centsToNumber } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +45,11 @@ export default async function ClientsPage({
     id: h.id,
     name: h.name,
     segment: h.segment,
-    aumCents: h.aumCents,
-    netWorthCents: h.netWorthCents,
-    heldAwayCents: h.heldAwayCents,
+    // ClientsTable is a client component and bigint cannot cross that
+    // boundary (D-023) — cents become numbers here.
+    aumCents: centsToNumber(h.aumCents),
+    netWorthCents: centsToNumber(h.netWorthCents),
+    heldAwayCents: centsToNumber(h.heldAwayCents),
     ytdReturnPct: h.ytdReturnPct,
     cashPct: h.cashPct,
     driftPct: h.driftPct,

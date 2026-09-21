@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, centsToNumber, type Cents } from "@/lib/format/money";
 
 /**
  * Income -> {Taxes, Net income} -> {Spending, Savings}, drawn as tapered
@@ -15,11 +15,11 @@ export function CashflowSankey({
   spendingCents,
   savingsCents,
 }: {
-  incomeCents: number;
-  taxesCents: number;
-  netIncomeCents: number;
-  spendingCents: number;
-  savingsCents: number;
+  incomeCents: Cents;
+  taxesCents: Cents;
+  netIncomeCents: Cents;
+  spendingCents: Cents;
+  savingsCents: Cents;
 }) {
   const TOP = 24;
   const SCALE_HEIGHT = 200;
@@ -30,13 +30,22 @@ export function CashflowSankey({
   // degenerates into a flat rectangle instead of the tapered shape that
   // signals "flow" in a Sankey. See design/Cashflow.dc.html's node layout.
   const NODE_GAP = 24;
-  const scale = SCALE_HEIGHT / incomeCents;
 
-  const incomeH = incomeCents * scale;
-  const taxesH = taxesCents * scale;
-  const netIncomeH = netIncomeCents * scale;
-  const spendingH = spendingCents * scale;
-  const savingsH = savingsCents * scale;
+  // Cents arrive as bigint from the database (D-023); ribbon geometry is
+  // done in numbers, so convert once here rather than at every call site.
+  const income = centsToNumber(incomeCents);
+  const taxes = centsToNumber(taxesCents);
+  const netIncome = centsToNumber(netIncomeCents);
+  const spending = centsToNumber(spendingCents);
+  const savings = centsToNumber(savingsCents);
+
+  const scale = income > 0 ? SCALE_HEIGHT / income : 0;
+
+  const incomeH = income * scale;
+  const taxesH = taxes * scale;
+  const netIncomeH = netIncome * scale;
+  const spendingH = spending * scale;
+  const savingsH = savings * scale;
 
   const incomeTop = TOP;
   const taxesTop = TOP;
@@ -101,19 +110,19 @@ export function CashflowSankey({
       <rect x={col3x} y={savingsTop} width={col3w} height={savingsH} fill="var(--gain)" />
 
       {nodeLabel(col1x, col1w, incomeTop, "Income")}
-      {valueLabel(col1x, col1w, incomeTop, incomeTop + incomeH, incomeCents)}
+      {valueLabel(col1x, col1w, incomeTop, incomeTop + incomeH, income)}
       {nodeLabel(col2x, col2w, taxesTop, "Taxes")}
-      {valueLabel(col2x, col2w, taxesTop, taxesBottom, taxesCents)}
+      {valueLabel(col2x, col2w, taxesTop, taxesBottom, taxes)}
       <text x={col2x + col2w / 2} y={netIncomeBottom + 16} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--ink)" fontFamily="var(--font-public-sans)">
         Net income
       </text>
-      {valueLabel(col2x, col2w, netIncomeTop, netIncomeBottom, netIncomeCents)}
+      {valueLabel(col2x, col2w, netIncomeTop, netIncomeBottom, netIncome)}
       {nodeLabel(col3x, col3w, spendingTop, "Spending")}
-      {valueLabel(col3x, col3w, spendingTop, spendingBottom, spendingCents)}
+      {valueLabel(col3x, col3w, spendingTop, spendingBottom, spending)}
       <text x={col3x + col3w / 2} y={savingsBottom + 16} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--ink)" fontFamily="var(--font-public-sans)">
         Savings
       </text>
-      {valueLabel(col3x, col3w, savingsTop, savingsBottom, savingsCents)}
+      {valueLabel(col3x, col3w, savingsTop, savingsBottom, savings)}
     </svg>
   );
 }

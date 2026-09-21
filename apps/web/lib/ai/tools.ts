@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@meridian/db";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, type Cents } from "@/lib/format/money";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatDate } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
@@ -454,7 +454,7 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
     link,
     source: "Household record, read just now",
   };
-  const money = (cents: number) => formatMoney(cents, { compact: true });
+  const money = (cents: Cents) => formatMoney(cents, { compact: true });
 
   switch (section) {
     case "overview":

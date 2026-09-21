@@ -43,9 +43,9 @@ model Household {
   advisorId String
 
   // Clients list columns
-  aumCents        Int
-  netWorthCents   Int
-  heldAwayCents   Int
+  aumCents        BigInt
+  netWorthCents   BigInt
+  heldAwayCents   BigInt
   ytdReturnPct    Float
   cashPct         Float
   targetCashPct   Float
@@ -85,24 +85,24 @@ model Household {
   complianceCompletenessPct Int
 
   // Cashflow (annual, illustrative — see design/README.md conventions)
-  incomeCents    Int
-  taxesCents     Int
-  netIncomeCents Int
-  spendingCents  Int
-  savingsCents   Int
+  incomeCents    BigInt
+  taxesCents     BigInt
+  netIncomeCents BigInt
+  spendingCents  BigInt
+  savingsCents   BigInt
   savingsRatePct Float
 
   // Balance (waterfall, past 12 months)
-  balanceStartCents         Int
-  balanceContributionsCents Int
-  balanceGrowthCents        Int
-  balanceTaxesCents         Int
-  balanceSpendingCents      Int
-  investmentAccountsCents   Int
-  realEstateCents           Int
-  cashCents                 Int
-  otherAssetsCents          Int
-  mortgageCents             Int
+  balanceStartCents         BigInt
+  balanceContributionsCents BigInt
+  balanceGrowthCents        BigInt
+  balanceTaxesCents         BigInt
+  balanceSpendingCents      BigInt
+  investmentAccountsCents   BigInt
+  realEstateCents           BigInt
+  cashCents                 BigInt
+  otherAssetsCents          BigInt
+  mortgageCents             BigInt
 
   // Allocation
   equityTargetPct        Float
@@ -121,7 +121,7 @@ model Household {
   retirementAgeSpouse       Int? // null for single-member households
   ssClaimAgePrimary         Int
   ssClaimAgeSpouse          Int?
-  monthlySpendingNeedCents  Int
+  monthlySpendingNeedCents  BigInt
   withdrawalSequencing      String // shared with Tax's "preferred withdrawal order" row
   retirementSuccessDeltaPts Int // change in success probability since last review — illustrative, like whatChanged
 
@@ -133,11 +133,11 @@ model Household {
   // Storing the derived position too would let it silently drift out of
   // sync with the bracket table if either ever changed independently.
   filingStatus           String // e.g. "Married filing jointly"
-  taxableIncomeCents     Int
+  taxableIncomeCents     BigInt
   effectiveRatePct       Float
-  realizedGainsCents     Int
-  unrealizedGainsCents   Int
-  harvestableLossesCents Int
+  realizedGainsCents     BigInt
+  unrealizedGainsCents   BigInt
+  harvestableLossesCents BigInt
 
   // Activity
   openTasksCount Int
@@ -191,7 +191,7 @@ model Goal {
   // Null on a goal captured at intake: the household has named the goal but
   // not costed it yet. Zero would claim a $0 target, which reads as fully
   // funded everywhere a percentage is computed.
-  targetCents Int?
+  targetCents BigInt?
   fundedPct   Float
   status      String // onTrack | fullyFunded | behind | unset
   // "Under 3 years", "3–7 years", ... captured at intake (§6 lists goal
@@ -214,7 +214,7 @@ model Prospect {
   id            String   @id @default(cuid())
   name          String
   source        String // e.g. "Referral: Ramirez Household", "Web inquiry"
-  estValueCents Int
+  estValueCents BigInt
   stage         String // Inquiry | Discovery | Proposal | Agreement
   daysInStage   Int
   stalled       Boolean  @default(false)

@@ -3,7 +3,7 @@
 import { prisma } from "@meridian/db";
 import { revalidatePath } from "next/cache";
 import { scoreRiskTolerance, type RiskAnswers } from "@/lib/calc/risk";
-import { parseDollarsToCents } from "@/lib/format/money";
+import { centsToNumber, parseDollarsToCents } from "@/lib/format/money";
 
 /** Turn a completed intake into a real household (M-demo item 1).
  *
@@ -59,7 +59,7 @@ function ageFrom(birthDate: string): number | null {
   return age >= 0 && age < 130 ? age : null;
 }
 
-const sum = (values: (number | null)[]) => values.reduce<number>((total, v) => total + (v ?? 0), 0);
+const sum = (values: (bigint | null)[]) => values.reduce<bigint>((total, v) => total + (v ?? 0n), 0n);
 
 export async function createHouseholdFromIntake(payload: IntakePayload): Promise<CreateResult> {
   const name = payload.name.trim();
@@ -76,11 +76,11 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
   const expenses = sum(members.map((m) => parseDollarsToCents(m.annualExpenses)));
   const assets = sum(members.map((m) => parseDollarsToCents(m.assets)));
   const liabilities = sum(members.map((m) => parseDollarsToCents(m.liabilities)));
-  const savings = Math.max(income - expenses, 0);
+  const savings = income > expenses ? income - expenses : 0n;
   const netWorth = assets - liabilities;
 
-  const hasCashflow = income > 0 || expenses > 0;
-  const hasBalance = assets > 0 || liabilities > 0;
+  const hasCashflow = income > 0n || expenses > 0n;
+  const hasBalance = assets > 0n || liabilities > 0n;
   const membersComplete = members.filter((m) => m.birthDate && m.occupation.trim()).length;
   const riskComplete = members.filter((m) => scoreRiskTolerance(m.risk).complete).length;
 
@@ -136,8 +136,8 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
       // Nothing is custodied on day one. AUM stays zero until a feed or a
       // manual account entry says otherwise — the Clients list showing $0
       // is the honest reading, not a bug.
-      aumCents: 0,
-      heldAwayCents: 0,
+      aumCents: 0n,
+      heldAwayCents: 0n,
       netWorthCents: netWorth,
       ytdReturnPct: 0,
       cashPct: 0,
@@ -154,20 +154,23 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
       // Taxes aren't assessed at intake, so net income is income until a
       // tax position exists. Zero here means "not yet known", and the Tax
       // section's completeness says so.
-      taxesCents: 0,
+      taxesCents: 0n,
       netIncomeCents: income,
       spendingCents: expenses,
       savingsCents: savings,
-      savingsRatePct: income > 0 ? Math.round((savings / income) * 1000) / 10 : 0,
+      // A ratio, not money: convert both sides before dividing, since
+      // bigint division truncates (D-023).
+      savingsRatePct:
+        income > 0n ? Math.round((centsToNumber(savings) / centsToNumber(income)) * 1000) / 10 : 0,
 
-      balanceStartCents: 0,
-      balanceContributionsCents: 0,
-      balanceGrowthCents: 0,
-      balanceTaxesCents: 0,
-      balanceSpendingCents: 0,
-      investmentAccountsCents: 0,
-      realEstateCents: 0,
-      cashCents: 0,
+      balanceStartCents: 0n,
+      balanceContributionsCents: 0n,
+      balanceGrowthCents: 0n,
+      balanceTaxesCents: 0n,
+      balanceSpendingCents: 0n,
+      investmentAccountsCents: 0n,
+      realEstateCents: 0n,
+      cashCents: 0n,
       otherAssetsCents: assets,
       mortgageCents: liabilities,
 
@@ -185,16 +188,16 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
       retirementAgeSpouse: null,
       ssClaimAgePrimary: 67,
       ssClaimAgeSpouse: null,
-      monthlySpendingNeedCents: 0,
+      monthlySpendingNeedCents: 0n,
       withdrawalSequencing: "Not set",
       retirementSuccessDeltaPts: 0,
 
       filingStatus: "Not set",
-      taxableIncomeCents: 0,
+      taxableIncomeCents: 0n,
       effectiveRatePct: 0,
-      realizedGainsCents: 0,
-      unrealizedGainsCents: 0,
-      harvestableLossesCents: 0,
+      realizedGainsCents: 0n,
+      unrealizedGainsCents: 0n,
+      harvestableLossesCents: 0n,
 
       openTasksCount: 0,
 

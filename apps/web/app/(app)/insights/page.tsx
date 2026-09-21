@@ -1,15 +1,19 @@
 import { prisma } from "@meridian/db";
 import { BookTreemap } from "@/components/charts/book-treemap";
 import { RevenueConcentrationCurve } from "@/components/charts/revenue-concentration-curve";
-import { formatMoney } from "@/lib/format/money";
+import { centsToNumber, formatMoney } from "@/lib/format/money";
 
 export const dynamic = "force-dynamic";
 
 export default async function InsightsPage() {
   const households = await prisma.household.findMany({ include: { advisor: true } });
 
-  const revenues = households.map((h) => Math.round(h.aumCents * (h.blendedExpenseRatioPct / 100)));
-  const totalAum = households.reduce((s, h) => s + h.aumCents, 0);
+  // Ratios and running totals are number math; cents come out of the
+  // database as bigint (D-023).
+  const revenues = households.map((h) =>
+    Math.round(centsToNumber(h.aumCents) * (h.blendedExpenseRatioPct / 100)),
+  );
+  const totalAum = households.reduce((s, h) => s + centsToNumber(h.aumCents), 0);
   const totalRevenue = revenues.reduce((s, r) => s + r, 0);
 
   const bySegment = households.reduce<Record<string, number>>((acc, h) => {
@@ -53,7 +57,13 @@ export default async function InsightsPage() {
         <div>
           <div className="mb-0.5 text-sm font-semibold">Book composition</div>
           <div className="mb-2.5 text-xs text-ink-muted">By AUM, colored by segment</div>
-          <BookTreemap items={households.map((h) => ({ name: h.name, aumCents: h.aumCents, segment: h.segment }))} />
+          <BookTreemap
+            items={households.map((h) => ({
+              name: h.name,
+              aumCents: centsToNumber(h.aumCents),
+              segment: h.segment,
+            }))}
+          />
           <div className="mt-3 flex gap-3.5 text-xs text-ink-muted">
             <Legend color="var(--pine)" label="Founding" />
             <Legend color="var(--brass)" label="Premier" />

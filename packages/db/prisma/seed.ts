@@ -28,22 +28,20 @@ type PipelineStage = "Inquiry" | "Discovery" | "Proposal" | "Agreement";
 
 const prisma = new PrismaClient();
 
-/** Money is integer cents (D-007) in an `Int` column, so the largest value
- * any single money field can hold is 2,147,483,647 cents — $21,474,836.47.
- * That ceiling is real and will eventually need BigInt columns; until then
- * this guard turns a silent seed failure ("Value does not fit in an INT
- * column") into a sentence that says which household broke it. */
-const MAX_INT_CENTS = 2_147_483_647;
+/** Money is integer cents (D-007) in BigInt columns (D-023). The old Int
+ * columns capped a single field at $21,474,836.47, which the forty-household
+ * book hit immediately; the guard that used to live here is gone with the
+ * ceiling, and the archetypes below are back to the sizes they wanted.
+ *
+ * Derivation stays in numbers — deriveFinancials() multiplies cents by
+ * fractions throughout, which bigint cannot do — and `big()` converts at
+ * the write, which is the same boundary rule the app follows. */
+function centsFrom(dollars: number): number {
+  return Math.round(dollars * 100);
+}
 
-function centsFrom(dollars: number) {
-  const cents = Math.round(dollars * 100);
-  if (cents > MAX_INT_CENTS) {
-    throw new Error(
-      `$${dollars.toLocaleString()} exceeds the Int cents ceiling of $${(MAX_INT_CENTS / 100).toLocaleString()}. ` +
-        "Money columns need to move to BigInt before a household this size can exist (see PROGRESS.md).",
-    );
-  }
-  return cents;
+function big(cents: number): bigint {
+  return BigInt(Math.round(cents));
 }
 
 function dollarsLabel(cents: number) {
@@ -355,7 +353,7 @@ const ARCHETYPES: Archetype[] = [
     key: "newRetiree",
     ageRange: [65, 72],
     thresholdAges: [65, 66, 70, 72],
-    aumRange: [3.4, 11.0],
+    aumRange: [3.4, 12.0],
     netWorthMultiple: [1.1, 1.4],
     cashRange: [6.5, 14.0],
     driftRange: [1.5, 7.2],
@@ -369,7 +367,7 @@ const ARCHETYPES: Archetype[] = [
     key: "rmdAge",
     ageRange: [73, 84],
     thresholdAges: [73, 74, 76, 79],
-    aumRange: [4.0, 13.0],
+    aumRange: [4.0, 15.0],
     netWorthMultiple: [1.05, 1.35],
     cashRange: [5.5, 12.0],
     driftRange: [0.9, 5.8],
@@ -382,9 +380,7 @@ const ARCHETYPES: Archetype[] = [
   {
     key: "businessOwner",
     ageRange: [45, 61],
-    // Capped so aum x netWorthMultiple stays under the Int cents ceiling
-    // described at centsFrom() — not because a $30M household is unusual.
-    aumRange: [4.5, 10.0],
+    aumRange: [4.5, 18.0],
     netWorthMultiple: [1.3, 1.9],
     cashRange: [3.0, 10.5],
     driftRange: [2.2, 8.4],
@@ -1363,9 +1359,9 @@ async function main() {
         name: h.name,
         segment: h.segment,
         advisorId: advisorId[h.advisor],
-        aumCents: centsFrom(h.aum),
-        netWorthCents: centsFrom(h.netWorth),
-        heldAwayCents: centsFrom(h.heldAway),
+        aumCents: big(centsFrom(h.aum)),
+        netWorthCents: big(centsFrom(h.netWorth)),
+        heldAwayCents: big(centsFrom(h.heldAway)),
         ytdReturnPct: h.ytdReturnPct,
         cashPct: h.cashPct,
         targetCashPct: extra.equityTargetPct ? Math.round((100 - extra.equityTargetPct - extra.fixedIncomeTargetPct) * 10) / 10 : 3,
@@ -1377,22 +1373,22 @@ async function main() {
         clientSinceYear: h.clientSinceYear,
         completenessPct: h.planHealthPct,
         whatChanged: extra.whatChanged,
-        incomeCents: extra.incomeCents,
-        taxesCents: extra.taxesCents,
-        netIncomeCents: extra.netIncomeCents,
-        spendingCents: extra.spendingCents,
-        savingsCents: extra.savingsCents,
+        incomeCents: big(extra.incomeCents),
+        taxesCents: big(extra.taxesCents),
+        netIncomeCents: big(extra.netIncomeCents),
+        spendingCents: big(extra.spendingCents),
+        savingsCents: big(extra.savingsCents),
         savingsRatePct: extra.savingsRatePct,
-        balanceStartCents: extra.balanceStartCents,
-        balanceContributionsCents: extra.balanceContributionsCents,
-        balanceGrowthCents: extra.balanceGrowthCents,
-        balanceTaxesCents: extra.balanceTaxesCents,
-        balanceSpendingCents: extra.balanceSpendingCents,
-        investmentAccountsCents: extra.investmentAccountsCents,
-        realEstateCents: extra.realEstateCents,
-        cashCents: extra.cashCents,
-        otherAssetsCents: extra.otherAssetsCents,
-        mortgageCents: extra.mortgageCents,
+        balanceStartCents: big(extra.balanceStartCents),
+        balanceContributionsCents: big(extra.balanceContributionsCents),
+        balanceGrowthCents: big(extra.balanceGrowthCents),
+        balanceTaxesCents: big(extra.balanceTaxesCents),
+        balanceSpendingCents: big(extra.balanceSpendingCents),
+        investmentAccountsCents: big(extra.investmentAccountsCents),
+        realEstateCents: big(extra.realEstateCents),
+        cashCents: big(extra.cashCents),
+        otherAssetsCents: big(extra.otherAssetsCents),
+        mortgageCents: big(extra.mortgageCents),
         equityTargetPct: extra.equityTargetPct,
         equityActualPct: extra.equityActualPct,
         fixedIncomeTargetPct: extra.fixedIncomeTargetPct,
@@ -1406,15 +1402,15 @@ async function main() {
         retirementAgeSpouse: extra.retirementAgeSpouse,
         ssClaimAgePrimary: extra.ssClaimAgePrimary,
         ssClaimAgeSpouse: extra.ssClaimAgeSpouse,
-        monthlySpendingNeedCents: extra.monthlySpendingNeedCents,
+        monthlySpendingNeedCents: big(extra.monthlySpendingNeedCents),
         withdrawalSequencing: extra.withdrawalSequencing,
         retirementSuccessDeltaPts: extra.retirementSuccessDeltaPts,
         filingStatus: extra.filingStatus,
-        taxableIncomeCents: extra.taxableIncomeCents,
+        taxableIncomeCents: big(extra.taxableIncomeCents),
         effectiveRatePct: extra.effectiveRatePct,
-        realizedGainsCents: extra.realizedGainsCents,
-        unrealizedGainsCents: extra.unrealizedGainsCents,
-        harvestableLossesCents: extra.harvestableLossesCents,
+        realizedGainsCents: big(extra.realizedGainsCents),
+        unrealizedGainsCents: big(extra.unrealizedGainsCents),
+        harvestableLossesCents: big(extra.harvestableLossesCents),
         openTasksCount: extra.openTasksCount,
         householdCompletenessPct: extra.householdCompletenessPct,
         cashflowCompletenessPct: extra.cashflowCompletenessPct,

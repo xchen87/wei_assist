@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, absCents } from "@/lib/format/money";
 import { MemberCard, netWorthOf, surplusOf } from "./member-card";
 import {
   GOAL_HORIZONS,
@@ -376,12 +376,12 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
                         </td>
                         <td
                           className={`tabular py-2.5 text-right ${
-                            surplus === null ? "" : surplus >= 0 ? "text-gain" : "text-loss"
+                            surplus === null ? "" : surplus >= 0n ? "text-gain" : "text-loss"
                           }`}
                         >
                           {surplus === null
                             ? "—"
-                            : `${surplus >= 0 ? "+" : "−"}${formatMoney(Math.abs(surplus))}`}
+                            : `${surplus >= 0n ? "+" : "−"}${formatMoney(absCents(surplus))}`}
                         </td>
                         <td className="py-2.5">
                           {risk.profile ?? (

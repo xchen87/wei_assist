@@ -11,6 +11,7 @@ import { MilestonesWidget } from "@/components/widgets/milestones-widget";
 import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
+import { centsToNumber } from "@/lib/format/money";
 import { formatShortDate } from "@/lib/format/date";
 import { bySeverity } from "@/lib/calc/signals";
 import { WidgetGrid } from "@/components/widgets/widget-grid";
@@ -130,8 +131,10 @@ export default async function TodayPage() {
     .filter((c): c is string => c !== null)
     .slice(0, 3);
 
-  const totalAum = households.reduce((sum, h) => sum + h.aumCents, 0);
-  const monthlyFlow = Math.round(households.reduce((sum, h) => sum + h.balanceContributionsCents, 0) / 12);
+  const totalAum = households.reduce((sum, h) => sum + centsToNumber(h.aumCents), 0);
+  const monthlyFlow = Math.round(
+    households.reduce((sum, h) => sum + centsToNumber(h.balanceContributionsCents), 0) / 12,
+  );
 
   // Widgets are rendered here, on the server, from the one query block
   // above — the grid places them but never fetches for them. Ten client

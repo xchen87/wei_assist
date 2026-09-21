@@ -1,8 +1,35 @@
-/** All money in this app is stored as integer cents (see D-007). These are
- * the only functions allowed to turn cents into a display string. */
+/** All money in this app is stored as integer cents (D-007) in BigInt
+ * columns (D-023). These are the only functions allowed to turn cents into
+ * a display string, or dollars into cents.
+ *
+ * The one rule BigInt imposes: cents are `bigint` in the database layer and
+ * in server-side arithmetic, and become `number` at the boundary where they
+ * are serialised or handed to a client component — `bigint` cannot be JSON
+ * serialised, so React would throw on the prop. Every function here accepts
+ * either, so call sites don't have to care which side of that line they are
+ * on. Conversion is lossless for any real figure: Number is exact to 2^53
+ * cents, about $90 trillion. */
 
-export function formatMoney(cents: number, opts: { compact?: boolean } = {}): string {
-  const dollars = cents / 100;
+export type Cents = number | bigint;
+
+/** For arithmetic and serialisation — the boundary converter. */
+export function centsToNumber(value: Cents): number {
+  return typeof value === "bigint" ? Number(value) : value;
+}
+
+/** For writes: dollars from application code into a BigInt column. */
+export function toCents(dollars: number): bigint {
+  return BigInt(Math.round(dollars * 100));
+}
+
+/** |value| without losing the bigint-ness a money field may carry. */
+export function absCents(value: Cents): Cents {
+  if (typeof value === "bigint") return value < 0n ? -value : value;
+  return Math.abs(value);
+}
+
+export function formatMoney(value: Cents, opts: { compact?: boolean } = {}): string {
+  const dollars = centsToNumber(value) / 100;
   if (opts.compact) return formatCompactMoney(dollars);
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -21,25 +48,23 @@ export function formatCompactMoney(dollars: number): string {
 }
 
 /** Cents -> a plain dollar number, for export rather than display: a
- * spreadsheet wants 8420000 as 8420000.00, not "$8.42M". Still the only
- * place cents stop being cents (D-007). */
-export function toDollars(cents: number): number {
-  return Math.round(cents) / 100;
+ * spreadsheet wants 8420000 as 8420000.00, not "$8.42M". */
+export function toDollars(value: Cents): number {
+  return Math.round(centsToNumber(value)) / 100;
 }
 
 /** "12,500" or "$12,500.50" from a form field -> integer cents. Returns
  * null for anything that isn't a number, so a caller can tell "nothing
- * entered" from "zero". The inverse of toDollars, and the only other place
- * cents are created from user input (D-007). */
-export function parseDollarsToCents(input: string): number | null {
+ * entered" from "zero". */
+export function parseDollarsToCents(input: string): bigint | null {
   const cleaned = input.replace(/[$,\s]/g, "");
   if (!cleaned) return null;
   const value = Number(cleaned);
   if (!Number.isFinite(value)) return null;
-  return Math.round(value * 100);
+  return toCents(value);
 }
 
-export function formatSignedMoney(cents: number, opts: { compact?: boolean } = {}): string {
-  const formatted = formatMoney(Math.abs(cents), opts);
-  return cents >= 0 ? `+${formatted}` : `−${formatted}`;
+export function formatSignedMoney(value: Cents, opts: { compact?: boolean } = {}): string {
+  const formatted = formatMoney(absCents(value), opts);
+  return centsToNumber(value) >= 0 ? `+${formatted}` : `−${formatted}`;
 }

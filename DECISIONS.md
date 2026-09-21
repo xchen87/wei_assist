@@ -698,3 +698,47 @@ replaced on a re-run rather than duplicated. Severity is a string, so it must be
 through `bySeverity()` — ordering the column ascending sorts alphabetically and quietly
 buries every medium alert beneath the low ones, which is exactly what happened until the
 assistant's summary of a run made it visible.
+
+---
+
+## D-023 — Money columns are BigInt; cents convert to number at the boundary
+
+2026-09-20 · Accepted · Supersedes the deferral in D-021
+
+**Context** — D-021 recorded a $21,474,836.47 ceiling on every money field: cents in a
+32-bit `Int` column. It was deferred because the demo book fit underneath and the migration
+touched 268 references across 37 files. The deferral came with an explicit trigger — fix it
+before real data — and it is cheaper to do now, with a seeded book, than after a custodian
+feed has written balances into it.
+
+**Decision** — Every `*Cents` column becomes `BigInt` (25 of them across Household, Goal and
+Prospect). That makes the ceiling about $92 quadrillion, which is not a number anyone needs
+to think about again.
+
+The cost BigInt imposes is one rule, and the whole migration is that rule applied
+consistently: **cents are `bigint` in the database layer and in server-side money
+arithmetic, and become `number` at the boundary where they are serialised or handed to a
+client component.** `bigint` cannot be JSON-serialised, so React throws when one crosses
+into a client component, and `JSON.stringify` throws in the assistant's tool payloads.
+`lib/format/money.ts` owns the conversions: every formatter accepts `number | bigint`, and
+`centsToNumber`, `toCents` and `absCents` are the explicit crossings. `lib/calc` stays on
+plain numbers — its functions multiply cents by fractions, which bigint cannot do — so the
+signals runner and the retirement and tax pages convert on the way in.
+
+**Alternatives** — Keep `Int` and cap the data, as D-021 did: free, and wrong the moment a
+Founding-tier client is onboarded. Store dollars as `Float`: smaller diff, but it abandons
+exact money arithmetic, which D-007 exists to prevent. Store cents as a string and parse at
+use: no ceiling and no bigint, but every comparison and sum becomes a parse, and sorting in
+SQL stops working.
+
+**Consequences** — The seed derives figures in numbers and converts at the write through
+`big()`, because `deriveFinancials()` multiplies by fractions throughout. Prisma accepts
+`number | bigint` as BigInt input, so that boundary is forgiving; reads are always `bigint`,
+so the reading side is not. Anyone adding a money field now has to know the rule — it is in
+the schema header, in `lib/format/money.ts`, and in PROGRESS's implementation notes. The
+archetype ranges capped under the old ceiling are restored: the book's largest household is
+now $25.6M in net worth and the firm total is $255.6M, both of which the previous schema
+could not represent. Verified by storing a $97M net worth household, reading it back exactly,
+rendering all thirteen of its sections, listing it in the client-component Clients table, and
+asking the assistant about it — that last one exercising the `JSON.stringify` path that
+bigint would have broken.

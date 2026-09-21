@@ -4,7 +4,7 @@ import { PlanSection } from "@/components/plan/plan-section";
 import { SectionActions } from "@/components/plan/section-actions";
 import { RetirementFanChart } from "@/components/charts/retirement-fan-chart";
 import { projectRetirement } from "@/lib/calc/retirement";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, centsToNumber } from "@/lib/format/money";
 import { formatSignedPoints } from "@/lib/format/percent";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +23,10 @@ export default async function RetirementPage({ params }: { params: { id: string 
   const projection = projectRetirement({
     currentAge,
     retirementAge: household.retirementAgePrimary,
-    currentPortfolioCents: household.netWorthCents,
-    annualContributionCents: household.savingsCents,
-    annualSpendingCents: household.monthlySpendingNeedCents * 12,
+    // lib/calc works in numbers; cents leave the database as bigint (D-023).
+    currentPortfolioCents: centsToNumber(household.netWorthCents),
+    annualContributionCents: centsToNumber(household.savingsCents),
+    annualSpendingCents: centsToNumber(household.monthlySpendingNeedCents) * 12,
     seed: hashCode(household.id),
   });
 

@@ -1,4 +1,4 @@
-import { formatMoney, formatSignedMoney } from "@/lib/format/money";
+import { formatMoney, formatSignedMoney, centsToNumber, type Cents } from "@/lib/format/money";
 
 type Step = { label: string; deltaCents: number; kind: "total" | "increase" | "decrease" };
 
@@ -14,23 +14,32 @@ export function NetWorthWaterfall({
   spendingCents,
   endCents,
 }: {
-  startCents: number;
-  contributionsCents: number;
-  growthCents: number;
-  taxesCents: number;
-  spendingCents: number;
-  endCents: number;
+  startCents: Cents;
+  contributionsCents: Cents;
+  growthCents: Cents;
+  taxesCents: Cents;
+  spendingCents: Cents;
+  endCents: Cents;
 }) {
+  // Cents arrive as bigint from the database (D-023); geometry is done in
+  // numbers, so convert once here rather than at every call site.
+  const start = centsToNumber(startCents);
+  const contributions = centsToNumber(contributionsCents);
+  const growth = centsToNumber(growthCents);
+  const taxes = centsToNumber(taxesCents);
+  const spending = centsToNumber(spendingCents);
+  const end = centsToNumber(endCents);
+
   const steps: Step[] = [
-    { label: "Start", deltaCents: startCents, kind: "total" },
-    { label: "Contributions", deltaCents: contributionsCents, kind: "increase" },
-    { label: "Market growth", deltaCents: growthCents, kind: "increase" },
-    { label: "Taxes paid", deltaCents: -taxesCents, kind: "decrease" },
-    { label: "Spending", deltaCents: -spendingCents, kind: "decrease" },
-    { label: "End", deltaCents: endCents, kind: "total" },
+    { label: "Start", deltaCents: start, kind: "total" },
+    { label: "Contributions", deltaCents: contributions, kind: "increase" },
+    { label: "Market growth", deltaCents: growth, kind: "increase" },
+    { label: "Taxes paid", deltaCents: -taxes, kind: "decrease" },
+    { label: "Spending", deltaCents: -spending, kind: "decrease" },
+    { label: "End", deltaCents: end, kind: "total" },
   ];
 
-  const maxValue = Math.max(startCents, endCents) * 1.08;
+  const maxValue = Math.max(start, end) * 1.08;
   const PLOT_TOP = 20;
   const PLOT_BOTTOM = 190;
   const plotHeight = PLOT_BOTTOM - PLOT_TOP;

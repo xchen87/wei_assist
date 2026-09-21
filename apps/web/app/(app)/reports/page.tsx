@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@meridian/db";
 import { formatSignedPercent } from "@/lib/format/percent";
+import { centsToNumber } from "@/lib/format/money";
 import { formatMonthYear } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
@@ -82,10 +83,16 @@ export default async function ReportsPage({
 
   const executiveSummary = `Your portfolio returned ${formatSignedPercent(household.ytdReturnPct)} year-to-date, ${returnClause}.${driftClause} Overall plan health remains ${healthClause} at ${household.completenessPct}% complete, with ${weakest[0]} the primary section needing attention.`;
 
+  // flexGrow is a plain CSS number, and cents leave the database as
+  // bigint (D-023).
   const compositionParts = [
-    { label: "Investments", cents: household.investmentAccountsCents, color: "var(--pine)" },
-    { label: "Real estate", cents: household.realEstateCents, color: "var(--brass)" },
-    { label: "Cash & other", cents: household.cashCents + household.otherAssetsCents, color: "var(--info)" },
+    { label: "Investments", cents: centsToNumber(household.investmentAccountsCents), color: "var(--pine)" },
+    { label: "Real estate", cents: centsToNumber(household.realEstateCents), color: "var(--brass)" },
+    {
+      label: "Cash & other",
+      cents: centsToNumber(household.cashCents) + centsToNumber(household.otherAssetsCents),
+      color: "var(--info)",
+    },
   ];
 
   const primary = household.members.find((m) => m.role === "Primary") ?? household.members[0];

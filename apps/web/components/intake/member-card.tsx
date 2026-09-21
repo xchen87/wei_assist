@@ -9,7 +9,7 @@ import {
   formatSsn,
   type MemberRow,
 } from "./intake-types";
-import { formatMoney, parseDollarsToCents } from "@/lib/format/money";
+import { absCents, formatMoney, parseDollarsToCents } from "@/lib/format/money";
 
 /** One member, in three parts: who they are, what they have, and how much
  * risk they can live with. A row of inputs stopped being enough once
@@ -122,9 +122,9 @@ export function MemberCard({
             {netWorth !== null && surplus !== null ? " · " : null}
             {surplus !== null ? (
               <>
-                Annual {surplus >= 0 ? "surplus" : "deficit"}{" "}
-                <span className={`tabular font-semibold ${surplus >= 0 ? "text-gain" : "text-loss"}`}>
-                  {formatMoney(Math.abs(surplus))}
+                Annual {surplus >= 0n ? "surplus" : "deficit"}{" "}
+                <span className={`tabular font-semibold ${surplus >= 0n ? "text-gain" : "text-loss"}`}>
+                  {formatMoney(absCents(surplus))}
                 </span>
               </>
             ) : null}
@@ -149,20 +149,21 @@ export function MemberCard({
   );
 }
 
-/** Assets minus liabilities, once both are entered. */
-export function netWorthOf(member: MemberRow): number | null {
+/** Assets minus liabilities, once both are entered. Cents are bigint
+ * (D-023), so the zero defaults are too. */
+export function netWorthOf(member: MemberRow): bigint | null {
   const assets = parseDollarsToCents(member.assets);
   const liabilities = parseDollarsToCents(member.liabilities);
   if (assets === null && liabilities === null) return null;
-  return (assets ?? 0) - (liabilities ?? 0);
+  return (assets ?? 0n) - (liabilities ?? 0n);
 }
 
 /** Income minus expenses — what the Cashflow section will call savings. */
-export function surplusOf(member: MemberRow): number | null {
+export function surplusOf(member: MemberRow): bigint | null {
   const income = parseDollarsToCents(member.annualIncome);
   const expenses = parseDollarsToCents(member.annualExpenses);
   if (income === null && expenses === null) return null;
-  return (income ?? 0) - (expenses ?? 0);
+  return (income ?? 0n) - (expenses ?? 0n);
 }
 
 function Labelled({
