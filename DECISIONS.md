@@ -955,5 +955,58 @@ half-width column it renders in; a squarer one letterboxes, which on a chart mad
 rectangles reads as a bug rather than as margin. Type sizes are in viewBox units and scale
 with the container, like every other chart here, so 11 and 10 units land at roughly 11px and
 10px at that width. Nineteen of forty cells carry a name and value; the rest rely on hover.
-The chart still does not meet §8's full contract — no click-through, no keyboard navigation,
-no table equivalent — and that is unchanged by this work.
+Click-through and keyboard navigation followed in D-028; the table equivalent §8 asks for is
+still missing.
+
+---
+
+## D-028 — Treemap cells are links, and the arrow keys move between them spatially
+
+2026-09-21 · Accepted
+
+**Context** — D-027 made the book-composition treemap legible and left the rest of §8's chart
+contract unmet: "every chart is interactive (hover detail, click to filter or drill through),
+keyboard navigable, and has a table equivalent behind a toggle". A chart of forty households
+that cannot be opened is a picture of the book rather than a way into it, and the natural
+next move after spotting a large cell is to go and look at that household.
+
+**Decision** — Every cell is an SVG `<a href="/clients/{id}">`. A real link rather than a
+`<div onClick>`: middle-click, open-in-new-tab, copy-link and the status-bar URL preview all
+work because the browser already knows how to do them, Enter activates it without any key
+handling of ours, and it appears in the accessibility tree as a link with a name. The click
+handler intercepts only a plain left click, to route without a page load, and returns early
+on any modifier so the browser keeps the cases it handles better.
+
+**Keyboard navigation is a roving tabindex, not forty tab stops.** Forty stops in the middle
+of a page is hostile to anyone tabbing past the chart to reach something else; the chart is
+one stop, and the arrows move within it. They move **spatially**, which is the part that
+needed real code: → from a tall cell has to reach whatever is beside it, not whatever is next
+in value order, so `neighbour` in `lib/charts/treemap.ts` picks by geometry. A candidate that
+overlaps the source's span on the other axis always wins — a cell you can draw a straight line
+to is the one a viewer means — and one that overlaps nothing must sit within 45° of the
+direction asked for. That cone is not decoration: without it the top-left cell answered ↑ with
+the cell to its right, whose centre was a fraction higher, which is true and is not what
+anybody pressing ↑ meant. Home and End jump to the largest and smallest household.
+
+Both the interactive layer and this component are built to be verified rather than asserted.
+The geometry is unit-tested, including that all forty cells stay reachable by arrow keys from
+any starting point; the behaviour was driven in a real browser.
+
+This makes the chart the only client component in `components/charts`. §12 allows it —
+interaction requires it — and nothing in the page around it changed.
+
+**Alternatives** — A `<div>` grid overlaid on the SVG: easier focus styling, and it gives up
+real links and duplicates the layout in a second coordinate system. Forty native tab stops
+with no arrow handling: less code, and it puts forty stops between the chart and whatever
+follows it. Arrow keys stepping through value order: trivial, and it does not match what is
+on screen, which is the whole point of a treemap. An `onSelect` callback per §8's uniform
+prop shape: the Insights page is a server component and cannot pass a function, and a URL is
+the better answer here anyway.
+
+**Consequences** — The focus ring is drawn rather than left to the browser, because an SVG
+element's default focus outline is not dependable; it is painted last so it sits over the
+neighbouring fills, and uses `--on-accent`, so it follows the label colour into dark mode.
+Hover and focus share one highlight. Verified in the accessibility tree: a `group` named for
+the chart, described by the keyboard hint, containing forty `link` children each named
+"{household}, {segment}, {AUM} under management". The table equivalent §8 asks for is still
+not built.

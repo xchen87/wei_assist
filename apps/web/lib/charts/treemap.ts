@@ -179,3 +179,83 @@ export function pickLabel(
   const shortest = candidates[candidates.length - 1];
   return shortest === undefined ? null : fitText(shortest, maxWidth, fontSize);
 }
+
+export type Direction = "up" | "down" | "left" | "right";
+
+/** How much a sideways drift counts against a candidate when nothing sits
+ * squarely in the direction of travel. Below 1 so that distance in the
+ * direction you asked for dominates. */
+const CROSS_AXIS_WEIGHT = 0.5;
+
+/** Ranks a candidate that does not share any of the source's cross-axis
+ * span behind every candidate that does. Larger than any distance two
+ * cells in one chart can be apart. */
+const NO_OVERLAP_PENALTY = 1e6;
+
+/**
+ * The cell a viewer would call "next" in a given direction, as an index
+ * into `cells`. Returns `from` unchanged at the edge of the chart, so a
+ * caller can move focus unconditionally and simply stop at the boundary.
+ *
+ * A treemap is two-dimensional and irregular, so "next" cannot be the
+ * next element in the array: pressing → on a tall cell has to reach
+ * whatever is beside it, not whatever is next in value order. Candidates
+ * are the cells whose centre lies in the direction asked for; among
+ * those, one that overlaps the source's span on the other axis always
+ * wins, because a cell you can draw a straight line to is the one a
+ * viewer means. Ties fall to the nearest.
+ *
+ * A candidate that overlaps nothing must also sit within 45° of the
+ * direction of travel, or the cell in the top-left corner answers ↑ with
+ * the cell to its right — whose centre is a pixel higher, which is true
+ * and is not what anybody pressing ↑ meant. That rule is what makes the
+ * chart's edges behave like edges.
+ */
+export function neighbour<T>(
+  cells: readonly TreemapCell<T>[],
+  from: number,
+  direction: Direction,
+): number {
+  const source = cells[from];
+  if (!source) return from;
+
+  const horizontal = direction === "left" || direction === "right";
+  const centre = (c: TreemapCell<T>) => ({ x: c.x + c.w / 2, y: c.y + c.h / 2 });
+  const origin = centre(source);
+
+  let best = from;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < cells.length; i++) {
+    if (i === from) continue;
+    const candidate = cells[i]!;
+    const point = centre(candidate);
+
+    const primary =
+      direction === "right"
+        ? point.x - origin.x
+        : direction === "left"
+          ? origin.x - point.x
+          : direction === "down"
+            ? point.y - origin.y
+            : origin.y - point.y;
+    if (primary <= 0) continue;
+
+    const cross = horizontal ? Math.abs(point.y - origin.y) : Math.abs(point.x - origin.x);
+    const overlaps = horizontal
+      ? candidate.y < source.y + source.h && source.y < candidate.y + candidate.h
+      : candidate.x < source.x + source.w && source.x < candidate.x + candidate.w;
+
+    // Off to the side and not in line with the source: only a candidate
+    // inside a 45° cone counts as being in this direction at all.
+    if (!overlaps && primary < cross) continue;
+
+    const score = primary + cross * CROSS_AXIS_WEIGHT + (overlaps ? 0 : NO_OVERLAP_PENALTY);
+    if (score < bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+
+  return best;
+}

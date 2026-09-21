@@ -56,9 +56,10 @@ export default async function InsightsPage() {
       <div className="mb-6 grid grid-cols-2 gap-5">
         <div>
           <div className="mb-0.5 text-sm font-semibold">Book composition</div>
-          <div className="mb-2.5 text-xs text-ink-muted">By AUM, colored by segment</div>
+          <div className="mb-2.5 text-xs text-ink-muted">By AUM, colored by segment · select one to open it</div>
           <BookTreemap
             items={households.map((h) => ({
+              id: h.id,
               name: h.name,
               aumCents: centsToNumber(h.aumCents),
               segment: h.segment,

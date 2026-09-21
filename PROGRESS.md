@@ -291,6 +291,13 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **An interactive chart is built out of links, not click handlers**
+  (D-028). A treemap cell is an SVG `<a href>`, so middle-click, open in
+  a new tab, copy link and Enter all work without being implemented, and
+  it reaches the accessibility tree as a named link. Keyboard navigation
+  is a roving tabindex — one tab stop for the whole chart, arrows moving
+  *spatially* between cells — because forty tab stops in the middle of a
+  page is hostile to anyone trying to get past it.
 - **Chart labels are measured against their cell before they are drawn**
   (D-027). `lib/charts/treemap.ts` computes the layout in viewBox units
   precisely so that decision can be exact: a name is drawn only if it
@@ -783,6 +790,24 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Book composition is now something you can get into (D-028). Every cell
+  is an SVG `<a href>` to its household, so middle-click, open-in-new-tab, copy-link and the
+  status-bar URL preview all work because the browser already knows how; the click handler
+  intercepts only a plain left click, to route without a page load. Keyboard navigation is a
+  roving tabindex rather than forty tab stops — the chart is one stop and the arrows move
+  within it, Home and End jump to the largest and smallest household, Enter follows the link
+  as links do.
+  The arrows move *spatially*, which is the part that needed real code: → from a tall cell
+  has to reach whatever is beside it, not whatever is next in value order. A candidate that
+  lines up with the source on the other axis always wins; one that lines up with nothing has
+  to sit within 45° of the direction asked for. That cone is not decoration — without it the
+  top-left cell answered ↑ with the cell to its right, whose centre sat a fraction higher,
+  which is true and is not what anybody pressing ↑ meant. Caught by driving the keys in a
+  real browser, then pinned by a test, alongside one proving all forty cells stay reachable.
+  Verified in the accessibility tree: a `group` named for the chart, described by the
+  keyboard hint, with forty `link` children named "{household}, {segment}, {AUM} under
+  management". §8's table equivalent is still not built.
 
 - **2026-09-21** — Wired up Vitest and fixed the Insights treemap (D-026, D-027).
   `pnpm test` now runs 101 unit tests over `lib/**` in about a second, with no database,

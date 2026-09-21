@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitText, pickLabel, squarify, textWidth } from "./treemap";
+import { fitText, neighbour, pickLabel, squarify, textWidth } from "./treemap";
 
 type Box = { name: string; value: number };
 const box = (name: string, value: number): Box => ({ name, value });
@@ -198,5 +198,113 @@ describe("fitText", () => {
   it("does not leave a trailing space before the ellipsis", () => {
     const fitted = fitText("Moreau Household", 46, 7);
     expect(fitted).not.toMatch(/ …$/);
+  });
+});
+
+describe("neighbour", () => {
+  /** A hand-built 2x2 grid, so "what a viewer would call next" is not a
+   * matter of opinion:
+   *
+   *   ┌────── a ──────┬────── b ──────┐
+   *   ├────── c ──────┼────── d ──────┤
+   */
+  const grid = [
+    { item: "a", x: 0, y: 0, w: 50, h: 50 },
+    { item: "b", x: 50, y: 0, w: 50, h: 50 },
+    { item: "c", x: 0, y: 50, w: 50, h: 50 },
+    { item: "d", x: 50, y: 50, w: 50, h: 50 },
+  ];
+  const at = (name: string) => grid.findIndex((c) => c.item === name);
+  const go = (name: string, dir: "up" | "down" | "left" | "right") =>
+    grid[neighbour(grid, at(name), dir)]!.item;
+
+  it("moves to the cell beside, above and below", () => {
+    expect(go("a", "right")).toBe("b");
+    expect(go("b", "left")).toBe("a");
+    expect(go("a", "down")).toBe("c");
+    expect(go("c", "up")).toBe("a");
+    expect(go("d", "left")).toBe("c");
+    expect(go("d", "up")).toBe("b");
+  });
+
+  /** The corner cell of the real chart answered ↑ with the cell beside
+   * it, whose centre sat a fraction higher. True, and not what anyone
+   * pressing ↑ meant. */
+  it("does not treat a sideways cell as being above or below", () => {
+    const row = [
+      { item: "left", x: 0, y: 0, w: 100, h: 60 },
+      { item: "right", x: 100, y: 0, w: 100, h: 58 },
+    ];
+    expect(neighbour(row, 0, "up")).toBe(0);
+    expect(neighbour(row, 0, "down")).toBe(0);
+    expect(row[neighbour(row, 0, "right")]!.item).toBe("right");
+  });
+
+  it("stays put at the edge of the chart", () => {
+    expect(go("a", "up")).toBe("a");
+    expect(go("a", "left")).toBe("a");
+    expect(go("d", "right")).toBe("d");
+    expect(go("d", "down")).toBe("d");
+  });
+
+  /** The reason this is not just "the next index": a tall cell beside a
+   * stack of short ones has to be reachable from any of them, and → from
+   * the tall one has to land on whichever short one it lines up with. */
+  it("prefers a cell it shares a row with over a nearer one it does not", () => {
+    const stack = [
+      { item: "tall", x: 0, y: 0, w: 40, h: 100 },
+      { item: "topRight", x: 40, y: 0, w: 60, h: 50 },
+      { item: "bottomRight", x: 40, y: 50, w: 60, h: 50 },
+    ];
+    const index = (n: string) => stack.findIndex((c) => c.item === n);
+    // The tall cell's centre is level with the boundary between the two;
+    // both overlap its span, and the nearer centre wins.
+    expect(stack[neighbour(stack, index("topRight"), "left")]!.item).toBe("tall");
+    expect(stack[neighbour(stack, index("bottomRight"), "left")]!.item).toBe("tall");
+    expect(stack[neighbour(stack, index("topRight"), "down")]!.item).toBe("bottomRight");
+  });
+
+  it("falls back to the nearest cell when nothing lines up", () => {
+    const offset = [
+      { item: "left", x: 0, y: 0, w: 40, h: 40 },
+      { item: "farRight", x: 60, y: 60, w: 40, h: 40 },
+    ];
+    expect(offset[neighbour(offset, 0, "right")]!.item).toBe("farRight");
+    expect(offset[neighbour(offset, 0, "down")]!.item).toBe("farRight");
+  });
+
+  it("is reversible across a straight move", () => {
+    for (const [name, there, back] of [
+      ["a", "right", "left"],
+      ["a", "down", "up"],
+      ["d", "left", "right"],
+      ["d", "up", "down"],
+    ] as const) {
+      const moved = neighbour(grid, at(name), there);
+      expect(grid[neighbour(grid, moved, back)]!.item).toBe(name);
+    }
+  });
+
+  it("reaches every cell in the real forty-household layout", () => {
+    const cells = layout(book);
+    const seen = new Set<number>([0]);
+    const queue = [0];
+    while (queue.length > 0) {
+      const current = queue.pop()!;
+      for (const dir of ["up", "down", "left", "right"] as const) {
+        const next = neighbour(cells, current, dir);
+        if (!seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    expect(seen.size).toBe(cells.length);
+  });
+
+  it("handles an out-of-range index and a single cell", () => {
+    expect(neighbour(grid, 99, "right")).toBe(99);
+    expect(neighbour([grid[0]!], 0, "right")).toBe(0);
+    expect(neighbour([], 0, "up")).toBe(0);
   });
 });
