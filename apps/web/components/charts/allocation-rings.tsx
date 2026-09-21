@@ -2,14 +2,9 @@
 
 import { donutSegments } from "@/lib/charts/donut";
 import { ASSET_CLASS_LABEL } from "@/lib/calc/holdings";
+import { CLASS_COLOR } from "@/lib/charts/asset-class";
 
 export type Mix = { equity: number; fixedIncome: number; cash: number };
-
-export const CLASS_COLOR: Record<string, string> = {
-  Equity: "var(--pine)",
-  FixedIncome: "var(--info)",
-  Cash: "var(--brass)",
-};
 
 const CLASSES = ["Equity", "FixedIncome", "Cash"] as const;
 export type AssetClassKey = (typeof CLASSES)[number];

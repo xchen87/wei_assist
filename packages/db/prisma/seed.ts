@@ -582,6 +582,54 @@ export const SECURITIES: SecuritySeed[] = [
 
 type PositionSeed = { ticker: string; marketValueCents: number; costBasisCents: number };
 
+// ---------------------------------------------------------------------------
+// Accounts.
+//
+// The tax treatment is the point of the layer: it is what makes a dollar
+// of bond fund in an IRA a different thing from the same dollar in a
+// brokerage account, and it is what lets the Tax section say "unrealised
+// losses in taxable accounts" and mean it.
+type AccountKind =
+  | "Taxable"
+  | "TraditionalIRA"
+  | "RothIRA"
+  | "Retirement401k"
+  | "Trust"
+  | "Education529";
+
+const TAX_TREATMENT: Record<AccountKind, "Taxable" | "TaxDeferred" | "TaxFree"> = {
+  Taxable: "Taxable",
+  Trust: "Taxable",
+  TraditionalIRA: "TaxDeferred",
+  Retirement401k: "TaxDeferred",
+  RothIRA: "TaxFree",
+  Education529: "TaxFree",
+};
+
+const ACCOUNT_LABEL: Record<AccountKind, string> = {
+  Taxable: "brokerage",
+  Trust: "revocable trust",
+  TraditionalIRA: "Traditional IRA",
+  Retirement401k: "401(k)",
+  RothIRA: "Roth IRA",
+  Education529: "529 plan",
+};
+
+// Fictional custodians, like everything else here (CLAUDE.md §13).
+const CUSTODIANS = ["Harborline Trust", "Redfern Custody", "Kestrel Clearing"];
+
+type AccountSeed = {
+  name: string;
+  kind: AccountKind;
+  taxTreatment: string;
+  custodian: string;
+  ownerName: string | null;
+  openedYear: number;
+  sortOrder: number;
+  weight: number;
+  positions: PositionSeed[];
+};
+
 /** Decreasing weights summing to 1 — a portfolio has a core and a tail,
  * not N equal slices. */
 function decreasingWeights(count: number, rand: () => number): number[] {
@@ -602,13 +650,83 @@ function allocateCents(totalCents: number, weights: number[]): number[] {
 }
 
 /**
- * Builds a household's positions from the allocation it already has.
+ * The accounts a household holds, before anything is put in them.
+ *
+ * Everyone has a brokerage account. Most working households have a
+ * tax-deferred account each; a Roth and a 401(k) show up often enough to
+ * be worth modelling, a trust on the larger households, and a 529 only
+ * where there is a dependent to spend it on — an education account for a
+ * childless couple would be a fact about them that isn't true.
+ */
+function buildAccounts(
+  h: HouseholdSeed,
+  index: number,
+  rand: () => number,
+): Omit<AccountSeed, "positions">[] {
+  const planners = h.members.filter((m) => m.role !== "Dependent");
+  const primary = planners[0]?.name ?? null;
+  const spouse = planners[1]?.name ?? null;
+  const hasDependent = h.members.some((m) => m.role === "Dependent");
+  const surname = h.name.replace(/^The\s+/i, "").split(" ")[0]!;
+  const custodian = CUSTODIANS[index % CUSTODIANS.length]!;
+  const openedBase = h.clientSinceYear;
+
+  const accounts: Omit<AccountSeed, "positions">[] = [];
+  const add = (
+    kind: AccountKind,
+    ownerName: string | null,
+    weight: number,
+    openedOffset: number,
+  ) => {
+    const who = ownerName ? ownerName.split(" ")[0]! : spouse ? "Joint" : surname;
+    accounts.push({
+      name: `${who} ${ACCOUNT_LABEL[kind]}`,
+      kind,
+      taxTreatment: TAX_TREATMENT[kind],
+      custodian,
+      ownerName,
+      openedYear: openedBase + openedOffset,
+      sortOrder: accounts.length,
+      weight,
+    });
+  };
+
+  add("Taxable", spouse ? null : primary, 1.6 + rand(), 0);
+  if (primary) add("TraditionalIRA", primary, 1 + rand() * 0.8, 1);
+  if (spouse && rand() < 0.75) add("TraditionalIRA", spouse, 0.6 + rand() * 0.6, 1);
+  if (rand() < 0.55) add("RothIRA", primary, 0.3 + rand() * 0.4, 2);
+  if (rand() < 0.45) add("Retirement401k", primary, 0.7 + rand() * 0.8, 1);
+  if (h.segment === "Founding" && rand() < 0.7) add("Trust", null, 0.8 + rand() * 0.9, 3);
+  if (hasDependent && rand() < 0.8) add("Education529", null, 0.15 + rand() * 0.2, 2);
+
+  return accounts;
+}
+
+/** How willingly a tax treatment takes each asset class.
+ *
+ * Shaping only. Putting income-producing assets where income is not taxed
+ * each year is a real and widely-used idea, but this table is not advice
+ * and the app does not claim the arrangement is right for anyone — it is
+ * here so the seeded book looks like a book an advisor has worked on
+ * rather than a uniform smear, and so the asset-location readout has
+ * something to show. */
+const LOCATION_PREFERENCE: Record<string, Record<string, number>> = {
+  Equity: { Taxable: 1.35, TaxDeferred: 0.75, TaxFree: 1.2 },
+  FixedIncome: { Taxable: 0.5, TaxDeferred: 1.6, TaxFree: 0.6 },
+  Cash: { Taxable: 1.8, TaxDeferred: 0.4, TaxFree: 0.3 },
+};
+
+/**
+ * Builds a household's positions from the allocation it already has, then
+ * spreads each one over the accounts that would plausibly hold it.
  *
  * The percentages come first and the holdings are cut to fit them, which
  * is the only way the two can agree: the sleeves are sized off
  * `equityActualPct` / `fixedIncomeActualPct` with cash taking the
  * remainder, so re-deriving the mix from the positions reproduces the
- * stored figures rather than contradicting them on the same page.
+ * stored figures rather than contradicting them on the same page. Adding
+ * accounts underneath does not disturb that — a security's total is split
+ * across accounts, never changed.
  */
 function buildPositions(
   portfolioCents: number,
@@ -689,7 +807,7 @@ function buildPositions(
   }
 
   // One row per security: a household drawn the same fund twice holds one
-  // position in it, which is what the schema's uniqueness says too.
+  // position in it.
   const merged = new Map<string, PositionSeed>();
   for (const p of positions) {
     const existing = merged.get(p.ticker);
@@ -701,6 +819,92 @@ function buildPositions(
     }
   }
   return [...merged.values()].filter((p) => p.marketValueCents > 0);
+}
+
+/**
+ * Puts each security into accounts.
+ *
+ * A security's total is split, never altered, so the household's asset
+ * mix is exactly what `buildPositions` produced however the accounts fall
+ * out. Each security lands in one or two accounts, chosen by account size
+ * weighted by how willingly that tax treatment takes the asset class —
+ * enough to make the asset-location readout show something other than an
+ * even smear, without pretending the arrangement is optimal.
+ */
+function placePositionsInAccounts(
+  accounts: Omit<AccountSeed, "positions">[],
+  positions: PositionSeed[],
+  rand: () => number,
+): AccountSeed[] {
+  const filled: AccountSeed[] = accounts.map((a) => ({ ...a, positions: [] }));
+  if (filled.length === 0) return filled;
+
+  // Every account gets something before any account gets a second thing.
+  // Without this the small ones — a Roth, a 529 — lose every weighted
+  // draw and are dropped as empty, which quietly throws away the fact
+  // that the household has one: 55% of households were given a Roth and
+  // two of forty kept it.
+  const placed = new Set<string>();
+  const order = [...filled.keys()].sort((a, b) => filled[b]!.weight - filled[a]!.weight);
+  for (const accountIndex of order) {
+    const account = filled[accountIndex]!;
+    const preference = (ticker: string) =>
+      LOCATION_PREFERENCE[SECURITY_BY_TICKER.get(ticker)!.assetClass]?.[account.taxTreatment] ?? 1;
+    const pick = positions
+      .filter((p) => !placed.has(p.ticker))
+      .sort((a, b) => preference(b.ticker) * b.marketValueCents - preference(a.ticker) * a.marketValueCents)[0];
+    if (!pick) break;
+    placed.add(pick.ticker);
+    account.positions.push({ ...pick });
+  }
+
+  for (const position of positions) {
+    if (placed.has(position.ticker)) continue;
+    const assetClass = SECURITY_BY_TICKER.get(position.ticker)!.assetClass;
+    const preference = LOCATION_PREFERENCE[assetClass] ?? {};
+
+    const scored = filled
+      .map((account, i) => ({
+        i,
+        score: account.weight * (preference[account.taxTreatment] ?? 1) * (0.7 + rand() * 0.6),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    // One account usually, two when the position is big enough to have
+    // been bought in more than one place.
+    const spread = scored.length > 1 && rand() < 0.4 ? 2 : 1;
+    const chosen = scored.slice(0, spread);
+    const shares = decreasingWeights(chosen.length, rand);
+    const values = allocateCents(position.marketValueCents, shares);
+    const bases = allocateCents(position.costBasisCents, shares);
+
+    for (const [k, target] of chosen.entries()) {
+      if (values[k]! <= 0) continue;
+      filled[target.i]!.positions.push({
+        ticker: position.ticker,
+        marketValueCents: values[k]!,
+        costBasisCents: bases[k]!,
+      });
+    }
+  }
+
+  // Merge any security that landed in one account twice, and drop an
+  // account nothing was put into rather than showing an empty statement.
+  for (const account of filled) {
+    const merged = new Map<string, PositionSeed>();
+    for (const p of account.positions) {
+      const existing = merged.get(p.ticker);
+      if (existing) {
+        existing.marketValueCents += p.marketValueCents;
+        existing.costBasisCents += p.costBasisCents;
+      } else {
+        merged.set(p.ticker, { ...p });
+      }
+    }
+    account.positions = [...merged.values()];
+  }
+
+  return filled.filter((a) => a.positions.length > 0);
 }
 
 const SECURITY_BY_TICKER = new Map(SECURITIES.map((s) => [s.ticker, s]));
@@ -772,6 +976,12 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
             100,
         ) / 100;
 
+  // Where each of those positions is actually held (CLAUDE.md §10's
+  // Household -> Account -> Position spine). Splitting a security across
+  // accounts never changes its total, so the household's asset mix is
+  // exactly what buildPositions produced however the accounts fall out.
+  const accounts = placePositionsInAccounts(buildAccounts(h, index, rand), positions, rand);
+
   const goals = GOAL_TEMPLATES.map((g, gi) => {
     const targetCents = Math.round(netWorthCents * g.targetMultiple);
     const basePct = gi === 0 ? h.planHealthPct + 8 : 40 + rand() * 60;
@@ -809,8 +1019,22 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
   const taxableIncomeCents = Math.round(incomeCents * (0.75 + rand() * 0.15));
   const effectiveRatePct = Math.round((14 + rand() * 10) * 10) / 10;
   const realizedGainsCents = Math.round(netWorthCents * (0.001 + rand() * 0.003));
-  const unrealizedGainsCents = Math.round(investmentAccountsCents * (0.15 + rand() * 0.15));
-  const harvestableLossesCents = Math.round(unrealizedGainsCents * (0.02 + rand() * 0.04));
+  // Both figures are about *taxable* accounts, which is a claim the app
+  // could not previously check: they were a fraction of the portfolio
+  // picked at random. Now they are the gains and losses sitting in the
+  // accounts whose tax treatment is Taxable, and a loss inside an IRA —
+  // which is not the same kind of thing at all — is correctly left out.
+  const taxablePositions = accounts
+    .filter((a) => a.taxTreatment === "Taxable")
+    .flatMap((a) => a.positions);
+  const unrealizedGainsCents = taxablePositions.reduce(
+    (sum, p) => sum + Math.max(0, p.marketValueCents - p.costBasisCents),
+    0,
+  );
+  const harvestableLossesCents = taxablePositions.reduce(
+    (sum, p) => sum + Math.max(0, p.costBasisCents - p.marketValueCents),
+    0,
+  );
 
   // Activity
   const openTasksCount = Math.round(rand() * 4);
@@ -1312,7 +1536,7 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     equityActualPct: equityActual,
     fixedIncomeTargetPct: fixedIncomeTarget,
     fixedIncomeActualPct: fixedIncomeActual,
-    positions,
+    accounts,
     // Share of the whole portfolio, which is what a concentration figure
     // means; the section used to quote it as a share of equities, which
     // made it incomparable with the threshold an advisor actually sets.
@@ -1526,6 +1750,7 @@ async function main() {
   await prisma.indicator.deleteMany();
   await prisma.insight.deleteMany();
   await prisma.position.deleteMany();
+  await prisma.account.deleteMany();
   await prisma.security.deleteMany();
   await prisma.goal.deleteMany();
   await prisma.member.deleteMany();
@@ -1568,7 +1793,7 @@ async function main() {
 
   for (const [index, h] of HOUSEHOLDS.entries()) {
     const extra = deriveFinancials(h, index);
-    await prisma.household.create({
+    const created = await prisma.household.create({
       data: {
         name: h.name,
         segment: h.segment,
@@ -1650,15 +1875,47 @@ async function main() {
         activityEvents: { create: extra.activityEvents },
         complianceItems: { create: extra.complianceItems },
         attestations: { create: extra.attestations },
-        positions: {
-          create: extra.positions.map((position) => ({
-            securityId: securityIdByTicker.get(position.ticker)!,
-            marketValueCents: big(position.marketValueCents),
-            costBasisCents: big(position.costBasisCents),
+        accounts: {
+          create: extra.accounts.map((account) => ({
+            name: account.name,
+            kind: account.kind,
+            taxTreatment: account.taxTreatment,
+            custodian: account.custodian,
+            openedYear: account.openedYear,
+            sortOrder: account.sortOrder,
+            positions: {
+              create: account.positions.map((position) => ({
+                securityId: securityIdByTicker.get(position.ticker)!,
+                marketValueCents: big(position.marketValueCents),
+                costBasisCents: big(position.costBasisCents),
+              })),
+            },
           })),
         },
       },
+      select: { id: true, members: { select: { id: true, name: true } } },
     });
+
+    // Owners are linked after the fact: members and accounts are created
+    // in one nested write, so the member ids don't exist until it lands.
+    // An account with no owner is joint or held by the household, which
+    // is a fact about it rather than a gap.
+    const memberIdByName = new Map(created.members.map((m) => [m.name, m.id]));
+    const owned = extra.accounts.filter((a) => a.ownerName !== null);
+    if (owned.length > 0) {
+      const accountRows = await prisma.account.findMany({
+        where: { householdId: created.id },
+        select: { id: true, sortOrder: true },
+      });
+      const accountIdBySortOrder = new Map(accountRows.map((a) => [a.sortOrder, a.id]));
+      for (const account of owned) {
+        const accountId = accountIdBySortOrder.get(account.sortOrder);
+        const ownerMemberId = memberIdByName.get(account.ownerName!);
+        if (accountId && ownerMemberId) {
+          await prisma.account.update({ where: { id: accountId }, data: { ownerMemberId } });
+        }
+      }
+    }
   }
 
   for (const p of PROSPECTS) {

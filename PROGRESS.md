@@ -291,6 +291,26 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **A 200 is not proof a page rendered** (D-030). The error boundary
+  answers 200, so a render that throws looks identical to curl. The route
+  sweep greps each response for the boundary's text and the server log
+  for errors; without both, a page that fails completely passes the
+  check. This is the other half of the bill D-011 ran up when it traded
+  404 fidelity for an error boundary.
+- **Never export a plain constant from a `"use client"` module into a
+  server component** (D-030). React resolves it through the client
+  manifest, a non-component export is not in there, and the page throws
+  at render. Shared constants go in their own module — see
+  `lib/charts/asset-class.ts`.
+- **An account's tax treatment is what makes the layer worth having**
+  (D-030). It is why the Tax section can say "unrealised losses in
+  taxable accounts" and mean it. A claim about a *kind* of account is
+  only checkable once accounts exist.
+- **Two views of the same money: per security and per position** (D-030).
+  "What do we hold" wants one row per security; "where is it held" wants
+  one per position. Concentration is measured on the merged view, or
+  bookkeeping hides it — one name at 6% in a brokerage account and 5% in
+  an IRA is an 11% position in that company.
 - **A figure about the holdings is derived from the holdings** (D-029).
   The mix, the blended expense ratio, the distinct-holdings count and the
   largest position are all rolled up from `Position` rows rather than
@@ -808,6 +828,39 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Added the account layer, completing §10's Household → Account → Position →
+  Security spine (D-030). D-029 deferred it because nothing needed it; that was true of the
+  data model and not of the pages on top of it. The Tax section had a row labelled "unrealized
+  gains (taxable accounts)" over a random fraction of the portfolio — it *could not* have been
+  about taxable accounts, because the app had no idea which accounts were taxable — and a
+  withdrawal order, "Taxable → Traditional → Roth", identical on all forty households and
+  attached to nothing.
+  163 accounts across the book (40 brokerage, 61 traditional IRAs, 20 Roths, 18 401(k)s, 16
+  529s — only in the 19 households that have a dependent — and 8 trusts), 523 positions. The
+  seed splits each security's total across accounts and never alters it, so D-029's invariant
+  survives: the mix re-derived off the positions still reproduces the stored percentages to
+  0.000 points. Unrealised gains and losses are now computed from taxable accounts only, the
+  withdrawal order shows the balances it would actually draw on, the balance sheet itemises
+  "Investment accounts" into the accounts that make it up, and Allocation gained an accounts
+  panel and an asset-location readout.
+  Three things worth keeping. Concentration is now measured **per security, not per position**
+  — one name at 6% in a brokerage account and 5% in an IRA is an 11% position in that company,
+  and counting the lots separately reports neither; no household in this book has a breach that
+  only merging reveals, so it changes nothing today and closes the hole. The seed needed a
+  coverage pass, because small accounts lost every weighted draw for a position and were
+  dropped as empty: 55% of households were given a Roth and two of forty kept it. And
+  "unrealized losses available to harvest" became "unrealized losses (taxable accounts)" —
+  whether a loss can be used is a tax question that depends on the rest of the return, and this
+  app states the amount rather than the conclusion.
+  The bug worth recording is how one hid. `CLASS_COLOR` was exported from the rings chart, a
+  `"use client"` module, and imported by the new server-rendered accounts panel. React resolves
+  that through the client manifest, a plain constant is not in it, and the page throws at
+  render — where the error boundary catches it and answers **200**. The curl sweep that has
+  verified every change in this repository was blind to it; the browser caught it immediately.
+  The sweep now greps each response for the boundary's own text as well.
+  §6's "account types held" filter is finally possible and still not built — the Clients list
+  has no filter-chip machinery yet.
 
 - **2026-09-21** — Allocation now holds real positions (D-029). The section could say a
   household was 62% equities and could not say what the equities *were*. `Security` and

@@ -1040,6 +1040,9 @@ versus IRA versus Roth genuinely matters — it drives withdrawal ordering and �
 modelling a distinction no surface makes is worse than a later migration. Position hangs off
 Household and the account layer is deferred.
 
+> Superseded by **D-030**, which adds the account layer the next day. `Position.householdId`
+> is gone; a position belongs to an account, and the account to the household.
+
 **Concentration is measured on single names only.** Across the seeded book the largest *fund*
 is a median 24% of the portfolio and the largest *single stock* a median 8%; a threshold that
 catches the second flags all forty households on the first. A broad index fund at a quarter of
@@ -1073,3 +1076,73 @@ The assistant's `allocation` section reader now returns the positions too, rolle
 the same function the page uses, so what it says and what the page shows come from one place.
 Securities are shared across the book, which is what keeps the Markets watchlist grouping by
 ticker meaningful — thirteen distinct top holdings across forty households.
+
+---
+
+## D-030 — The account layer, and the claims it makes checkable
+
+2026-09-21 · Accepted
+
+**Context** — D-029 built positions and deferred the `Account` that CLAUDE.md §10 puts between
+them and the household, on the grounds that nothing needed it yet. That was true of the data
+model and not of the pages sitting on top of it. The Tax section had a row labelled "unrealized
+gains (taxable accounts)" over a number that was a random fraction of the portfolio — it could
+not have been about taxable accounts, because the app had no idea which accounts were taxable.
+The same section named a withdrawal order, "Taxable → Traditional → Roth", identical on all
+forty households and attached to nothing.
+
+**Decision** — `Account` between Household and Position, completing §10's spine.
+`Position.householdId` is gone: a position belongs to an account and the account to the
+household, so there is one path to a holding rather than two that can disagree.
+
+The field that earns the layer is `taxTreatment`. Everything else about an account is
+description; the treatment is what makes a dollar of bond fund in an IRA a different object
+from the same dollar in a brokerage account. It is what lets the Tax section compute
+unrealised gains and losses **in taxable accounts** and mean it, and what lets the withdrawal
+order show the balances it would actually draw on, in the order it would draw them.
+
+The seed splits each security's total across accounts and never alters it, so D-029's
+invariant survives untouched: re-deriving the household's mix off the positions still
+reproduces the stored percentages to 0.000 points across all forty households.
+
+**Unrealised losses are reported, not adjudicated.** The Tax row was "unrealized losses
+available to harvest"; it is now "unrealized losses (taxable accounts)". Whether a loss can be
+used is a tax question depending on the rest of the return, and §13 rules out this app
+asserting the rule. Excluding losses inside an IRA is not an assertion about what may be
+harvested — it is the account layer reporting a different set of positions.
+
+**Alternatives** — Keep positions on the household and add an account label: cheap, and the
+label would be a string nothing could roll up. Model accounts without tax treatment: then the
+layer is filing, and none of the claims above become checkable. Derive the treatment from the
+kind at every read instead of storing it: one fewer column, and every caller gets its own
+chance to disagree about what a 529 is.
+
+**Consequences** — **Two views of the same money, and they must not be confused.** "What do we
+hold?" wants one row per security; "where is it held?" wants one row per position. The
+asset-class breakdown and the holdings table now do one each. Concentration is measured on the
+merged view, because bookkeeping must not be able to hide it: one company at 6% in a brokerage
+account and 5% in an IRA is an 11% position in that company, and counting the lots separately
+reports neither. No household in the seeded book has a breach that only merging reveals, so
+this changes nothing today and closes the hole.
+
+The seed needed a coverage pass. Small accounts — a Roth, a 529 — lost every weighted draw for
+a position and were dropped as empty, which silently discarded the fact that the household had
+one: 55% of households were given a Roth and two of forty kept it. Every account now takes a
+position before any account takes a second.
+
+Asset location is shown as **fact, not judgement**. Which sleeve sits under which treatment is
+something the record knows; whether that arrangement suits a household depends on brackets,
+horizons and intentions it does not (§9 rule 4). The seed shapes location plausibly so the
+readout has something to show, and says in the code that it is shaping rather than advice.
+
+One bug is worth recording for how it hid. `CLASS_COLOR` was exported from the rings chart,
+which is a `"use client"` module, and the new server-rendered accounts panel imported it. React
+resolves an import from a client module through its client manifest, a plain constant is not in
+that manifest, and the page throws at render — where the error boundary catches it and answers
+**200**. The curl sweep that has verified every change in this repository could not see it; a
+browser and the server log both could. The sweep now also greps each response for the error
+boundary's own text (D-011 traded 404 fidelity for that boundary, and this is the other half of
+that bill).
+
+§6's "account types held" filter is now possible and is still not built: the Clients list has
+saved views, search and sort but no filter-chip machinery, which is its own piece of work.

@@ -124,6 +124,37 @@ export function summarisePortfolio(holdings: readonly Holding[]): PortfolioSumma
 }
 
 /**
+ * Collapses positions in the same security into one holding.
+ *
+ * Two questions live on this page and they want different rows. "What am
+ * I holding?" wants one line per company or fund, which is what the
+ * asset-class breakdown shows. "Where is it held?" wants one line per
+ * position, which is what the holdings table shows, account column and
+ * all.
+ *
+ * Concentration has to be measured on the merged view or it can be hidden
+ * by bookkeeping: one company at 6% in a brokerage account and 5% in an
+ * IRA is an 11% position in that company, and counting the lots
+ * separately reports neither.
+ *
+ * Cost basis adds up; the merged row takes the ticker as its id, since
+ * there is no single position behind it any more.
+ */
+export function mergeBySecurity(holdings: readonly Holding[]): Holding[] {
+  const merged = new Map<string, Holding>();
+  for (const holding of holdings) {
+    const existing = merged.get(holding.ticker);
+    if (existing) {
+      existing.marketValueCents += holding.marketValueCents;
+      existing.costBasisCents += holding.costBasisCents;
+    } else {
+      merged.set(holding.ticker, { ...holding, id: holding.ticker });
+    }
+  }
+  return [...merged.values()];
+}
+
+/**
  * A concentration limit, restated as a share of one asset class.
  *
  * The limit an advisor sets is a share of the whole portfolio; a chart of

@@ -5,6 +5,12 @@ import { SectionActions } from "@/components/plan/section-actions";
 import { TaxBracketBar } from "@/components/charts/tax-bracket-bar";
 import { bracketPosition } from "@/lib/calc/tax";
 import { formatMoney, centsToNumber } from "@/lib/format/money";
+import {
+  TAX_TREATMENT_LABEL,
+  assetLocation,
+  taxablePositionResults,
+  type AccountInput,
+} from "@/lib/calc/accounts";
 import { formatPercent } from "@/lib/format/percent";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +18,41 @@ export const dynamic = "force-dynamic";
 export default async function TaxPage({ params }: { params: { id: string } }) {
   const household = await prisma.household.findUnique({
     where: { id: params.id },
-    include: { insights: { where: { dismissed: false, section: "Tax" } } },
+    include: {
+      insights: { where: { dismissed: false, section: "Tax" } },
+      accounts: {
+        orderBy: { sortOrder: "asc" },
+        include: { positions: { include: { security: true } }, owner: { select: { name: true } } },
+      },
+    },
   });
   if (!household) notFound();
+
+  // Both gain figures are claims about *taxable* accounts, which is a
+  // claim the app could not check until accounts existed (D-030).
+  const accounts: AccountInput[] = household.accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    kind: account.kind,
+    taxTreatment: account.taxTreatment,
+    custodian: account.custodian,
+    ownerName: account.owner?.name ?? null,
+    openedYear: account.openedYear,
+    holdings: account.positions.map((p) => ({
+      id: p.id,
+      ticker: p.security.ticker,
+      name: p.security.name,
+      kind: p.security.kind,
+      assetClass: p.security.assetClass,
+      sector: p.security.sector,
+      region: p.security.region,
+      expenseRatioPct: p.security.expenseRatioPct,
+      marketValueCents: centsToNumber(p.marketValueCents),
+      costBasisCents: centsToNumber(p.costBasisCents),
+    })),
+  }));
+  const taxable = taxablePositionResults(accounts);
+  const byTreatment = assetLocation(accounts);
 
   const taxableIncome = centsToNumber(household.taxableIncomeCents);
   const position = bracketPosition(taxableIncome);
@@ -49,9 +87,33 @@ export default async function TaxPage({ params }: { params: { id: string } }) {
           <tbody>
             <Row label="Effective rate (est.)">{formatPercent(household.effectiveRatePct)}</Row>
             <Row label="Realized gains, YTD (long-term)">{formatMoney(household.realizedGainsCents)}</Row>
-            <Row label="Unrealized gains (taxable accounts)">{formatMoney(household.unrealizedGainsCents)}</Row>
-            <Row label="Unrealized losses available to harvest">{formatMoney(household.harvestableLossesCents)}</Row>
-            <Row label="Preferred withdrawal order">{household.withdrawalSequencing}</Row>
+            <Row label="Unrealized gains (taxable accounts)">
+              {formatMoney(taxable.unrealisedGainCents)}
+            </Row>
+            {/* Not "available to harvest": whether a loss can be used is a
+                tax question that depends on the rest of the return, and
+                this app states the amount rather than the conclusion
+                (§13). A loss inside an IRA is excluded — it is not the
+                same kind of thing — which is the account layer earning
+                its keep. */}
+            <Row label="Unrealized losses (taxable accounts)">
+              {formatMoney(taxable.unrealisedLossCents)}
+            </Row>
+            <Row label="Preferred withdrawal order">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {byTreatment.map((cell, i) => (
+                  <span key={cell.taxTreatment} className="flex items-center gap-2">
+                    {i > 0 ? <span className="text-ink-muted">→</span> : null}
+                    <span>
+                      {TAX_TREATMENT_LABEL[cell.taxTreatment] ?? cell.taxTreatment}{" "}
+                      <span className="text-ink-muted">
+                        {formatMoney(cell.valueCents, { compact: true })}
+                      </span>
+                    </span>
+                  </span>
+                ))}
+              </span>
+            </Row>
           </tbody>
         </table>
       }

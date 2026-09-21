@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   concentratedPositions,
   isSingleName,
+  mergeBySecurity,
   summarisePortfolio,
   thresholdWithinClass,
   type Holding,
@@ -176,5 +177,53 @@ describe("thresholdWithinClass", () => {
     // HALD is 20% of the portfolio, which is the limit exactly.
     expect(hald.portfolioPct).toBeCloseTo(20, 6);
     expect(hald.classPct).toBeCloseTo(marker, 6);
+  });
+});
+
+describe("mergeBySecurity", () => {
+  const split: Holding[] = [
+    holding({ id: "p1", ticker: "CDFN", marketValueCents: 6_000_00, costBasisCents: 4_000_00 }),
+    holding({ id: "p2", ticker: "CDFN", marketValueCents: 5_000_00, costBasisCents: 5_500_00 }),
+    holding({ id: "p3", ticker: "HALD", marketValueCents: 2_000_00 }),
+  ];
+
+  it("adds up value and basis across accounts", () => {
+    const merged = mergeBySecurity(split);
+    expect(merged).toHaveLength(2);
+    const cdfn = merged.find((h) => h.ticker === "CDFN")!;
+    expect(cdfn.marketValueCents).toBe(11_000_00);
+    expect(cdfn.costBasisCents).toBe(9_500_00);
+  });
+
+  it("keeps the ticker as the merged row's id", () => {
+    expect(mergeBySecurity(split).map((h) => h.id)).toEqual(["CDFN", "HALD"]);
+  });
+
+  /** The reason this exists: bookkeeping must not be able to hide a
+   * concentrated position. 6% in a brokerage account and 5% in an IRA is
+   * an 11% position in that company, and counting the lots separately
+   * reports neither. */
+  it("surfaces a concentration that splitting across accounts would hide", () => {
+    const perLot = summarisePortfolio([...split, holding({ id: "rest", ticker: "MBEI", kind: "ETF", marketValueCents: 89_000_00 })]);
+    expect(concentratedPositions(perLot, 10)).toEqual([]);
+
+    const perSecurity = summarisePortfolio(
+      mergeBySecurity([...split, holding({ id: "rest", ticker: "MBEI", kind: "ETF", marketValueCents: 89_000_00 })]),
+    );
+    expect(concentratedPositions(perSecurity, 10).map((r) => r.ticker)).toEqual(["CDFN"]);
+  });
+
+  it("leaves a portfolio with no duplicates untouched in length", () => {
+    expect(mergeBySecurity(portfolio)).toHaveLength(portfolio.length);
+  });
+
+  it("does not mutate the holdings it is given", () => {
+    const snapshot = JSON.stringify(split);
+    mergeBySecurity(split);
+    expect(JSON.stringify(split)).toBe(snapshot);
+  });
+
+  it("handles an empty portfolio", () => {
+    expect(mergeBySecurity([])).toEqual([]);
   });
 });

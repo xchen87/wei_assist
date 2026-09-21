@@ -6,7 +6,14 @@ import { formatDate } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
 import { bySeverity } from "@/lib/calc/signals";
 import { sectionPath, sectionPathFromName, type SectionKey } from "@/lib/sections";
-import { ASSET_CLASS_LABEL, summarisePortfolio } from "@/lib/calc/holdings";
+import { ASSET_CLASS_LABEL, mergeBySecurity, summarisePortfolio } from "@/lib/calc/holdings";
+import {
+  ACCOUNT_KIND_LABEL,
+  TAX_TREATMENT_LABEL,
+  assetLocation,
+  summariseAccounts,
+  type AccountInput,
+} from "@/lib/calc/accounts";
 
 /** Tools are the only way the model touches data (CLAUDE.md §9) — there is
  * no free-form SQL, and nothing here takes a table or column name from the
@@ -426,6 +433,56 @@ export function findTool(name: string): ToolDef | undefined {
 // Section readers. Each returns display-ready strings plus the link to the
 // page the advisor can verify them on.
 
+/** Shapes the Prisma rows into what lib/calc expects, converting cents at
+ * the boundary (D-023). */
+function toAccountInputs(
+  accounts: {
+    id: string;
+    name: string;
+    kind: string;
+    taxTreatment: string;
+    custodian: string;
+    openedYear: number;
+    owner: { name: string } | null;
+    positions: {
+      id: string;
+      marketValueCents: bigint;
+      costBasisCents: bigint;
+      security: {
+        ticker: string;
+        name: string;
+        kind: string;
+        assetClass: string;
+        sector: string | null;
+        region: string;
+        expenseRatioPct: number;
+      };
+    }[];
+  }[],
+): AccountInput[] {
+  return accounts.map((account) => ({
+    id: account.id,
+    name: account.name,
+    kind: account.kind,
+    taxTreatment: account.taxTreatment,
+    custodian: account.custodian,
+    ownerName: account.owner?.name ?? null,
+    openedYear: account.openedYear,
+    holdings: account.positions.map((p) => ({
+      id: p.id,
+      ticker: p.security.ticker,
+      name: p.security.name,
+      kind: p.security.kind,
+      assetClass: p.security.assetClass,
+      sector: p.security.sector,
+      region: p.security.region,
+      expenseRatioPct: p.security.expenseRatioPct,
+      marketValueCents: centsToNumber(p.marketValueCents),
+      costBasisCents: centsToNumber(p.costBasisCents),
+    })),
+  }));
+}
+
 async function readSection(householdId: string, section: Section, refs: RefRegistry): Promise<ToolOutcome> {
   const h = await prisma.household.findUnique({
     where: { id: householdId },
@@ -439,7 +496,10 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
       documents: true,
       complianceItems: { orderBy: { sortOrder: "asc" } },
       attestations: { orderBy: { occurredAt: "desc" } },
-      positions: { include: { security: true } },
+      accounts: {
+        orderBy: { sortOrder: "asc" },
+        include: { positions: { include: { security: true } }, owner: { select: { name: true } } },
+      },
     },
   });
   if (!h) return { payload: { error: "No household with that id." }, recordIds: [] };
@@ -519,32 +579,30 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
       // Rolled up from the positions rather than read off the household's
       // stored columns, so what the assistant says and what the page shows
       // come from one place (D-029).
-      const portfolio = summarisePortfolio(
-        h.positions.map((p) => ({
-          id: p.id,
-          ticker: p.security.ticker,
-          name: p.security.name,
-          kind: p.security.kind,
-          assetClass: p.security.assetClass,
-          sector: p.security.sector,
-          region: p.security.region,
-          expenseRatioPct: p.security.expenseRatioPct,
-          marketValueCents: centsToNumber(p.marketValueCents),
-          costBasisCents: centsToNumber(p.costBasisCents),
-        })),
+      const accounts = toAccountInputs(h.accounts);
+      const positions = accounts.flatMap((a) => a.holdings);
+      // Summary figures come from the per-security view, like the page:
+      // one name split across two accounts is one holding of that name.
+      // The listing stays per position, because each row names the
+      // account it sits in and that is the detail worth having.
+      const bySecurity = summarisePortfolio(mergeBySecurity(positions));
+      const portfolio = summarisePortfolio(positions);
+      const accountNameByHolding = new Map(
+        accounts.flatMap((a) => a.holdings.map((holding) => [holding.id, a.name] as const)),
       );
       return {
-        recordIds: [h.id, ...h.positions.map((p) => p.id)],
+        recordIds: [h.id, ...h.accounts.flatMap((a) => [a.id, ...a.positions.map((p) => p.id)])],
         payload: {
           ...base,
           equity: `${formatPercent(h.equityActualPct)} actual against a ${formatPercent(h.equityTargetPct)} target`,
           fixed_income: `${formatPercent(h.fixedIncomeActualPct)} actual against a ${formatPercent(h.fixedIncomeTargetPct)} target`,
           cash: `${formatPercent(h.cashPct)} actual against a ${formatPercent(h.targetCashPct)} target`,
           drift: formatPercent(h.driftPct),
-          distinct_holdings: portfolio.distinctHoldings,
-          blended_expense_ratio: formatPercent(portfolio.blendedExpenseRatioPct, 2),
-          largest_position: portfolio.largest
-            ? `${portfolio.largest.name} (${portfolio.largest.ticker}) at ${formatPercent(portfolio.largest.portfolioPct)} of the portfolio`
+          distinct_holdings: bySecurity.distinctHoldings,
+          open_positions: portfolio.distinctHoldings,
+          blended_expense_ratio: formatPercent(bySecurity.blendedExpenseRatioPct, 2),
+          largest_position: bySecurity.largest
+            ? `${bySecurity.largest.name} (${bySecurity.largest.ticker}) at ${formatPercent(bySecurity.largest.portfolioPct)} of the portfolio, across every account holding it`
             : "none on file",
           // Every position, so a question about what is actually held in a
           // sleeve is answered from the record instead of from priors (§9).
@@ -555,6 +613,9 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
             positions: group.holdings.map((holding) => ({
               ticker: holding.ticker,
               name: holding.name,
+              // Which account it sits in, because the same fund in a
+              // brokerage account and an IRA is not the same holding.
+              account: accountNameByHolding.get(holding.id) ?? "unknown",
               type: holding.kind,
               sector: holding.sector ?? "diversified",
               value: money(holding.marketValueCents),
@@ -563,6 +624,23 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
               unrealised: money(holding.gainCents),
               expense_ratio: holding.expenseRatioPct > 0 ? formatPercent(holding.expenseRatioPct, 2) : "none",
             })),
+          })),
+          accounts: summariseAccounts(accounts).map((account) => ({
+            name: account.name,
+            kind: ACCOUNT_KIND_LABEL[account.kind] ?? account.kind,
+            tax_treatment: TAX_TREATMENT_LABEL[account.taxTreatment] ?? account.taxTreatment,
+            custodian: account.custodian,
+            owner: account.ownerName ?? "held jointly",
+            value: money(account.valueCents),
+            share_of_portfolio: formatPercent(account.portfolioPct),
+          })),
+          asset_location: assetLocation(accounts).map((cell) => ({
+            tax_treatment: TAX_TREATMENT_LABEL[cell.taxTreatment] ?? cell.taxTreatment,
+            value: money(cell.valueCents),
+            share_of_portfolio: formatPercent(cell.portfolioPct),
+            mix: cell.byClass
+              .map((slice) => `${ASSET_CLASS_LABEL[slice.assetClass] ?? slice.assetClass} ${formatPercent(slice.sharePct, 0)}`)
+              .join(", "),
           })),
         },
       };

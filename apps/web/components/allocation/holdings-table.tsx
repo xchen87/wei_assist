@@ -7,16 +7,32 @@ import {
 
 /** Every position, grouped by asset class with a subtotal per class.
  *
+ * One row per *position*, which is the point of the account layer: the
+ * same fund in a brokerage account and an IRA is two rows, because the
+ * two are not the same holding on the way out. The breakdown above
+ * answers the other question — what is held, regardless of where — and
+ * works per security.
+ *
  * This is the section's table of record: the figures in the header above
- * it — the mix, the blended expense ratio, the distinct-holdings count,
- * the largest position — are all rolled up from these rows, so an advisor
- * checking one against the other finds them agreeing. */
+ * it are all rolled up from these rows, so an advisor checking one
+ * against the other finds them agreeing. */
 export function HoldingsTable({
   summary,
   thresholdPct,
+  accountNameByHoldingId,
+  securityPortfolioPctByTicker,
 }: {
   summary: PortfolioSummary;
   thresholdPct: number;
+  /** Which account each position sits in. A fund held in both a brokerage
+   * account and an IRA is two rows here, which is what the custodian
+   * reports and what makes each lot's tax treatment knowable. */
+  accountNameByHoldingId: Map<string, string>;
+  /** The security's share of the portfolio across *all* accounts. A name
+   * split between a brokerage account and an IRA breaches the limit on
+   * the total or not at all, so the badge is decided on this rather than
+   * on the row's own weight. */
+  securityPortfolioPctByTicker: Map<string, number>;
 }) {
   if (summary.rows.length === 0) {
     return (
@@ -29,10 +45,11 @@ export function HoldingsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
+      <table className="w-full min-w-[860px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-rule text-xs font-semibold text-ink-muted">
             <th className="py-2 text-left">Holding</th>
+            <th className="py-2 text-left">Account</th>
             <th className="py-2 text-left">Type</th>
             <th className="py-2 pr-4 text-right">Value</th>
             <th className="py-2 pr-4 text-right">% of class</th>
@@ -45,7 +62,7 @@ export function HoldingsTable({
         {summary.groups.map((group) => (
           <tbody key={group.assetClass}>
             <tr className="border-b border-rule bg-paper">
-              <td className="py-2 text-sm font-semibold" colSpan={2}>
+              <td className="py-2 text-sm font-semibold" colSpan={3}>
                 {ASSET_CLASS_LABEL[group.assetClass] ?? group.assetClass}
               </td>
               <td className="tabular py-2 pr-4 text-right font-semibold">
@@ -60,17 +77,25 @@ export function HoldingsTable({
             </tr>
 
             {group.holdings.map((holding) => {
-              const breach = isSingleName(holding) && holding.portfolioPct > thresholdPct;
+              const securityPct =
+                securityPortfolioPctByTicker.get(holding.ticker) ?? holding.portfolioPct;
+              const breach = isSingleName(holding) && securityPct > thresholdPct;
               return (
                 <tr key={holding.id} className="border-b border-rule">
                   <td className="py-2.5 pr-3">
                     <span className="tabular font-semibold">{holding.ticker}</span>{" "}
                     <span className="text-ink-muted">{holding.name}</span>
                     {breach ? (
-                      <span className="ml-2 rounded-control border border-brass px-1.5 py-0.5 text-[11px] text-brass">
+                      <span
+                        className="ml-2 rounded-control border border-brass px-1.5 py-0.5 text-[11px] text-brass"
+                        title={`${securityPct.toFixed(1)}% of the portfolio across all accounts`}
+                      >
                         over {thresholdPct}%
                       </span>
                     ) : null}
+                  </td>
+                  <td className="py-2.5 pr-3 text-xs text-ink-muted">
+                    {accountNameByHoldingId.get(holding.id) ?? "—"}
                   </td>
                   <td className="py-2.5 pr-3 text-xs text-ink-muted">
                     {holding.kind}
@@ -104,8 +129,9 @@ export function HoldingsTable({
         <tfoot>
           <tr className="border-t-2 border-ink-muted text-sm font-semibold">
             <td className="py-2.5">
-              {summary.distinctHoldings} holdings · largest {summary.largest?.ticker}
+              {summary.distinctHoldings} positions · largest {summary.largest?.ticker}
             </td>
+            <td className="py-2.5" />
             <td className="py-2.5" />
             <td className="tabular py-2.5 pr-4 text-right">
               {formatMoney(summary.totalCents, { compact: true })}
