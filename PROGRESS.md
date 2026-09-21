@@ -264,6 +264,16 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   `AuditEvent` model and a logged reveal action — was backed out rather
   than left unused. Encryption at rest is a separate §11 requirement and is
   still unbuilt.
+- **Section URLs live in `lib/sections.ts`, nowhere else.** Retirement,
+  Tax, Protection and Estate sit under `/planning/` now (D-024), and the
+  slug was previously repeated in the section nav, the insight card, the
+  AI tools, the signals rules and the Overview ring. Four of those would
+  have kept linking to the old paths. Add a section there or not at all.
+- **Planning levers are per member because dates differ per person.**
+  `PlanScenario` holds household levers, `PlanScenarioMember` per-person
+  ones, and both store only what the scenario *changes* — null inherits
+  from the record, so a saved scenario survives an update to the plan and
+  its summary row can say what it actually did.
 - **Signal rule thresholds are tuned against this book, and that tuning is
   the work.** At the first cut, a 14% drawdown flagged 32 of 40 households
   and the harvesting rule fired on 31 — which describes the book rather
@@ -441,9 +451,10 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       header: that one is a separate stored roll-up, and the two only converge once the
       completeness manifest exists. Said on the page, not just here
 - [x] Sections: all thirteen build on the shared scaffold with real data and a real
-      summary visual — Overview, Household, Cashflow, Balance, Allocation, Goals,
-      Retirement, Tax, Protection, Estate, Documents, Activity, Compliance. Business
-      is correctly hidden (no seeded household has an entity, D-003). See Phase 5
+      summary visual. The nav now lists ten, because Retirement, Tax, Protection and
+      Estate moved inside **Planning** as tabs alongside a scenario explorer (D-024) —
+      they moved, they were not merged. Business is correctly hidden (no seeded
+      household has an entity, D-003). See Phase 5
 
 ## Phase 3 — Assistant (M3)
 
@@ -555,6 +566,12 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       review held but never attested from one not yet due and one missed outright. Its
       completeness ring is computed from the record rather than seeded like the other
       eleven
+- [x] Planning — a Planning section after Goals holding the scenario explorer and the
+      four disciplines it drives (D-024). Levers are per member — retirement age, Social
+      Security claim age, the SSA estimate, annual savings — plus household spending and
+      a real-return assumption, recomputed in the browser on every move against the plan
+      of record. Scenarios save as deltas, compare side by side with the probability and
+      the points gained, and one can be marked as the recommendation
 - [ ] `PlanSnapshot` versioning + "what changed since last review" diff — the Overview
       page's "what changed" list and the Activity timeline's plan-change entries are
       static/seeded, not a real diff engine
@@ -731,6 +748,26 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-20** — Added financial planning (D-024). A **Planning** section now sits after
+  Goals in the household nav, with Retirement, Tax, Protection and Estate moved inside it as
+  tabs and a scenario explorer as the first one. The explorer is per member, which is the
+  whole point: retirement age, Social Security claim age, the SSA estimate and annual
+  savings are levers per person, alongside household spending and a real-return assumption,
+  because "she goes at 62, he works to 67" is the first question any couple asks and a
+  single household retirement age cannot express it. Every move recomputes in the browser
+  against the plan of record and shows the delta in points; scenarios save as *deltas* (null
+  inherits) so a saved scenario survives an update to the record, compare side by side, and
+  one can be marked as the recommendation. On the Whitakers: 69% baseline, 83% with Karen
+  retiring at 64 and spending trimmed, +14 points, saved and recommended.
+  Two real bugs found on the way. The baseline assigned plan ages by *position* after
+  ordering members by age, so Tom — the older spouse — was getting Karen's primary
+  retirement age; it now keys off role. And the Goals page threw "Cannot convert a BigInt
+  value to a number" at runtime while typechecking clean, because a type predicate asserted
+  `targetCents: number` over values that were still bigint — the conversion now happens at
+  the boundary like everywhere else, and the assertion is gone. Moving four URLs also
+  produced `lib/sections.ts`, which is now the only place that knows where a section lives;
+  the slug had been repeated in five files.
 
 - **2026-09-20** — Pre-demo fix: "My book" was showing all forty households across four
   advisors. It had been honest when the whole book was ten and everything belonged to one

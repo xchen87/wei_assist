@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { setAlertStatus } from "@/app/(app)/signals/actions";
 import { Badge } from "@/components/ui/badge";
+import { sectionPathFromName } from "@/lib/sections";
 
 export type AlertCardData = {
   id: string;
@@ -50,7 +51,7 @@ export function AlertCard({ alert, showHousehold = true }: { alert: AlertCardDat
       <div className="flex items-center gap-2">
         {alert.section ? (
           <Link
-            href={`/clients/${alert.householdId}/${alert.section}`}
+            href={sectionPathFromName(alert.householdId, alert.section) ?? `/clients/${alert.householdId}`}
             className="rounded-control border border-rule px-2.5 py-1 text-xs font-semibold hover:bg-paper"
           >
             Open {alert.section}

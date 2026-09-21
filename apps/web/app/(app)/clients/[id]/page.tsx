@@ -5,6 +5,7 @@ import { SectionActions } from "@/components/plan/section-actions";
 import { SegmentedCompletenessRing } from "@/components/charts/completeness-ring";
 import { AlertCard } from "@/components/signals/alert-card";
 import { bySeverity } from "@/lib/calc/signals";
+import { SECTION_LABELS, sectionPath } from "@/lib/sections";
 import { formatLongDate } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
@@ -35,21 +36,26 @@ export default async function OverviewPage({ params }: { params: { id: string } 
   // The twelve sections that carry a completeness figure — Overview is the
   // rollup, so it isn't one of its own segments, and Business is hidden
   // (no seeded household has an entity, D-003).
-  const base = `/clients/${household.id}`;
-  const sectionCompleteness = [
-    { label: "Household", pct: household.householdCompletenessPct, href: `${base}/household` },
-    { label: "Cashflow", pct: household.cashflowCompletenessPct, href: `${base}/cashflow` },
-    { label: "Balance", pct: household.balanceCompletenessPct, href: `${base}/balance` },
-    { label: "Allocation", pct: household.allocationCompletenessPct, href: `${base}/allocation` },
-    { label: "Goals", pct: household.goalsCompletenessPct, href: `${base}/goals` },
-    { label: "Retirement", pct: household.retirementCompletenessPct, href: `${base}/retirement` },
-    { label: "Tax", pct: household.taxCompletenessPct, href: `${base}/tax` },
-    { label: "Protection", pct: household.protectionCompletenessPct, href: `${base}/protection` },
-    { label: "Estate", pct: household.estateCompletenessPct, href: `${base}/estate` },
-    { label: "Documents", pct: household.documentsCompletenessPct, href: `${base}/documents` },
-    { label: "Activity", pct: household.activityCompletenessPct, href: `${base}/activity` },
-    { label: "Compliance", pct: household.complianceCompletenessPct, href: `${base}/compliance` },
-  ];
+  const sectionCompleteness = (
+    [
+      ["household", household.householdCompletenessPct],
+      ["cashflow", household.cashflowCompletenessPct],
+      ["balance", household.balanceCompletenessPct],
+      ["allocation", household.allocationCompletenessPct],
+      ["goals", household.goalsCompletenessPct],
+      ["retirement", household.retirementCompletenessPct],
+      ["tax", household.taxCompletenessPct],
+      ["protection", household.protectionCompletenessPct],
+      ["estate", household.estateCompletenessPct],
+      ["documents", household.documentsCompletenessPct],
+      ["activity", household.activityCompletenessPct],
+      ["compliance", household.complianceCompletenessPct],
+    ] as const
+  ).map(([key, pct]) => ({
+    label: SECTION_LABELS[key],
+    pct,
+    href: sectionPath(household.id, key),
+  }));
 
   return (
     <PlanSection

@@ -5,6 +5,7 @@ import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
 import { formatDate } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
 import { bySeverity } from "@/lib/calc/signals";
+import { sectionPath, sectionPathFromName, type SectionKey } from "@/lib/sections";
 
 /** Tools are the only way the model touches data (CLAUDE.md §9) — there is
  * no free-form SQL, and nothing here takes a table or column name from the
@@ -68,7 +69,7 @@ const SECTIONS = [
   "documents",
   "activity",
   "compliance",
-] as const;
+] as const satisfies readonly SectionKey[];
 type Section = (typeof SECTIONS)[number];
 
 // ---------------------------------------------------------------------------
@@ -258,7 +259,7 @@ const getOpenInsights: ToolDef = {
         insights: insights.map((i) => ({
           ref: refs.issue(
             `${i.household.name} · ${i.section} insight`,
-            `/clients/${i.household.id}/${sectionSlug(i.section)}`,
+            sectionPathFromName(i.household.id, i.section) ?? `/clients/${i.household.id}`,
           ),
           insight_id: i.id,
           household: i.household.name,
@@ -266,7 +267,7 @@ const getOpenInsights: ToolDef = {
           section: i.section,
           text: i.text,
           source: i.sourceLabel,
-          link: `/clients/${i.household.id}/${sectionSlug(i.section)}`,
+          link: sectionPathFromName(i.household.id, i.section) ?? `/clients/${i.household.id}`,
         })),
       },
     };
@@ -323,7 +324,8 @@ const getOpenAlerts: ToolDef = {
         alerts: ranked.map((a) => ({
           ref: refs.issue(
             `${a.household.name} · ${a.title}`,
-            `/clients/${a.household.id}${a.section ? `/${a.section}` : ""}`,
+            (a.section ? sectionPathFromName(a.household.id, a.section) : null) ??
+              `/clients/${a.household.id}`,
           ),
           household: a.household.name,
           household_id: a.household.id,
@@ -419,12 +421,6 @@ export function findTool(name: string): ToolDef | undefined {
   return TOOLS.find((t) => t.name === name);
 }
 
-/** Insight.section holds display names ("Allocation"); routes use slugs. */
-function sectionSlug(section: string): string {
-  const slug = section.toLowerCase();
-  return slug === "overview" ? "" : slug;
-}
-
 // ---------------------------------------------------------------------------
 // Section readers. Each returns display-ready strings plus the link to the
 // page the advisor can verify them on.
@@ -446,7 +442,7 @@ async function readSection(householdId: string, section: Section, refs: RefRegis
   });
   if (!h) return { payload: { error: "No household with that id." }, recordIds: [] };
 
-  const link = `/clients/${h.id}${section === "overview" ? "" : `/${section}`}`;
+  const link = sectionPath(h.id, section);
   const base = {
     ref: refs.issue(`${h.name} · ${section}`, link),
     household: h.name,

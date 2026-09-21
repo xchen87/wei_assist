@@ -25,13 +25,13 @@ generator client {
 }
 
 model Advisor {
-  id             String      @id @default(cuid())
-  name           String
-  initials       String
-  capacityTarget Int // households this advisor is staffed to serve, for the Insights capacity bar
-  households      Household[]
-  prospects       Prospect[]
-  dashboardLayout DashboardLayout?
+  id               String           @id @default(cuid())
+  name             String
+  initials         String
+  capacityTarget   Int // households this advisor is staffed to serve, for the Insights capacity bar
+  households       Household[]
+  prospects        Prospect[]
+  dashboardLayout  DashboardLayout?
   indicatorWatches IndicatorWatch[]
 }
 
@@ -142,35 +142,37 @@ model Household {
   // Activity
   openTasksCount Int
 
-  members        Member[]
-  goals          Goal[]
-  insights       Insight[]
-  policies       Policy[]
-  estateAssets   EstateAsset[]
-  estateDocs     EstateDocument[]
-  documents      Document[]
-  activityEvents ActivityEvent[]
+  members         Member[]
+  goals           Goal[]
+  insights        Insight[]
+  policies        Policy[]
+  estateAssets    EstateAsset[]
+  estateDocs      EstateDocument[]
+  documents       Document[]
+  activityEvents  ActivityEvent[]
   complianceItems ComplianceItem[]
   attestations    ReviewAttestation[]
   alerts          Alert[]
+  scenarios       PlanScenario[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Member {
-  id          String    @id @default(cuid())
-  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  householdId String
-  name        String
-  role        String // Primary | Spouse | Dependent
-  age         Int
-  occupation  String
+  id                  String               @id @default(cuid())
+  household           Household            @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId         String
+  name                String
+  role                String // Primary | Spouse | Dependent
+  age                 Int
+  occupation          String
   // From the intake questionnaire (lib/calc/risk.ts): Conservative,
   // Moderate, Growth or Aggressive. Null for members who predate intake or
   // whose questionnaire wasn't completed — an unanswered questionnaire has
   // no profile, rather than a default one.
-  riskProfile String?
+  riskProfile         String?
+  scenarioAdjustments PlanScenarioMember[]
   // CLAUDE.md §11 lists dates of birth as masked-by-default PII. Shown in
   // full instead, per D-019: every user of this platform is a certified
   // professional and the whole record is confidential, so masking a
@@ -179,21 +181,21 @@ model Member {
   // encryption is unbuilt (Phase 9). Seeded values are fictional and agree
   // with `age` at seed time; the two drift apart as real time passes, so
   // `age` stays the field everything but the roster reads.
-  birthDate   DateTime?
+  birthDate           DateTime?
 }
 
 model Goal {
-  id          String    @id @default(cuid())
-  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  householdId String
-  name        String
-  priority    String // Low | Medium | High
+  id           String    @id @default(cuid())
+  household    Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId  String
+  name         String
+  priority     String // Low | Medium | High
   // Null on a goal captured at intake: the household has named the goal but
   // not costed it yet. Zero would claim a $0 target, which reads as fully
   // funded everywhere a percentage is computed.
-  targetCents BigInt?
-  fundedPct   Float
-  status      String // onTrack | fullyFunded | behind | unset
+  targetCents  BigInt?
+  fundedPct    Float
+  status       String // onTrack | fullyFunded | behind | unset
   // "Under 3 years", "3–7 years", ... captured at intake (§6 lists goal
   // time horizons); null on the seeded households, which predate it.
   horizonLabel String?
@@ -291,17 +293,17 @@ model ActivityEvent {
 // two surfaces overlap (the IPS appears in both) and disagreeing about
 // whether it's signed would be worse than the duplication.
 model ComplianceItem {
-  id          String    @id @default(cuid())
-  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  householdId String
-  name        String
-  category    String // IPS | Suitability | Disclosure | Agreement
-  statusLabel String // In force | Refresh due | Delivery due | Not on file
-  bucket      String // inForce | needsAttention | missing — drives the readiness bar
-  detail      String // what the item is, in an advisor's words
+  id             String    @id @default(cuid())
+  household      Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId    String
+  name           String
+  category       String // IPS | Suitability | Disclosure | Agreement
+  statusLabel    String // In force | Refresh due | Delivery due | Not on file
+  bucket         String // inForce | needsAttention | missing — drives the readiness bar
+  detail         String // what the item is, in an advisor's words
   effectiveLabel String // formatted date it took effect, or "—"
   nextDueLabel   String // formatted date it next comes due, or "—" if it doesn't recur
-  sortOrder   Int
+  sortOrder      Int
 }
 
 // One periodic review and whether it was attested. This is the compliance
@@ -327,11 +329,11 @@ model ReviewAttestation {
 // the assistant read and act on", and copying household figures into a
 // second table would be a second place for client data to leak from.
 model AiConversation {
-  id           String      @id @default(cuid())
+  id           String       @id @default(cuid())
   advisorName  String // the acting advisor; a real User relation lands with auth (D-014)
   contextLabel String? // the route context chip in effect, e.g. "Ramirez Household"
   contextPath  String?
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime     @default(now())
   messages     AiMessage[]
   toolCalls    AiToolCall[]
 }
@@ -391,8 +393,8 @@ model DashboardLayout {
 // every household profile through the rules in lib/calc/signals.ts, and each
 // alert carries the reason this household matched.
 model Indicator {
-  id            String  @id @default(cuid())
-  key           String  @unique // fed_funds_rate | equity_drawdown | rmd_age | ...
+  id            String            @id @default(cuid())
+  key           String            @unique // fed_funds_rate | equity_drawdown | rmd_age | ...
   name          String
   category      String // Rates | Market | Tax | Policy
   unit          String // % | pts | age | USD
@@ -453,4 +455,55 @@ model Alert {
   section         String?
   status          String           @default("open") // open | acknowledged | dismissed
   createdAt       DateTime         @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Planning scenarios: the what-if layer over a household's plan of record.
+//
+// A scenario stores only what it *changes*. Null means "inherit from the
+// household or member record", so a scenario is a set of deltas rather than
+// a copy of the plan — which is both how an advisor thinks about it ("what
+// if she retires two years earlier") and what keeps a saved scenario
+// meaningful after the underlying record is updated.
+model PlanScenario {
+  id          String    @id @default(cuid())
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId String
+  name        String
+  // baseline: the plan of record, kept as a row so comparisons have a
+  // stable left-hand side. whatif: an exploration. recommended: the one
+  // the advisor intends to present.
+  kind        String    @default("whatif")
+  note        String?
+
+  // Household-level levers. Null inherits.
+  retirementSpendingCents BigInt?
+  realReturnPct           Float?
+  endAge                  Int?
+
+  members   PlanScenarioMember[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+// Per-member levers — the reason planning is per member and not just per
+// household: two people in one household retire at different ages, claim at
+// different ages, and stop saving at different times, and the household's
+// outcome is the interaction of those.
+model PlanScenarioMember {
+  id         String       @id @default(cuid())
+  scenario   PlanScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenarioId String
+  member     Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId   String
+
+  retirementAge         Int?
+  ssClaimAge            Int?
+  // The SSA estimate, entered by the advisor. Not derived: benefit amounts
+  // depend on an earnings record this app does not hold, and inventing one
+  // would be inventing a financial figure (CLAUDE.md §13).
+  ssMonthlyBenefitCents BigInt?
+  annualSavingsCents    BigInt?
+
+  @@unique([scenarioId, memberId])
 }

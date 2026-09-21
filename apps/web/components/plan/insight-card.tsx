@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname } from "next/navigation";
 import { dismissInsight } from "@/app/(app)/clients/[id]/actions";
+import { sectionPathFromName } from "@/lib/sections";
 
 export type InsightCardData = {
   id: string;
@@ -19,22 +20,6 @@ export type InsightCardData = {
    * current pathname and skips it there. */
   householdId?: string;
   section?: string;
-};
-
-const SECTION_SLUGS: Record<string, string> = {
-  Overview: "",
-  Household: "household",
-  Cashflow: "cashflow",
-  Balance: "balance",
-  Allocation: "allocation",
-  Goals: "goals",
-  Retirement: "retirement",
-  Tax: "tax",
-  Protection: "protection",
-  Estate: "estate",
-  Documents: "documents",
-  Activity: "activity",
-  Compliance: "compliance",
 };
 
 /** Insights are AI-generated observations, always cited, always a
@@ -63,8 +48,10 @@ export function InsightCard({ insight }: { insight: InsightCardData }) {
     });
   }
 
-  const slug = insight.section ? SECTION_SLUGS[insight.section] : undefined;
-  const sectionHref = insight.householdId !== undefined && slug !== undefined ? `/clients/${insight.householdId}${slug ? `/${slug}` : ""}` : null;
+  const sectionHref =
+    insight.householdId !== undefined && insight.section !== undefined
+      ? sectionPathFromName(insight.householdId, insight.section)
+      : null;
   const alreadyThere = sectionHref !== null && pathname === sectionHref;
   const showSectionLink = sectionHref !== null && !alreadyThere;
 

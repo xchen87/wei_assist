@@ -742,3 +742,52 @@ could not represent. Verified by storing a $97M net worth household, reading it 
 rendering all thirteen of its sections, listing it in the client-component Clients table, and
 asking the assistant about it — that last one exercising the `JSON.stringify` path that
 bigint would have broken.
+
+---
+
+## D-024 — Planning is a section that contains four disciplines, and scenarios are per member
+
+2026-09-20 · Accepted
+
+**Context** — CLAUDE.md §6 lists Retirement, Tax, Protection and Estate as four sibling
+sections of the household record, and the app built them that way. What was missing is the
+thing an advisor actually does with them: ask what happens to the plan if something changes.
+MoneyGuide and eMoney both organise around that question — a probability of success, levers
+that move it, and saved scenarios compared side by side — and the four disciplines are the
+places the answer shows up rather than four separate destinations.
+
+**Decision** — Add **Planning** to the household nav after Goals, and move Retirement, Tax,
+Protection and Estate inside it as tabs, with a scenario explorer as the first tab. That is a
+deviation from §6's flat fourteen-section list, recorded here rather than silently made: the
+four are still complete sections with their own scaffolding, completeness rings and
+insights — they moved, they were not merged.
+
+Scenarios are **per member**, not per household. Two people in one household retire in
+different years, claim Social Security in different years and stop saving in different years,
+and the household's outcome is the interaction of those three pairs of dates — "she goes at
+62, he works to 67" is the first question any couple asks, and a single household-level
+retirement age cannot express it. `PlanScenario` holds household levers, `PlanScenarioMember`
+holds per-person ones, and both store **only what the scenario changes**: null means inherit
+from the record, so a saved scenario stays meaningful after the underlying plan is updated
+and a comparison row can say "Karen retires at 64" rather than restating the whole plan.
+
+The projection (`lib/calc/planning.ts`) recomputes in the browser on every lever move. A
+planning conversation is a sequence of "what if", and an advisor who has to press Calculate
+stops asking the third question; it is a few hundred pure-arithmetic paths, so a round trip
+per keystroke would buy nothing.
+
+**Alternatives** — Add Planning as a fifth sibling section: no nav churn, but then the
+scenario explorer sits beside the four views it drives instead of above them, and the
+household record grows to fifteen entries. Keep one household-level retirement age: far
+simpler, and wrong for every couple. Recompute on the server per change: keeps one
+implementation, but adds latency to the interaction the feature exists for.
+
+**Consequences** — Four URLs moved, which is why `lib/sections.ts` now exists: the slugs were
+repeated in the section nav, the insight card, the AI tools, the signals rules and the
+Overview ring, and four of those would have kept pointing at the old paths. Social Security is
+an **input**, not a calculation — a benefit depends on an earnings record this app does not
+hold, and deriving one would be inventing a financial figure (§13) — so it defaults to zero
+with the gap stated on each member's card. Per-member savings splits the household's recorded
+savings evenly across working members until intake's per-member figures reach the seeded
+households; that is stated on the page. The projection remains illustrative in the same terms
+as the existing one: no mortality table, no tax-aware withdrawal ordering, no inflation path.

@@ -3,7 +3,7 @@ import { prisma } from "@meridian/db";
 import { PlanSection } from "@/components/plan/plan-section";
 import { SectionActions } from "@/components/plan/section-actions";
 import { GoalsBubbleQuadrant } from "@/components/charts/goals-bubble-quadrant";
-import { formatMoney } from "@/lib/format/money";
+import { formatMoney, centsToNumber } from "@/lib/format/money";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +29,15 @@ export default async function GoalsPage({ params }: { params: { id: string } }) 
   if (!household) notFound();
 
   // Split once: the chart can only plot goals that have been costed.
-  const costed = household.goals.filter(
-    (g): g is typeof g & { targetCents: number } => g.targetCents !== null,
-  );
+  //
+  // The conversion is the point, not the filter. A type predicate said
+  // these were numbers while the values were still bigint, so the chart's
+  // Math.max threw "Cannot convert a BigInt value to a number" at runtime
+  // with a clean typecheck — the compiler believed the assertion. Cents
+  // cross to number here, at the boundary, like everywhere else (D-023).
+  const costed = household.goals
+    .filter((g) => g.targetCents !== null)
+    .map((g) => ({ ...g, targetCents: centsToNumber(g.targetCents!) }));
   const uncosted = household.goals.filter((g) => g.targetCents === null);
 
   return (
