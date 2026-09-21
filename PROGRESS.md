@@ -282,7 +282,22 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   way to tell which figures were theirs. The test for it is concrete: the
   Whitaker plan of record reads 69% before and after eleven levers were
   added. Add a lever, give it a neutral default, and prove the baseline
-  didn't move — `pnpm --filter @meridian/web check:planning`.
+  didn't move — `pnpm test`.
+- **`pnpm test` is Vitest over `lib/**` only, and that is on purpose**
+  (D-026). Everything it covers is pure, so it needs no database, server
+  or browser and runs in about a second. Tests assert *direction*, never a
+  value, wherever a number depends on the random draw. Component and
+  end-to-end coverage are Storybook's and Playwright's jobs and neither is
+  wired up, so **the browser is still where UI behaviour gets verified
+  here** — a green suite says the arithmetic holds, not that the page
+  works.
+- **Chart labels are measured against their cell before they are drawn**
+  (D-027). `lib/charts/treemap.ts` computes the layout in viewBox units
+  precisely so that decision can be exact: a name is drawn only if it
+  fits, a value only if there is a second line's room. The
+  character-width estimate must sit at or above what the face really
+  produces — at 0.55 em two labels overflowed their cells; the browser
+  measures 0.665, so it is 0.68 and a test pins it there.
 - **One describer writes both the live chips and the saved-scenario
   summary** (`lib/planning/describe.ts`). It compares baseline against
   current rather than reading the scenario record field by field, which is
@@ -374,6 +389,7 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       the table's inline one), Tabs, Sheet, Dialog, Popover, Tooltip — deferred until
       a feature needs them (see notes). Settings has its own local scaffold
       (`components/settings/settings-panel.tsx`) rather than generalised primitives
+- [x] Vitest wired up — `pnpm test`, 101 unit tests over `lib/**` (D-026)
 - [ ] Storybook with light/dark and density toggles
 - [~] Prisma schema v1 — sixteen models, shaped around what's actually implemented
       (Advisor, Household, Member, Goal, Insight, Prospect, Policy, EstateAsset,
@@ -767,6 +783,35 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Wired up Vitest and fixed the Insights treemap (D-026, D-027).
+  `pnpm test` now runs 101 unit tests over `lib/**` in about a second, with no database,
+  server or browser — everything it covers is pure. The `check:planning` script D-025 left
+  behind is gone; it needed a seeded database, it printed a table for a human to read rather
+  than asserting anything, and nothing ran it but somebody remembering to. Its content is
+  now four suites plus one for the name formatter. The database dependency is replaced by
+  `lib/planning/fixtures.ts`, a fictional household whose *shape* is the thing under test:
+  a couple whose primary is the younger of the two, so the position-versus-role bug that bit
+  the Whitakers fails a test if it ever comes back.
+  Converting the script found one thing worth keeping: extending the plan horizon lowers the
+  probability of success while *raising* the median ending value, because that value is
+  measured at the end of a longer plan. Both are correct, and they are not comparable — the
+  saved-scenario column is now labelled "Median at plan end" rather than implying a shared
+  yardstick, and a test stops it being rediscovered as a bug. (Its header, and the other
+  five, were also in ALL CAPS against §7.)
+  The book-composition chart called itself a treemap and was two flex rows, so thirty-seven
+  of forty households landed in a single row of seventeen-pixel columns: no name survived
+  truncation, and the value line had no truncation at all, so forty money figures overflowed
+  and overprinted each other into a smear along the bottom edge. It is now a real squarified
+  treemap — pure geometry in `lib/charts/treemap.ts`, tested for proportional area, exact
+  fill, no overlap and aspect ratios under 5:1 — and, more to the point, labels are measured
+  against their cell before they are drawn. A cell gets a name only if the name fits and a
+  value only if there is room for a second line; the rest keep a hover title. Three things
+  made the result read as deliberate rather than arbitrary: preferring the distinguishing
+  word ("Achebe", not "Achebe Househ…", and "Whitakers", not "The"), a five-character floor
+  so no cell shows "Ab…", and correcting a character-width estimate that was under-measuring
+  the real font and letting two labels spill out of their cells — caught by checking
+  `getComputedTextLength` in the browser rather than trusting the constant.
 
 - **2026-09-21** — Widened the scenario model from six levers to seventeen and rebuilt the
   explorer around them (D-025). The six that shipped with D-024 were enough to show the

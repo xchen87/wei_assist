@@ -854,3 +854,106 @@ and every lever added here would have been silently missing from the saved rows.
 projection and that the plan of record is unmoved. It belongs in Vitest and will move there
 when the runner is wired up; it asserts on direction rather than values because it reads a
 seeded household, so reseeding cannot break it.
+
+> Superseded by **D-026**: the runner was wired up the next day and the script is gone. Its
+> content is now `lib/calc/planning.test.ts` and `lib/planning/baseline.test.ts`, run by
+> `pnpm test` against a fixture household rather than a seeded database.
+
+---
+
+## D-026 — Vitest, and the tests it was wired up to hold
+
+2026-09-21 · Accepted
+
+**Context** — CLAUDE.md §2 has listed Vitest as the unit-test runner since the repository
+started and §12 has asked for `lib/calc` to be covered "with unit tests covering edge cases"
+for just as long, but neither was wired up. D-025 left a `check:planning` script standing in:
+a tsx entry point that read a seeded household out of the database and printed a table of
+directions for a human to read. It worked, and it was the wrong shape — it needed a seeded
+database, it reported rather than asserted, and nothing ran it but a person remembering to.
+
+**Decision** — Vitest, `lib/**/*.test.ts`, `node` environment, `pnpm test` at the root.
+`check:planning` is deleted and its content is now four suites that assert instead of print:
+`lib/calc/planning.test.ts`, `lib/planning/baseline.test.ts`, `lib/planning/describe.test.ts`
+and `lib/charts/treemap.test.ts`, plus `lib/format/name.test.ts`. 101 tests, about a second,
+no database.
+
+The database dependency is replaced by `lib/planning/fixtures.ts` — a fictional household,
+marked as a fixture (§13), whose *shape* is the part under test: a couple whose primary is
+the younger of the two, retiring and claiming at different ages, with one dependent, one
+costed goal and one uncosted one. That shape is chosen deliberately. Ordering members by age
+rather than by role is the bug D-024 found in the Whitakers, and this fixture reproduces the
+conditions for it, so `assigns retirement and claim ages by role, never by position or age`
+fails if it ever comes back.
+
+Scope is unit tests only, and that is a real limit rather than an oversight: everything under
+test is pure, so the suite needs no database, server or browser. Component and end-to-end
+coverage are Storybook's and Playwright's jobs (§2) and remain unwired, which means the
+browser is still where UI behaviour gets verified in this repository.
+
+**Alternatives** — Keep the script and add a `--ci` flag that exits non-zero: cheaper, but it
+still needs a seeded database and still tests one household rather than a stated shape.
+Integration tests against the seeded database under Vitest: they would catch seed drift, and
+they would also fail for reasons that have nothing to do with the code under test.
+
+**Consequences** — Direction is asserted, never a value, wherever a number depends on the
+random draw. One case needed its own treatment and is worth recording: extending the plan
+horizon lowers the probability of success while *raising* the median ending value, because
+that value is measured at the end of a longer plan. Both are correct and they are not
+comparable, which is why the saved-scenario table's column is now labelled "Median at plan
+end" rather than implying a shared yardstick. `ending values are only comparable within one
+horizon` keeps that from being rediscovered as a bug.
+
+---
+
+## D-027 — Book composition is a squarified treemap, and labels are measured before they are drawn
+
+2026-09-21 · Accepted
+
+**Context** — The Insights book-composition chart called itself a treemap and was two flex
+rows: the top three households across the top, the other thirty-seven in a single row
+beneath. At forty households that second row is thirty-seven seventeen-pixel columns. No name
+survived truncation, and the value line had no truncation at all, so forty money figures
+overflowed their cells and overprinted each other into an illegible smear along the bottom
+edge. It was the worst-looking thing in the application.
+
+**Decision** — A real squarified treemap (Bruls, Huizing & van Wijk), as `lib/charts/
+treemap.ts`: pure geometry, no React, no DOM, unit-tested for proportional area, exact fill,
+no overlap, and aspect ratios under 5:1. The smallest of forty cells is now about 13 × 25
+units instead of a 17-pixel sliver.
+
+Labels are **measured against the cell before they are drawn**, which is the half that
+actually fixes the appearance and the reason the layout is computed in viewBox units rather
+than percentages: a cell draws a name only if the name fits, and a value only if there is a
+second line's room for it. Nothing is ever clipped mid-word or spilled across a neighbour.
+Three rules make the result read as deliberate rather than arbitrary:
+
+- **The distinguishing word, not the first N characters.** Every household name here carries
+  a generic tail, so "Achebe" beats "Achebe Househ…" — shorter *and* it keeps the half that
+  tells households apart. `householdKeyword` drops a leading article first, or "The
+  Whitakers" shortens to "The", which names nobody.
+- **A five-character floor on a truncated label.** "Ab…" and "Va…" are debris. Five rather
+  than six because the stricter figure made labelling depend on how long a name is rather
+  than how big its cell is — "Duarte" labelled, the identically sized "Kowalski" beside it
+  blank, which to a reader is arbitrary.
+- **An estimate that errs toward cutting early.** The character-width constant must sit at or
+  above the widest average the face really produces. It was 0.55 em and the browser measures
+  0.665 for digits and the ellipsis, so two labels overflowed their cells; it is 0.68 now, and
+  a test pins it against the measured values.
+
+Every cell keeps a `<title>` whatever its size, so the eighteen too small to label are still
+identifiable on hover.
+
+**Alternatives** — Measure the container with a ResizeObserver and lay out in real pixels:
+exact, and it makes the only chart in the repository a client component. `preserveAspectRatio
+="none"` to fill the column: preserves relative areas but distorts the cells and stretches the
+type. Show only the top ten households and total the rest as "other": legible, and it throws
+away the long tail that the chart exists to show the shape of.
+
+**Consequences** — The viewBox is 560 × 210 rather than square, chosen to sit close to the
+half-width column it renders in; a squarer one letterboxes, which on a chart made of
+rectangles reads as a bug rather than as margin. Type sizes are in viewBox units and scale
+with the container, like every other chart here, so 11 and 10 units land at roughly 11px and
+10px at that width. Nineteen of forty cells carry a name and value; the rest rely on hover.
+The chart still does not meet §8's full contract — no click-through, no keyboard navigation,
+no table equivalent — and that is unchanged by this work.

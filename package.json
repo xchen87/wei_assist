@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @meridian/web dev",
     "build": "pnpm --filter @meridian/web build",
     "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "db:push": "pnpm --filter @meridian/db push",
     "db:seed": "pnpm --filter @meridian/db seed",

@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "signals": "tsx scripts/run-signals.ts",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
-    "check:planning": "tsx scripts/check-planning.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.23.13",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^5.0.1"
   }
 }

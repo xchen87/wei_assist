@@ -44,12 +44,12 @@ export function SavedScenarios({
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b border-rule text-xs font-semibold text-ink-muted">
-          <th className="py-2 text-left">SCENARIO</th>
-          <th className="py-2 text-left">CHANGES</th>
-          <th className="py-2 pr-6 text-right">SUCCESS</th>
-          <th className="py-2 pr-6 text-right">VS PLAN</th>
-          <th className="py-2 pr-6 text-right">MEDIAN END</th>
-          <th className="py-2 text-left">ACTIONS</th>
+          <th className="py-2 text-left">Scenario</th>
+          <th className="py-2 text-left">Changes</th>
+          <th className="py-2 pr-6 text-right">Success</th>
+          <th className="py-2 pr-6 text-right">Vs plan</th>
+          <th className="py-2 pr-6 text-right">Median at plan end</th>
+          <th className="py-2 text-left">Actions</th>
         </tr>
       </thead>
       <tbody>
