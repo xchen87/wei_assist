@@ -153,6 +153,12 @@ export type ScenarioRecord = {
   oneTimeInflowLabel: string | null;
   legacyTargetCents: bigint | number | null;
   endAge: number | null;
+  goals: {
+    goalId: string;
+    targetCents: bigint | number | null;
+    yearsAway: number | null;
+    included: boolean | null;
+  }[];
   members: {
     memberId: string;
     retirementAge: number | null;
@@ -182,6 +188,7 @@ export function applyScenario(
   if (!scenario) return baseline;
 
   const byMember = new Map(scenario.members.map((m) => [m.memberId, m]));
+  const byGoal = new Map((scenario.goals ?? []).map((g) => [g.goalId, g]));
   // A scenario that moves the household's plan-to age moves it for every
   // member who hasn't been given one of their own — otherwise "plan to
   // 100" would change the header and nothing in the projection.
@@ -207,6 +214,22 @@ export function applyScenario(
     oneTimeInflowLabel: scenario.oneTimeInflowLabel ?? baseline.oneTimeInflowLabel,
     legacyTargetCents: cents(scenario.legacyTargetCents, baseline.legacyTargetCents),
     endAge,
+    // A goal the scenario drops leaves the list entirely, which is how
+    // the projection stops funding it. Testing a plan without a goal is a
+    // real question, and deleting the goal to ask it is not an acceptable
+    // way to find out.
+    goals: baseline.goals
+      .filter((g) => byGoal.get(g.id)?.included !== false)
+      .map((g) => {
+        const adjustment = byGoal.get(g.id);
+        if (!adjustment) return g;
+        return {
+          ...g,
+          targetCents:
+            adjustment.targetCents === null ? g.targetCents : centsToNumber(adjustment.targetCents),
+          yearsAway: adjustment.yearsAway ?? g.yearsAway,
+        };
+      }),
     members: baseline.members.map((m) => {
       const adjustment = byMember.get(m.id);
       const inherited = { ...m, planToAge: endAge };

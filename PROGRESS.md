@@ -291,6 +291,23 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **Separate a plan change from a yardstick change** (D-031). A scenario
+  that moves a return assumption would have moved the number with the
+  plan untouched. Compare projects both plans at the record's assumptions
+  first — that difference is the plan's — then applies the scenario's own,
+  and reports the two separately. Without it an advisor blames the wrong
+  change: the demo scenario reads −31 pts and the plan change is worth
+  zero of it.
+- **Compute the figures, then ask the model** (D-031). The comparison is
+  built from `lib/calc` and handed over whole; the assistant is forbidden
+  to derive anything. A model asked for a probability of success would
+  sometimes be right, and that is not a standard that number can be
+  quoted at.
+- **A proposal has to be appliable or the button is theatre** (D-031).
+  The assistant picks from a closed lever catalogue
+  (`lib/planning/adjustments.ts`) and an unknown lever is refused back to
+  it, not rendered as a card that does nothing. Applying writes to the
+  scenario, never the plan of record.
 - **A 200 is not proof a page rendered** (D-030). The error boundary
   answers 200, so a render that throws looks identical to curl. The route
   sweep greps each response for the boundary's text and the server log
@@ -828,6 +845,37 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Added Compare: a saved scenario against the plan of record, both projected
+  under the same market conditions, with the assistant's review beside the arithmetic and a
+  chat box for follow-ups (D-031).
+  The decomposition is the point. A scenario can change the plan (when someone retires) or the
+  yardstick (what returns to assume), and mixing them makes the answer useless. Both plans are
+  projected at the record's market assumptions first — that difference is the plan's doing —
+  then the scenario's own assumptions are applied, and that difference is the yardstick's. The
+  seeded demo makes the case: "Retire 65 and assume 3% returns" reads −31 pts, and the
+  retirement change is worth *zero* of it. By eye an advisor gets that backwards.
+  Every figure is computed before the model is asked anything — the comparison comes from
+  `lib/calc`, and the prompt forbids deriving a number that isn't in the block. What the
+  assistant adds is judgement: key differences, pros, cons, recommendations, in four fixed
+  headings. It can propose a further change, which arrives as a card with an Apply button;
+  the levers are picked from a closed catalogue so the button actually works, and an unknown
+  lever is refused back to the model rather than shown as a card that would do nothing.
+  Applying writes to the scenario, never the plan of record.
+  Goals became scenario levers on the way, since "any part of the plan" that excludes goals
+  isn't that — which exposed that seeded goals had no time horizon and so never reached the
+  projection at all: the levers worked and moved nothing. They have intake's horizon bands
+  now, which lowers every household's baseline probability, because the plan is finally paying
+  for goals it always had. Retirement keeps no horizon on purpose — it is the spending the
+  projection already models, and dating it would charge the plan twice.
+  The guardrails needed a second grounding mode: the review cites no records because it
+  fetches none, and the citation rules flagged a correct answer either way — ungrounded with a
+  tool count of zero, uncited with one. `checkAssistantText` now takes `grounding: "tools" |
+  "supplied"`; everything else it checks applies unchanged.
+  Verified against the live model end to end: review, an adjustment card, Apply (92% → 90% as
+  the suggested stress-test landed), and a follow-up. Asked which single change did most of
+  the work, the assistant said the comparison doesn't break it down that way and told the
+  advisor how to find out, rather than estimating — which is the grounding contract working.
 
 - **2026-09-21** — Added the account layer, completing §10's Household → Account → Position →
   Security spine (D-030). D-029 deferred it because nothing needed it; that was true of the

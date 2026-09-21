@@ -29,6 +29,12 @@ export type ScenarioLevers = {
   oneTimeInflowLabel: string | null;
   legacyTargetCents: number | null;
   endAge: number | null;
+  goals: {
+    goalId: string;
+    targetCents: number | null;
+    yearsAway: number | null;
+    included: boolean | null;
+  }[];
   members: {
     memberId: string;
     retirementAge: number | null;
@@ -72,6 +78,14 @@ export async function saveScenario(householdId: string, levers: ScenarioLevers) 
       oneTimeInflowLabel: levers.oneTimeInflowLabel?.trim() || null,
       legacyTargetCents: toBig(levers.legacyTargetCents),
       endAge: levers.endAge,
+      goals: {
+        create: levers.goals.map((g) => ({
+          goalId: g.goalId,
+          targetCents: toBig(g.targetCents),
+          yearsAway: g.yearsAway,
+          included: g.included,
+        })),
+      },
       members: {
         create: levers.members.map((m) => ({
           memberId: m.memberId,

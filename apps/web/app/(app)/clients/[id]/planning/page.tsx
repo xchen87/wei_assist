@@ -21,7 +21,7 @@ export default async function PlanningPage({ params }: { params: { id: string } 
     include: {
       members: true,
       goals: true,
-      scenarios: { include: { members: true }, orderBy: { createdAt: "asc" } },
+      scenarios: { include: { members: true, goals: true }, orderBy: { createdAt: "asc" } },
     },
   });
   if (!household) notFound();

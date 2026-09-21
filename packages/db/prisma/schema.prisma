@@ -189,20 +189,21 @@ model Member {
 }
 
 model Goal {
-  id           String    @id @default(cuid())
-  household    Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  householdId  String
-  name         String
-  priority     String // Low | Medium | High
+  id                  String             @id @default(cuid())
+  scenarioAdjustments PlanScenarioGoal[]
+  household           Household          @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId         String
+  name                String
+  priority            String // Low | Medium | High
   // Null on a goal captured at intake: the household has named the goal but
   // not costed it yet. Zero would claim a $0 target, which reads as fully
   // funded everywhere a percentage is computed.
-  targetCents  BigInt?
-  fundedPct    Float
-  status       String // onTrack | fullyFunded | behind | unset
+  targetCents         BigInt?
+  fundedPct           Float
+  status              String // onTrack | fullyFunded | behind | unset
   // "Under 3 years", "3–7 years", ... captured at intake (§6 lists goal
   // time horizons); null on the seeded households, which predate it.
-  horizonLabel String?
+  horizonLabel        String?
 }
 
 model Insight {
@@ -510,8 +511,32 @@ model PlanScenario {
   endAge                  Int?
 
   members   PlanScenarioMember[]
+  goals     PlanScenarioGoal[]
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
+}
+
+// Goals are part of the plan, so they are part of a scenario: "what if we
+// cut the second home to $400K and push it out five years" is the same
+// kind of question as "what if she retires at 64", and the projection
+// already draws goals out of the portfolio in the year they fall due.
+model PlanScenarioGoal {
+  id         String       @id @default(cuid())
+  scenario   PlanScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenarioId String
+  goal       Goal         @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goalId     String
+
+  targetCents BigInt?
+  // Years from now the goal falls due. Null inherits whatever the goal's
+  // horizon band implies.
+  yearsAway   Int?
+  // False drops the goal from the projection entirely — testing a plan
+  // without it is a real question, and deleting the goal to ask it is not
+  // an acceptable way to find out.
+  included    Boolean?
+
+  @@unique([scenarioId, goalId])
 }
 
 // Per-member levers — the reason planning is per member and not just per

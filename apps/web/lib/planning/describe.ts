@@ -99,5 +99,22 @@ export function describeChanges(
     changes.push(`plan to ${current.endAge}`);
   }
 
+  // Goals. A dropped goal is the one change that shows up as an absence,
+  // so it is found by looking for what is missing rather than by
+  // comparing two rows.
+  for (const goal of baseline.goals) {
+    const after = current.goals.find((g) => g.id === goal.id);
+    if (!after) {
+      changes.push(`drops ${goal.name}`);
+      continue;
+    }
+    if (after.targetCents !== goal.targetCents && after.targetCents !== null) {
+      changes.push(`${goal.name} ${money(after.targetCents)}`);
+    }
+    if (after.yearsAway !== goal.yearsAway && after.yearsAway !== null) {
+      changes.push(`${goal.name} in ${after.yearsAway} yrs`);
+    }
+  }
+
   return changes;
 }

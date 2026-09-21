@@ -509,12 +509,20 @@ function generateHouseholds(): HouseholdSeed[] {
 const HOUSEHOLDS: HouseholdSeed[] = [...DESIGNED_HOUSEHOLDS, ...generateHouseholds()];
 
 
+// The horizon is what lets a goal reach the projection at all: a goal
+// with no time horizon has no year to be drawn in, so it never costs the
+// plan anything and the goal levers on it do nothing. These bands are the
+// ones intake collects (lib/calc/planning.ts maps them to years).
+//
+// Retirement carries none on purpose. It is not a dated withdrawal — it
+// is the spending the whole projection is already modelling — and giving
+// it a year would make the plan pay for retirement twice.
 const GOAL_TEMPLATES = [
-  { name: "Retirement", priority: "High", targetMultiple: 0.75 },
-  { name: "Education fund", priority: "High", targetMultiple: 0.045 },
-  { name: "Second home", priority: "Medium", targetMultiple: 0.09 },
-  { name: "Emergency reserve", priority: "High", targetMultiple: 0.018 },
-  { name: "Legacy / charitable gift", priority: "Low", targetMultiple: 0.06 },
+  { name: "Retirement", priority: "High", targetMultiple: 0.75, horizon: null },
+  { name: "Education fund", priority: "High", targetMultiple: 0.045, horizon: "3–7 years" },
+  { name: "Second home", priority: "Medium", targetMultiple: 0.09, horizon: "7–15 years" },
+  { name: "Emergency reserve", priority: "High", targetMultiple: 0.018, horizon: "Under 3 years" },
+  { name: "Legacy / charitable gift", priority: "Low", targetMultiple: 0.06, horizon: "15+ years" },
 ];
 
 function fundedStatus(pct: number): GoalStatus {
@@ -992,6 +1000,7 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
       targetCents,
       fundedPct,
       status: fundedStatus(fundedPct),
+      horizonLabel: g.horizon,
     };
   });
 

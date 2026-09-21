@@ -10,7 +10,7 @@
     "typecheck": "pnpm -r typecheck",
     "db:push": "pnpm --filter @meridian/db push",
     "db:seed": "pnpm --filter @meridian/db seed",
-    "demo:reset": "pnpm db:seed && pnpm --filter @meridian/web demo:scenarios",
+    "demo:reset": "pnpm db:seed && pnpm --filter @meridian/web demo:scenarios && pnpm --filter @meridian/web demo:plans",
     "db:studio": "pnpm --filter @meridian/db studio"
   },
   "devDependencies": {

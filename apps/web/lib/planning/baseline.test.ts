@@ -24,6 +24,7 @@ const scenario = (over: Partial<ScenarioRecord> = {}): ScenarioRecord => ({
   oneTimeInflowLabel: null,
   legacyTargetCents: null,
   endAge: null,
+  goals: [],
   members: [],
   ...over,
 });

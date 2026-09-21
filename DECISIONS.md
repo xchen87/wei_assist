@@ -1146,3 +1146,77 @@ that bill).
 
 §6's "account types held" filter is now possible and is still not built: the Clients list has
 saved views, search and sort but no filter-chip machinery, which is its own piece of work.
+
+---
+
+## D-031 — Compare: a plan against the plan of record, decomposed, then read by the assistant
+
+2026-09-21 · Accepted
+
+**Context** — The scenario explorer could change a plan and report a probability. What an
+advisor actually does next is harder: decide whether the change is worth putting to the
+household. That needs the difference explained, not just measured, and it needs the
+explanation to be trustworthy enough to repeat out loud in a meeting.
+
+**Decision** — A Compare tab under Planning: one saved scenario against the plan of record,
+both projected under the same market conditions, with the assistant's written review beside
+the arithmetic and a chat box for following up.
+
+**The decomposition is the load-bearing idea.** A scenario can change two different kinds of
+thing, and mixing them makes the answer useless. Retiring two years later is a change to the
+*plan* — something the household can decide. Assuming a 3% real return instead of 5% is a
+change to the *yardstick* — it would move the number with the plan untouched. So both plans
+are first projected at the plan of record's market assumptions, and that difference is the
+plan's doing; the scenario's own assumptions are then applied, and that second difference is
+the yardstick's. They sum to the total and the page reports all three.
+
+The seeded demo makes the case better than an argument does: "Retire 65 and assume 3%
+returns" reads −31 points, and the obvious culprit is the retirement change. The plan change
+is worth **zero** for that household and the assumption is worth all of it. By eye, an advisor
+gets that backwards.
+
+**Every figure is computed before the model is asked anything.** The comparison is not a tool
+the assistant may or may not call — it is built from `lib/calc`, which is tested, and handed
+over in one block. A model asked to derive a probability of success would sometimes get it
+right, and "sometimes" is not a standard that number can be quoted at. What the model
+contributes is the part it is good at: what the change buys, what it costs, what to do next.
+The prompt asks for four fixed headings and forbids deriving any figure not in the block.
+
+**A proposal has to be appliable or the Apply button is theatre.** The first cut let the model
+name a lever in prose — "Karen's retirement age" — which reads well and cannot be turned back
+into a field without guessing. `lib/planning/adjustments.ts` is a closed catalogue instead:
+the model picks a key, gives a value in the unit an advisor would say out loud, and an unknown
+key or an unknown person is refused back to the model rather than shown as a card that would
+do nothing. Applying writes to the *scenario*, never the plan of record — a suggestion is
+something to test.
+
+**Alternatives** — Let the assistant compute the comparison through tools: fewer moving parts,
+and the headline number becomes a model output. Compare in the chat dock instead of its own
+surface: no new route, and the dock is a 380px column, which is not where a four-heading
+review and a side-by-side belong. Run the scenario at its own assumptions only: simpler, and
+it is the thing that makes an advisor blame the wrong change.
+
+**Consequences** — Goals became scenario levers (`PlanScenarioGoal`), because "any part of the
+plan" that excludes goals is not that. This exposed that seeded goals carried no time horizon,
+so they never reached the projection at all: the levers worked and moved nothing. The seed now
+gives them intake's horizon bands, which lowers every household's baseline probability —
+the plan is now paying for goals it always had — and that is the more honest number.
+Retirement keeps no horizon on purpose: it is not a dated withdrawal but the spending the
+projection already models, and giving it a year would charge the plan for retirement twice.
+
+The guardrails needed a second grounding mode. The review cites no records because it fetches
+none, and the citation rules flagged it either way — as ungrounded with a tool count of zero,
+as uncited with one. Both are wrong about a surface whose figures are grounded by
+construction, and a warning that cries wolf is worse than none, so `checkAssistantText` now
+takes `grounding: "tools" | "supplied"`. The rules that still apply — security
+recommendations, tax and legal claims stated as settled — apply here exactly as in the dock.
+
+The market snapshot is **context, not input**. It is stamped on the comparison so a review
+saved on Tuesday says what Tuesday assumed, and nothing in it is translated into a return:
+deriving one from a rate or a drawdown is precisely the invented capital-market assumption
+§13 rules out. The feed remains simulated and labelled as such.
+
+The comparison block is rebuilt from the database on every turn rather than replayed from the
+client, so a follow-up asked after the advisor applies a suggestion is answered about the plan
+as it now is. In testing, the assistant asked for a per-lever attribution it had not been
+given and said so rather than estimating it — which is the contract working.

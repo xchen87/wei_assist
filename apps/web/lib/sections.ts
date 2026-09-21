@@ -16,6 +16,7 @@ export type SectionKey =
   | "allocation"
   | "goals"
   | "planning"
+  | "compare"
   | "retirement"
   | "tax"
   | "protection"
@@ -33,6 +34,7 @@ const PATHS: Record<SectionKey, string> = {
   allocation: "allocation",
   goals: "goals",
   planning: "planning",
+  compare: "planning/compare",
   retirement: "planning/retirement",
   tax: "planning/tax",
   protection: "planning/protection",
@@ -50,6 +52,7 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
   allocation: "Allocation",
   goals: "Goals",
   planning: "Planning",
+  compare: "Compare",
   retirement: "Retirement",
   tax: "Tax",
   protection: "Protection",
@@ -75,7 +78,14 @@ export const NAV_SECTIONS: SectionKey[] = [
 ];
 
 /** The tabs inside Planning, scenario explorer first. */
-export const PLANNING_SECTIONS: SectionKey[] = ["planning", "retirement", "tax", "protection", "estate"];
+export const PLANNING_SECTIONS: SectionKey[] = [
+  "planning",
+  "compare",
+  "retirement",
+  "tax",
+  "protection",
+  "estate",
+];
 
 export function sectionPath(householdId: string, section: SectionKey): string {
   const fragment = PATHS[section];

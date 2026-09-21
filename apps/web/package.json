@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "signals": "tsx scripts/run-signals.ts",
     "demo:scenarios": "tsx scripts/demo-scenarios.ts",
+    "demo:plans": "tsx scripts/demo-plans.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

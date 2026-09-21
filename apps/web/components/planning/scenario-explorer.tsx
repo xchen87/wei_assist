@@ -112,6 +112,17 @@ export function ScenarioExplorer({
         oneTimeInflowLabel: diff(plan.oneTimeInflowLabel, baseline.oneTimeInflowLabel),
         legacyTargetCents: diff(plan.legacyTargetCents, baseline.legacyTargetCents),
         endAge: diff(plan.endAge, baseline.endAge),
+        goals: baseline.goals.map((before) => {
+          const after = plan.goals.find((g) => g.id === before.id);
+          return {
+            goalId: before.id,
+            targetCents: after && after.targetCents !== before.targetCents ? after.targetCents : null,
+            yearsAway: after && after.yearsAway !== before.yearsAway ? after.yearsAway : null,
+            // Absent from the plan means the advisor dropped it; present
+            // and unchanged means inherit, which is null rather than true.
+            included: after ? null : false,
+          };
+        }),
         members: plan.members.map((m, i) => {
           const b = baseline.members[i]!;
           return {
@@ -395,6 +406,101 @@ export function ScenarioExplorer({
                     />
                   </Grid>
                 </Panel>
+              </>
+            ) : null}
+
+            {tab === "goals" ? (
+              <>
+                <Panel
+                  title="Goals"
+                  hint="A goal is drawn out of the portfolio in the year it falls due, so its size and its timing both move the plan. Drop one to see what the plan looks like without it — the goal itself is untouched."
+                >
+                  {plan.goals.length === 0 && baseline.goals.length === 0 ? (
+                    <p className="text-xs text-ink-muted">
+                      No goals on file for this household yet. Add them in the Goals section.
+                    </p>
+                  ) : null}
+                </Panel>
+
+                {baseline.goals.map((before) => {
+                  const goal = plan.goals.find((g) => g.id === before.id);
+                  const dropped = goal === undefined;
+                  return (
+                    <div key={before.id} className="rounded-card border border-rule p-3.5">
+                      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+                        <span className={`text-sm font-semibold ${dropped ? "text-ink-muted line-through" : ""}`}>
+                          {before.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPlan((p) => ({
+                              ...p,
+                              goals: dropped
+                                ? [...p.goals, before].sort(
+                                    (a, b) =>
+                                      baseline.goals.findIndex((g) => g.id === a.id) -
+                                      baseline.goals.findIndex((g) => g.id === b.id),
+                                  )
+                                : p.goals.filter((g) => g.id !== before.id),
+                            }))
+                          }
+                          className="shrink-0 text-xs text-ink-muted underline decoration-dotted underline-offset-2 hover:text-ink"
+                        >
+                          {dropped ? "Put back" : "Drop from plan"}
+                        </button>
+                      </div>
+
+                      {dropped ? (
+                        <p className="text-xs text-ink-muted">
+                          Not funded in this scenario. The goal stays on the household record.
+                        </p>
+                      ) : before.targetCents === null ? (
+                        <p className="text-xs text-ink-muted">
+                          No cost on file, so the projection can&rsquo;t fund it. Give it a target
+                          in the Goals section first.
+                        </p>
+                      ) : (
+                        <Grid>
+                          <MoneyLever
+                            label="Costs"
+                            valueCents={goal!.targetCents ?? 0}
+                            baselineCents={before.targetCents}
+                            onChange={(v) =>
+                              setPlan((p) => ({
+                                ...p,
+                                goals: p.goals.map((g) =>
+                                  g.id === before.id ? { ...g, targetCents: v } : g,
+                                ),
+                              }))
+                            }
+                          />
+                          <NumberLever
+                            label="Years from now"
+                            value={goal!.yearsAway ?? 0}
+                            baseline={before.yearsAway ?? 0}
+                            suffix="yr"
+                            min={0}
+                            max={40}
+                            onChange={(v) =>
+                              setPlan((p) => ({
+                                ...p,
+                                goals: p.goals.map((g) =>
+                                  g.id === before.id ? { ...g, yearsAway: v } : g,
+                                ),
+                              }))
+                            }
+                          />
+                        </Grid>
+                      )}
+                      {!dropped && before.yearsAway === null && before.targetCents !== null ? (
+                        <p className="mt-2 text-xs text-ink-muted">
+                          No time horizon on file — set one here to include it in the projection.
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </>
             ) : null}
 
@@ -690,11 +796,12 @@ function probabilityTone(pct: number): string {
   return "text-loss";
 }
 
-type TabKey = "people" | "spending" | "markets" | "events";
+type TabKey = "people" | "spending" | "goals" | "markets" | "events";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "people", label: "People" },
   { key: "spending", label: "Spending" },
+  { key: "goals", label: "Goals" },
   { key: "markets", label: "Markets & tax" },
   { key: "events", label: "Events" },
 ];
@@ -735,8 +842,20 @@ function countByTab(
   const count = (...pairs: [unknown, unknown][]) =>
     pairs.reduce((n, [a, b]) => n + (a === b ? 0 : 1), 0);
 
+  let goals = 0;
+  for (const before of baseline.goals) {
+    const after = plan.goals.find((g) => g.id === before.id);
+    if (!after) {
+      goals++;
+      continue;
+    }
+    if (after.targetCents !== before.targetCents) goals++;
+    if (after.yearsAway !== before.yearsAway) goals++;
+  }
+
   return {
     people,
+    goals,
     spending: count(
       [plan.annualRetirementSpendingCents, baseline.annualRetirementSpendingCents],
       [plan.spendingShiftPct, baseline.spendingShiftPct],

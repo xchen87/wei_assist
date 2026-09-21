@@ -41,9 +41,30 @@ function sentenceAround(text: string, index: number): string {
 
 export function checkAssistantText(
   text: string,
-  opts: { readToolsCalled: number; refsIssued: Set<string>; refsUsed: string[] },
+  opts: {
+    readToolsCalled: number;
+    refsIssued: Set<string>;
+    refsUsed: string[];
+    /**
+     * How this answer is grounded.
+     *
+     * "tools" is the chat dock: the model calls tools and must cite what
+     * they returned. "supplied" is the plan review, where the whole
+     * comparison is computed and handed over before the model is asked
+     * anything — every figure it may use is in front of it, and there are
+     * no records to cite because none were fetched.
+     *
+     * The distinction has to be explicit. Passing a tool count of zero for
+     * a supplied answer flags every figure as ungrounded; passing one
+     * flags it for citing nothing. Both are wrong about a surface whose
+     * figures are grounded by construction, and a warning that cries wolf
+     * is worse than none.
+     */
+    grounding?: "tools" | "supplied";
+  },
 ): GuardrailFlag[] {
   const flags: GuardrailFlag[] = [];
+  const grounding = opts.grounding ?? "tools";
 
   // A ref the model made up points at nothing, and the dock would render it
   // as a dead token. Catching it is cheap and exact, unlike judging whether
@@ -59,7 +80,7 @@ export function checkAssistantText(
 
   // Records were read and figures quoted, but nothing was attributed — the
   // advisor has no way to check which row any of it came from (§9 rule 1).
-  if (opts.readToolsCalled > 0 && opts.refsUsed.length === 0 && FIGURE.test(text)) {
+  if (grounding === "tools" && opts.readToolsCalled > 0 && opts.refsUsed.length === 0 && FIGURE.test(text)) {
     flags.push({
       rule: "uncited_answer",
       explanation:
@@ -89,7 +110,7 @@ export function checkAssistantText(
   }
 
   const figure = FIGURE.exec(text);
-  if (figure && opts.readToolsCalled === 0) {
+  if (figure && grounding === "tools" && opts.readToolsCalled === 0) {
     flags.push({
       rule: "ungrounded_figure",
       explanation:
