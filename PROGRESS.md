@@ -291,6 +291,16 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **Whatever a field displays must round-trip through its own change
+  handler** (D-032). A masked display carries no information, so a handler
+  that parses the display cannot preserve what is behind it — the SSN
+  field masked itself with bullets and accepted exactly one digit,
+  because every keystroke stripped the bullets and everything already
+  typed with them. Masking is `type="password"`; the value stays real.
+- **Formatters live in `lib/format`, not beside their component**
+  (D-032). The SSN helpers were sound; what was missing was anywhere to
+  write a test that fed the display back in. `lib/**` is what `pnpm test`
+  covers.
 - **Separate a plan change from a yardstick change** (D-031). A scenario
   that moves a return assumption would have moved the number with the
   plan untouched. Compare projects both plans at the record's assumptions
@@ -845,6 +855,20 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Fixed the intake SSN field, which accepted exactly one digit (D-032). It
+  masked itself by putting bullets in `value`, so the input held no digits: every keystroke
+  the browser handed the handler what was on screen plus the new character, the handler
+  stripped every non-digit, and the bullets went out along with everything already typed.
+  Only the newest keystroke survived. Revealed, the same code worked perfectly — `formatSsn`
+  puts real digits on screen and stripping the dashes recovers them — so the bug was invisible
+  in the state anyone would debug in, and the review step's "Incomplete" for every member was
+  the only outward sign.
+  Masking is the browser's job now: `type="password"` when hidden, and the value is always the
+  real formatted number. The helpers moved to `lib/format/ssn.ts` with the round trip tested
+  at every length, plus a test that reproduces the bullet version and pins it at one digit —
+  the functions were fine, what was missing was anywhere to write a test that fed the display
+  back in.
 
 - **2026-09-21** — Added Compare: a saved scenario against the plan of record, both projected
   under the same market conditions, with the assistant's review beside the arithmetic and a

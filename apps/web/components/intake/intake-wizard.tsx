@@ -12,11 +12,11 @@ import {
   PRIORITIES,
   emptyGoal,
   emptyMember,
-  maskSsn,
   ageFrom,
   type GoalRow,
   type MemberRow,
 } from "./intake-types";
+import { maskSsn } from "@/lib/format/ssn";
 import { scoreRiskTolerance } from "@/lib/calc/risk";
 import { createHouseholdFromIntake } from "@/app/(app)/intake/create-household";
 

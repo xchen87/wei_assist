@@ -6,9 +6,9 @@ import {
   INPUT_CLASS,
   ROLES,
   ageFrom,
-  formatSsn,
   type MemberRow,
 } from "./intake-types";
+import { formatSsn, ssnDigits } from "@/lib/format/ssn";
 import { absCents, formatMoney, parseDollarsToCents } from "@/lib/format/money";
 
 /** One member, in three parts: who they are, what they have, and how much
@@ -92,8 +92,15 @@ export function MemberCard({
         <Labelled label="Social security number" className="col-span-2">
           <div className="flex gap-2">
             <input
-              value={showSsn ? formatSsn(member.ssn) : member.ssn.replace(/./g, "•")}
-              onChange={(e) => onChange({ ssn: e.target.value.replace(/\D/g, "").slice(0, 9) })}
+              // Masking is the browser's job. Replacing each character
+              // with a bullet and putting that in `value` looked right and
+              // meant the field held no digits: every keystroke, the
+              // handler stripped the bullets as non-digits along with
+              // everything already typed, so only the newest digit
+              // survived. Nine keystrokes stored one digit (D-032).
+              type={showSsn ? "text" : "password"}
+              value={formatSsn(member.ssn)}
+              onChange={(e) => onChange({ ssn: ssnDigits(e.target.value) })}
               inputMode="numeric"
               autoComplete="off"
               placeholder="123-45-6789"

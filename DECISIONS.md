@@ -1220,3 +1220,52 @@ The comparison block is rebuilt from the database on every turn rather than repl
 client, so a follow-up asked after the advisor applies a suggestion is answered about the plan
 as it now is. In testing, the assistant asked for a per-lever attribution it had not been
 given and said so rather than estimating it — which is the contract working.
+
+---
+
+## D-032 — Masking is the browser's job, not a string the field feeds back to itself
+
+2026-09-21 · Accepted
+
+**Context** — The intake form's social security number field accepted exactly one digit.
+Typing nine stored the ninth. The field looked like it had a `maxlength` bug and did not.
+
+The field masked itself by putting bullets in `value`:
+
+```tsx
+value={showSsn ? formatSsn(member.ssn) : member.ssn.replace(/./g, "•")}
+onChange={(e) => onChange({ ssn: e.target.value.replace(/\D/g, "").slice(0, 9) })}
+```
+
+Hidden — which is the default — the input displayed `•••` and held no digits at all. Every
+keystroke, the browser handed the handler *what was on screen plus the new character*, the
+handler stripped every non-digit, and the bullets went out along with everything already
+typed. Only the keystroke that had just arrived survived. Revealed, the same code worked
+perfectly, because `formatSsn` puts real digits on screen and stripping the dashes recovers
+them. So the bug was invisible in the state anyone would debug in.
+
+**Decision** — `type={showSsn ? "text" : "password"}`, and `value` is always the real
+formatted number. The browser draws the bullets and the value never stops being the value.
+
+The invariant this turns on is worth naming, because it is not specific to SSNs: **whatever a
+field displays must round-trip back through its own change handler.** A masked display carries
+no information, so a handler that parses the display cannot preserve what is behind it.
+`lib/format/ssn.ts` now holds `formatSsn`, `ssnDigits`, `maskSsn` and `isCompleteSsn` — moved
+out of `components/intake/intake-types.ts`, where nothing could reach them — and the round
+trip is tested at every length, alongside a test that reproduces the bullet version and pins
+it at one digit.
+
+**Alternatives** — Restore the caret and keep the bullet string: fixes nothing, since the
+display still holds no digits. `-webkit-text-security: disc` on a text input: keeps the value
+real and is non-standard. Track a separate display string in state: a second source of truth
+for a field with one value.
+
+**Consequences** — A password manager may now offer to save the field. `autoComplete="off"` is
+set, which suppresses it in practice; the alternative is a masked field that cannot be typed
+into, which is worse. Nothing downstream changed shape — but the review step stops saying
+"Incomplete" for every member, which it did because no member ever had more than one digit.
+
+The bug is a good argument for where a formatter lives. These four functions were sound; what
+was missing was anywhere to write a test that fed the *display* back in. Formatters belong in
+`lib/format`, which is covered by `pnpm test`, and not beside the component that happens to
+use them.

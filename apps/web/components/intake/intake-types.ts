@@ -77,21 +77,6 @@ export const emptyGoal = (): GoalRow => ({ name: "", priority: "Medium", horizon
 export const INPUT_CLASS =
   "w-full rounded-control border border-rule bg-surface px-2.5 py-2 text-sm text-ink";
 
-/** Digits -> 123-45-6789, as far as the digits go. */
-export function formatSsn(digits: string): string {
-  const d = digits.slice(0, 9);
-  if (d.length <= 3) return d;
-  if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
-}
-
-/** What the review step shows: the last four, which is how an SSN is
- * referred to in practice, and never the whole number. */
-export function maskSsn(digits: string): string {
-  if (digits.length < 9) return digits.length > 0 ? "Incomplete" : "—";
-  return `•••-••-${digits.slice(5)}`;
-}
-
 /** Age from a date of birth, for display beside the date input. */
 export function ageFrom(birthDate: string, now: Date = new Date()): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return null;
