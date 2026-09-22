@@ -109,12 +109,18 @@ function DriftRow({
   target,
   actual,
   selected,
+  hasTarget,
   onSelect,
 }: {
   assetClass: AssetClassKey;
   target: number;
   actual: number;
   selected: AssetClassKey;
+  /** False when no target allocation has been agreed. Drift against a
+   * target of zero is arithmetically enormous and means nothing: a
+   * household onboarded this morning has no IPS, and a full red bar on
+   * every class reads as a breach where there is only an absence. */
+  hasTarget: boolean;
   onSelect: (key: AssetClassKey) => void;
 }) {
   const driftPts = Math.round((actual - target) * 10) / 10;
@@ -140,18 +146,27 @@ function DriftRow({
         {ASSET_CLASS_LABEL[assetClass]}
       </span>
       <span className="relative block h-4">
-        <span className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
-        <span
-          className="absolute inset-y-0.5 bg-loss"
-          style={
-            driftPts >= 0
-              ? { left: "50%", width: `${width}%` }
-              : { right: "50%", width: `${width}%` }
-          }
-        />
+        {hasTarget ? (
+          <>
+            <span className="absolute inset-y-0 left-1/2 w-px bg-ink-muted" />
+            <span
+              className="absolute inset-y-0.5 bg-loss"
+              style={
+                driftPts >= 0
+                  ? { left: "50%", width: `${width}%` }
+                  : { right: "50%", width: `${width}%` }
+              }
+            />
+          </>
+        ) : (
+          <span
+            className="absolute inset-y-0.5 left-0 rounded-sm opacity-30"
+            style={{ width: `${actual}%`, background: CLASS_COLOR[assetClass] }}
+          />
+        )}
       </span>
       <span className="tabular text-right text-xs text-ink-muted">
-        {target.toFixed(1)} → {actual.toFixed(1)}%
+        {hasTarget ? `${target.toFixed(1)} → ${actual.toFixed(1)}%` : `${actual.toFixed(1)}%`}
       </span>
     </button>
   );
@@ -176,6 +191,11 @@ export function AllocationRings({
   selected: AssetClassKey;
   onSelect: (key: AssetClassKey) => void;
 }) {
+  // A target of zero across the board is not a target of zero — it is the
+  // absence of an agreed allocation, which is the normal state of a
+  // household on the day it is onboarded.
+  const hasTarget = target.equity + target.fixedIncome + target.cash > 0;
+
   function onKeyDown(event: React.KeyboardEvent) {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
     if (step === 0) return;
@@ -187,7 +207,9 @@ export function AllocationRings({
   return (
     <div className="flex flex-wrap items-center gap-7">
       <div className="flex gap-5">
-        <Ring mix={target} label="Target" selected={selected} onSelect={onSelect} />
+        {hasTarget ? (
+          <Ring mix={target} label="Target" selected={selected} onSelect={onSelect} />
+        ) : null}
         <Ring mix={actual} label="Actual" selected={selected} onSelect={onSelect} />
       </div>
       <div
@@ -203,11 +225,14 @@ export function AllocationRings({
             target={share(target, assetClass)}
             actual={share(actual, assetClass)}
             selected={selected}
+            hasTarget={hasTarget}
             onSelect={onSelect}
           />
         ))}
         <p className="mt-1 px-1.5 text-xs text-ink-muted">
-          Select a class to see the holdings behind it.
+          {hasTarget
+            ? "Select a class to see the holdings behind it."
+            : "No target allocation agreed yet, so there is no drift to measure — set one in this household's IPS. Select a class to see the holdings behind it."}
         </p>
       </div>
     </div>

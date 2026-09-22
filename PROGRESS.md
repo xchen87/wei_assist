@@ -291,6 +291,23 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
   wired up, so **the browser is still where UI behaviour gets verified
   here** — a green suite says the arithmetic holds, not that the page
   works.
+- **A model's tool input is untrusted structure** (D-033). Treating
+  `input.questions` as a typed array cost a whole turn when it arrived as
+  something else: `.filter` threw and the advisor saw a runtime error
+  where a report should have been. Parse defensively, and say plainly
+  when a turn produced nothing usable.
+- **Ask, or note — not both** (D-033). Give a model a question tool *and*
+  a "limits" heading and it will quietly prefer the heading, writing a
+  confident report over its own assumptions. The line that works:
+  something the advisor could answer now is a question; the heading is
+  for what no answer could resolve today.
+- **Cap a clarification loop in the route, not the prompt** (D-033).
+  There is always another thing a form didn't collect, so the model will
+  keep asking. One round, then the tool is withdrawn.
+- **Don't itemise and summarise the same money** (D-033). The member
+  card's assets/liabilities boxes went when accounts and property became
+  itemised — a lump sum for the same money is a second answer to one
+  question, with nothing to say which is right.
 - **Whatever a field displays must round-trip through its own change
   handler** (D-032). A masked display carries no information, so a handler
   that parses the display cannot preserve what is behind it — the SSN
@@ -855,6 +872,36 @@ advisor capacity, all queried live from the 10 seeded households.
 ---
 
 ## Changelog
+
+- **2026-09-21** — Intake now collects a portfolio, and offers to read it before the household
+  exists (D-033). It used to collect names, income, spending, two lump sums and a goal list, so
+  a household created from it had a net worth and nothing else — Allocation, Tax and Planning
+  all opened empty on a household that had just been described in full.
+  Two new steps. **Accounts and holdings**, itemised account by account with type, custodian
+  and owner, and a position table inside each; the firm's securities are offered as
+  suggestions and picking one fills the row, but the field is free text because a client
+  arrives holding what they hold. The allocation is shown back as it is typed. **Property**,
+  each with its own mortgage, plus other assets and non-mortgage liabilities. The member
+  card's assets/liabilities boxes are gone: once the same money is itemised, a lump sum for it
+  is a second answer to one question. Everything the new household states about its portfolio
+  is derived from the positions, exactly as D-029 requires of a seeded one — so a household
+  onboarded this morning opens with working rings, holdings, a concentration marker, an
+  accounts panel and asset location.
+  The second way out is an **opening analysis**: hand the whole picture to the assistant
+  first, with the day's market conditions and a free-text instruction for anything to weigh.
+  It is allowed to stop and ask, and two rules make that work. One round of questions,
+  enforced in the route — left alone it asks again after the answers, and an advisor who
+  answers four questions to be handed four more has a worse tool than a blank page. And
+  asking and noting are different outlets: the first prompt offered both a question tool and
+  an "Open questions and limits" heading, and the model quietly preferred the heading, writing
+  a confident report over its own assumptions. The report is filed against the household as an
+  activity entry.
+  Two things found in testing. A tool call's input is untrusted structure: `questions` came
+  back as something other than an array, `.filter` threw, and the advisor saw a runtime error
+  where a report should have been — parsed defensively now. And drift is no longer drawn when
+  no target allocation exists: a household onboarded this morning has no IPS, every target
+  reads zero, and drift against zero painted three full red bars that meant only "no target
+  exists".
 
 - **2026-09-21** — Fixed the intake SSN field, which accepted exactly one digit (D-032). It
   masked itself by putting bullets in `value`, so the input held no digits: every keystroke

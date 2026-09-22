@@ -5,17 +5,23 @@ import { centsToNumber } from "@/lib/format/money";
 export const dynamic = "force-dynamic";
 
 export default async function IntakePage() {
-  const [prospects, advisors] = await Promise.all([
+  const [prospects, advisors, securities] = await Promise.all([
     prisma.prospect.findMany({
       where: { stage: "Agreement" },
       include: { advisor: { select: { name: true } } },
       orderBy: { daysInStage: "asc" },
     }),
     prisma.advisor.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // Suggestions, not a closed list: a client arrives holding what they
+    // hold, and picking a known ticker just fills the rest of the row.
+    prisma.security.findMany({
+      select: { ticker: true, name: true, assetClass: true, kind: true },
+      orderBy: { ticker: "asc" },
+    }),
   ]);
 
   return (
-    <div className="mx-auto max-w-[900px] px-8 py-7">
+    <div className="mx-auto max-w-[1040px] px-8 py-7">
       <h1 className="mb-1 text-lg font-semibold">Intake</h1>
       <p className="mb-6 text-sm text-ink-muted">
         Onboard a new client household — the guided flow from a signed agreement to a plan on file.
@@ -23,6 +29,7 @@ export default async function IntakePage() {
       <IntakeWizard
         prospects={prospects.map((p) => ({ id: p.id, name: p.name, estValueCents: centsToNumber(p.estValueCents), advisorName: p.advisor.name }))}
         advisors={advisors}
+        securities={securities}
       />
     </div>
   );

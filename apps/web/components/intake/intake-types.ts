@@ -14,9 +14,46 @@ export type MemberRow = {
   occupation: string;
   annualIncome: string;
   annualExpenses: string;
-  assets: string;
-  liabilities: string;
   risk: RiskAnswers;
+};
+
+/** A position inside an account. Ticker and name are free text with the
+ * firm's catalogue offered as suggestions: a client arrives holding what
+ * they hold, and a picker that cannot express it would send the advisor
+ * to a spreadsheet. */
+export type HoldingRow = {
+  ticker: string;
+  name: string;
+  /** Equity | FixedIncome | Cash — which sleeve it rolls up to. */
+  assetClass: string;
+  /** ETF | Fund | Stock | Cash */
+  kind: string;
+  marketValue: string;
+  costBasis: string;
+};
+
+export type AccountRow = {
+  name: string;
+  /** Taxable | TraditionalIRA | RothIRA | Retirement401k | Trust | Education529 */
+  kind: string;
+  custodian: string;
+  /** A member's name, or "" for joint and household-owned. */
+  ownerName: string;
+  holdings: HoldingRow[];
+};
+
+/** Property, carried with its own debt: a house worth $1.2M against an
+ * $800K mortgage is a different household from one that owns it outright,
+ * and a single net figure loses that. */
+export type PropertyRow = {
+  label: string;
+  value: string;
+  mortgage: string;
+};
+
+export type OtherAssetRow = {
+  label: string;
+  value: string;
 };
 
 export type GoalRow = {
@@ -26,6 +63,26 @@ export type GoalRow = {
 };
 
 export const ROLES = ["Primary", "Spouse", "Dependent"];
+
+/** Tax treatment follows from the kind, so it is derived rather than
+ * asked: nobody filling in a form should have to tell the software that a
+ * Roth is tax-free. */
+export const ACCOUNT_KINDS = [
+  { value: "Taxable", label: "Brokerage (taxable)", taxTreatment: "Taxable" },
+  { value: "TraditionalIRA", label: "Traditional IRA", taxTreatment: "TaxDeferred" },
+  { value: "RothIRA", label: "Roth IRA", taxTreatment: "TaxFree" },
+  { value: "Retirement401k", label: "401(k)", taxTreatment: "TaxDeferred" },
+  { value: "Trust", label: "Trust", taxTreatment: "Taxable" },
+  { value: "Education529", label: "529 plan", taxTreatment: "TaxFree" },
+];
+
+export const ASSET_CLASSES = [
+  { value: "Equity", label: "Equities" },
+  { value: "FixedIncome", label: "Fixed income" },
+  { value: "Cash", label: "Cash" },
+];
+
+export const SECURITY_KINDS = ["ETF", "Fund", "Stock", "Cash"];
 export const PRIORITIES = ["Low", "Medium", "High"];
 
 /** The goals an advisory practice sees most often. The first five match the
@@ -67,12 +124,30 @@ export const emptyMember = (): MemberRow => ({
   occupation: "",
   annualIncome: "",
   annualExpenses: "",
-  assets: "",
-  liabilities: "",
   risk: {},
 });
 
 export const emptyGoal = (): GoalRow => ({ name: "", priority: "Medium", horizon: "7–15 years" });
+
+export const emptyHolding = (): HoldingRow => ({
+  ticker: "",
+  name: "",
+  assetClass: "Equity",
+  kind: "ETF",
+  marketValue: "",
+  costBasis: "",
+});
+
+export const emptyAccount = (): AccountRow => ({
+  name: "",
+  kind: "Taxable",
+  custodian: "",
+  ownerName: "",
+  holdings: [emptyHolding()],
+});
+
+export const emptyProperty = (): PropertyRow => ({ label: "", value: "", mortgage: "" });
+export const emptyOtherAsset = (): OtherAssetRow => ({ label: "", value: "" });
 
 export const INPUT_CLASS =
   "w-full rounded-control border border-rule bg-surface px-2.5 py-2 text-sm text-ink";

@@ -1269,3 +1269,76 @@ The bug is a good argument for where a formatter lives. These four functions wer
 was missing was anywhere to write a test that fed the *display* back in. Formatters belong in
 `lib/format`, which is covered by `pnpm test`, and not beside the component that happens to
 use them.
+
+---
+
+## D-033 — Intake collects a portfolio, and offers to read it before the household exists
+
+2026-09-21 · Accepted
+
+**Context** — Intake collected names, dates of birth, income, spending, two lump sums for
+assets and liabilities, and a list of goals. A household created from it had a net worth and
+nothing else: no asset mix, no concentration, no tax treatment, no cost basis. Allocation,
+Tax and Planning all opened empty on a household that had just been described in full, which
+is not what "described in full" should mean.
+
+**Decision** — Two new steps, and a second way out.
+
+**Accounts and holdings, itemised.** Account by account, with type, custodian and owner, and
+a position table inside each. The firm's existing securities are offered as suggestions and
+picking one fills the rest of the row, but the field is free text: a client arrives holding
+what they hold, and a closed catalogue would send the advisor to a spreadsheet. The
+allocation the entries imply is shown back as it is typed — the advisor is entering an asset
+mix whether they think of it that way or not, and a fat-fingered market value is worth
+catching here rather than three screens later.
+
+**Property, carried with its own debt.** A house worth $1.2M against an $800K mortgage is a
+different household from one that owns it outright, and a net figure loses that.
+
+The member card's "assets" and "liabilities" boxes are **gone**. Once accounts and property
+are itemised, a lump sum for the same money is a second answer to one question with nothing
+to say which is right. Income and spending stay per member, because they genuinely are.
+
+Everything the created household states about its portfolio is derived from the positions —
+asset mix, distinct holdings, largest position — exactly as D-029 requires of a seeded one.
+A household onboarded this morning now opens with a working Allocation section: rings,
+holdings, concentration marker, accounts panel, asset location.
+
+**The second way out** is an opening analysis. The advisor can take the household in as
+typed, or hand the whole picture to the assistant first: everything on the form, the day's
+market conditions, and a free-text instruction for anything they want it to weigh. The report
+is filed against the household as an activity entry, so it lives in the record rather than in
+the browser tab it was written in.
+
+**The assistant is allowed to stop and ask.** A first plan built on an unstated assumption is
+worse than one delayed by a question, so it has a tool for putting questions back and is told
+to use it before writing anything it would otherwise guess at. Two rules make that work:
+
+- **One round, enforced in the route.** Left to itself it asks again after the answers —
+  there is always another thing a form didn't collect — and an advisor who answers four
+  questions to be handed four more has been given a worse tool than a blank page. Once
+  clarifications are present the tool is withdrawn and it writes with what it has.
+- **Asking and noting are different outlets.** The first draft of the prompt offered both a
+  question tool and an "Open questions and limits" heading, and the model quietly preferred
+  the heading — it wrote a confident report and listed what it had assumed. The prompt now
+  draws the line: something the advisor could answer now is a question; the heading is for
+  what no answer could resolve today, like a tax return that hasn't been filed.
+
+**Alternatives** — Keep the lump-sum boxes and add accounts beside them: no data loss, and
+two balance sheets that disagree. A fixed security picker: cleaner data, and unusable for the
+first client who holds something the firm doesn't. Let the analysis run after creation, from
+the household record: fewer moving parts, and it misses the moment — the end of an intake
+meeting, when everything is fresh and nobody has yet decided what the first conversation with
+this household should be about.
+
+**Consequences** — A tool call's input is untrusted structure, and treating it as a typed
+object cost a turn: `questions` arrived as something other than an array, `.filter` threw,
+and the advisor saw a runtime error where a report should have been. It is parsed defensively
+now, and a turn that produces neither text nor usable questions says so instead of leaving an
+empty panel that looks like it is still thinking.
+
+Drift is no longer drawn when no target allocation has been agreed. A household onboarded
+this morning has no IPS, so every target reads zero, and drift against zero is arithmetically
+enormous — three full red bars that mean only "no target exists". The section shows the actual
+mix and says so instead. Same failure as a threshold that fires on the whole book (D-029): a
+signal that cannot distinguish is not a signal.

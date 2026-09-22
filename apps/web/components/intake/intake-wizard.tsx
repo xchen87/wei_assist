@@ -3,27 +3,48 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatMoney, absCents } from "@/lib/format/money";
-import { MemberCard, netWorthOf, surplusOf } from "./member-card";
+import { formatMoney, absCents, parseDollarsToCents } from "@/lib/format/money";
+import { ASSET_CLASS_LABEL } from "@/lib/calc/holdings";
+import { MemberCard, surplusOf } from "./member-card";
+import { AccountsStep, allocationOf } from "./accounts-step";
+import { PropertyStep } from "./property-step";
+import { AnalysisPanel } from "./analysis-panel";
 import {
   GOAL_HORIZONS,
   GOAL_OPTIONS,
   INPUT_CLASS,
   PRIORITIES,
+  ACCOUNT_KINDS,
+  emptyAccount,
   emptyGoal,
   emptyMember,
+  emptyOtherAsset,
+  emptyProperty,
   ageFrom,
+  type AccountRow,
   type GoalRow,
   type MemberRow,
+  type OtherAssetRow,
+  type PropertyRow,
 } from "./intake-types";
 import { maskSsn } from "@/lib/format/ssn";
 import { scoreRiskTolerance } from "@/lib/calc/risk";
 import { createHouseholdFromIntake } from "@/app/(app)/intake/create-household";
 
+/** A formatted figure, or "" when nothing was entered — so the block can
+ * say "not given" rather than "$0", which is a different claim. */
+const moneyOrBlank = (value: string) => {
+  const cents = parseDollarsToCents(value);
+  return cents === null ? "" : formatMoney(cents);
+};
+
+const sumDollars = (values: string[]) =>
+  values.reduce<bigint>((total, v) => total + (parseDollarsToCents(v) ?? 0n), 0n);
+
 type Prospect = { id: string; name: string; estValueCents: number; advisorName: string };
 type Advisor = { id: string; name: string };
 
-const STEPS = ["Start", "Household basics", "Members", "Goals", "Review"];
+const STEPS = ["Start", "Household basics", "Members", "Accounts", "Property", "Goals", "Review"];
 const SEGMENTS = ["Core", "Premier", "Founding"];
 
 /** New-client onboarding, distinct from Prospects (the pipeline before a
@@ -37,7 +58,15 @@ const SEGMENTS = ["Core", "Premier", "Founding"];
  * not typed into a form). Wiring a real create means deciding what a
  * freshly-onboarded household's starting state looks like across every
  * section, which is a schema/product decision this pass doesn't make. */
-export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; advisors: Advisor[] }) {
+export function IntakeWizard({
+  prospects,
+  advisors,
+  securities,
+}: {
+  prospects: Prospect[];
+  advisors: Advisor[];
+  securities: { ticker: string; name: string; assetClass: string; kind: string }[];
+}) {
   const router = useRouter();
   const [isCreating, startCreating] = useTransition();
   const [createError, setCreateError] = useState<string | null>(null);
@@ -49,6 +78,12 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
   const [clientSinceYear] = useState(new Date().getUTCFullYear());
   const [members, setMembers] = useState<MemberRow[]>([emptyMember()]);
   const [goals, setGoals] = useState<GoalRow[]>([emptyGoal()]);
+  const [accounts, setAccounts] = useState<AccountRow[]>([emptyAccount()]);
+  const [properties, setProperties] = useState<PropertyRow[]>([emptyProperty()]);
+  const [otherAssets, setOtherAssets] = useState<OtherAssetRow[]>([emptyOtherAsset()]);
+  const [otherLiabilities, setOtherLiabilities] = useState("");
+  // Kept so that creating the household files the analysis against it.
+  const [analysis, setAnalysis] = useState<{ report: string; instruction: string } | null>(null);
 
   function pickProspect(p: Prospect | null) {
     setProspectId(p?.id ?? null);
@@ -82,14 +117,17 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
           occupation: m.occupation,
           annualIncome: m.annualIncome,
           annualExpenses: m.annualExpenses,
-          assets: m.assets,
-          liabilities: m.liabilities,
           risk: m.risk,
           // The social security number is deliberately not sent: there is
           // no encrypted column for it (CLAUDE.md §11, Phase 9), and a
           // plaintext one is not the thing to make easy.
         })),
         goals: goals.map((g) => ({ name: g.name, priority: g.priority, horizon: g.horizon })),
+        accounts,
+        properties,
+        otherAssets,
+        otherLiabilities,
+        analysis: analysis ? { report: analysis.report, instruction: analysis.instruction } : null,
       });
 
       if (!result.ok) {
@@ -101,6 +139,15 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
   }
 
   const namedMembers = members.filter((m) => m.name.trim());
+  const portfolio = allocationOf(accounts);
+  const propertyValue = sumDollars(properties.map((p) => p.value));
+  const mortgageTotal = sumDollars(properties.map((p) => p.mortgage));
+  const otherAssetValue = sumDollars(otherAssets.map((a) => a.value));
+  const otherLiabilityCents = parseDollarsToCents(otherLiabilities) ?? 0n;
+  const netWorthTotal =
+    portfolio.totalCents + propertyValue + otherAssetValue - mortgageTotal - otherLiabilityCents;
+  const householdIncome = sumDollars(members.map((m) => m.annualIncome));
+  const householdExpenses = sumDollars(members.map((m) => m.annualExpenses));
   const namedGoals = goals.filter((g) => g.name.trim());
 
   const canAdvance =
@@ -234,6 +281,28 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
         )}
 
         {step === 3 && (
+          <AccountsStep
+            accounts={accounts}
+            members={members}
+            catalogue={securities}
+            onChange={setAccounts}
+          />
+        )}
+
+        {step === 4 && (
+          <PropertyStep
+            properties={properties}
+            otherAssets={otherAssets}
+            otherLiabilities={otherLiabilities}
+            onChange={(patch) => {
+              if (patch.properties) setProperties(patch.properties);
+              if (patch.otherAssets) setOtherAssets(patch.otherAssets);
+              if (patch.otherLiabilities !== undefined) setOtherLiabilities(patch.otherLiabilities);
+            }}
+          />
+        )}
+
+        {step === 5 && (
           <div>
             <div className="mb-1 text-sm font-semibold">Initial goals</div>
             <div className="mb-4 text-xs text-ink-muted">
@@ -321,7 +390,7 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
           </div>
         )}
 
-        {step === 4 && (
+        {step === 6 && (
           <div>
             <div className="mb-4 text-sm font-semibold">Review</div>
             <dl className="mb-5 grid grid-cols-[140px_1fr] gap-y-3 text-sm">
@@ -343,26 +412,24 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
             <table className="mb-5 w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-rule text-xs font-semibold text-ink-muted">
-                  <th className="py-2 text-left">NAME</th>
-                  <th className="py-2 text-left">ROLE</th>
-                  <th className="py-2 text-right">AGE</th>
+                  <th className="py-2 text-left">Name</th>
+                  <th className="py-2 text-left">Role</th>
+                  <th className="py-2 text-right">Age</th>
                   <th className="py-2 text-right">SSN</th>
-                  <th className="py-2 text-right">NET WORTH</th>
-                  <th className="py-2 text-right">ANNUAL</th>
-                  <th className="py-2 text-left">RISK</th>
+                  <th className="py-2 text-right">Annual</th>
+                  <th className="py-2 text-left">Risk</th>
                 </tr>
               </thead>
               <tbody>
                 {namedMembers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-2.5 text-ink-muted">
+                    <td colSpan={6} className="py-2.5 text-ink-muted">
                       No members added.
                     </td>
                   </tr>
                 ) : (
                   namedMembers.map((m, i) => {
                     const age = ageFrom(m.birthDate);
-                    const netWorth = netWorthOf(m);
                     const surplus = surplusOf(m);
                     const risk = scoreRiskTolerance(m.risk);
                     return (
@@ -371,9 +438,6 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
                         <td className="py-2.5 text-ink-muted">{m.role}</td>
                         <td className="tabular py-2.5 text-right">{age ?? "—"}</td>
                         <td className="tabular py-2.5 text-right text-ink-muted">{maskSsn(m.ssn)}</td>
-                        <td className="tabular py-2.5 text-right">
-                          {netWorth === null ? "—" : formatMoney(netWorth)}
-                        </td>
                         <td
                           className={`tabular py-2.5 text-right ${
                             surplus === null ? "" : surplus >= 0n ? "text-gain" : "text-loss"
@@ -392,6 +456,44 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
                     );
                   })
                 )}
+              </tbody>
+            </table>
+
+            <div className="mb-2 text-sm font-semibold">Portfolio and balance sheet</div>
+            <table className="mb-5 w-full border-collapse text-sm">
+              <tbody>
+                <tr className="border-b border-rule">
+                  <td className="py-2 text-ink-muted">Investment accounts</td>
+                  <td className="tabular py-2 text-right">
+                    {portfolio.totalCents > 0n ? formatMoney(portfolio.totalCents) : "Not entered"}
+                  </td>
+                  <td className="py-2 pl-4 text-xs text-ink-muted">
+                    {portfolio.totalCents > 0n
+                      ? Object.entries(portfolio.pct)
+                          .map(([cls, pct]) => `${ASSET_CLASS_LABEL[cls] ?? cls} ${pct.toFixed(1)}%`)
+                          .join(" · ")
+                      : "Allocation will read 0% complete"}
+                  </td>
+                </tr>
+                <tr className="border-b border-rule">
+                  <td className="py-2 text-ink-muted">Real estate</td>
+                  <td className="tabular py-2 text-right">{formatMoney(propertyValue)}</td>
+                  <td className="py-2 pl-4 text-xs text-loss">
+                    {mortgageTotal > 0n ? `less ${formatMoney(mortgageTotal)} of mortgage` : ""}
+                  </td>
+                </tr>
+                <tr className="border-b border-rule">
+                  <td className="py-2 text-ink-muted">Other assets</td>
+                  <td className="tabular py-2 text-right">{formatMoney(otherAssetValue)}</td>
+                  <td className="py-2 pl-4 text-xs text-loss">
+                    {otherLiabilityCents > 0n ? `less ${formatMoney(otherLiabilityCents)} of other debt` : ""}
+                  </td>
+                </tr>
+                <tr className="border-b border-rule font-semibold">
+                  <td className="py-2">Net worth</td>
+                  <td className="tabular py-2 text-right">{formatMoney(netWorthTotal)}</td>
+                  <td />
+                </tr>
               </tbody>
             </table>
 
@@ -419,19 +521,101 @@ export function IntakeWizard({ prospects, advisors }: { prospects: Prospect[]; a
               </table>
             )}
 
-            <button
-              onClick={create}
-              disabled={isCreating || namedMembers.length === 0 || !name.trim()}
-              className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-40"
-            >
-              {isCreating ? "Creating…" : "Create household"}
-            </button>
+            {/* Two ways out, and they are genuinely different work: take
+                the household in as typed, or have the assistant read the
+                whole picture first and hand back an opening analysis the
+                household record then carries. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={create}
+                disabled={isCreating || namedMembers.length === 0 || !name.trim()}
+                className="rounded-control bg-pine px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-40"
+              >
+                {isCreating
+                  ? "Creating…"
+                  : analysis
+                    ? "Create household with this analysis"
+                    : "Create household"}
+              </button>
+              <AnalysisPanel
+                disabled={namedMembers.length === 0 || !name.trim()}
+                onReport={(report, instruction) => setAnalysis({ report, instruction })}
+                buildIntake={(instruction, clarifications) => ({
+                  householdName: name.trim(),
+                  segment,
+                  advisorInstruction: instruction,
+                  members: namedMembers.map((m) => {
+                    const risk = scoreRiskTolerance(m.risk);
+                    return {
+                      name: m.name.trim(),
+                      role: m.role,
+                      age: ageFrom(m.birthDate),
+                      occupation: m.occupation.trim(),
+                      annualIncome: moneyOrBlank(m.annualIncome),
+                      annualExpenses: moneyOrBlank(m.annualExpenses),
+                      riskProfile: risk.profile ?? "not scored",
+                      riskComplete: risk.complete,
+                    };
+                  }),
+                  goals: goals
+                    .filter((g) => g.name.trim())
+                    .map((g) => ({ name: g.name.trim(), priority: g.priority, horizon: g.horizon })),
+                  accounts: accounts
+                    .filter((a) => a.holdings.some((h) => h.ticker.trim() && parseDollarsToCents(h.marketValue)))
+                    .map((a) => ({
+                      name: a.name.trim() || "Account",
+                      kind: ACCOUNT_KINDS.find((k) => k.value === a.kind)?.label ?? a.kind,
+                      taxTreatment: ACCOUNT_KINDS.find((k) => k.value === a.kind)?.taxTreatment ?? "Taxable",
+                      custodian: a.custodian.trim() || "not given",
+                      owner: a.ownerName.trim() || "held jointly",
+                      value: formatMoney(
+                        a.holdings.reduce<bigint>((sum, h) => sum + (parseDollarsToCents(h.marketValue) ?? 0n), 0n),
+                      ),
+                      holdings: a.holdings
+                        .filter((h) => h.ticker.trim() && parseDollarsToCents(h.marketValue))
+                        .map((h) => ({
+                          ticker: h.ticker.trim().toUpperCase(),
+                          name: h.name.trim() || h.ticker.trim().toUpperCase(),
+                          assetClass: ASSET_CLASS_LABEL[h.assetClass] ?? h.assetClass,
+                          kind: h.kind,
+                          value: formatMoney(parseDollarsToCents(h.marketValue) ?? 0n),
+                          costBasis: moneyOrBlank(h.costBasis) || null,
+                        })),
+                    })),
+                  allocation: Object.entries(portfolio.pct).map(([cls, pct]) => ({
+                    label: ASSET_CLASS_LABEL[cls] ?? cls,
+                    value: formatMoney(portfolio.byClass[cls] ?? 0n),
+                    pct: `${pct.toFixed(1)}%`,
+                  })),
+                  portfolioTotal: formatMoney(portfolio.totalCents),
+                  properties: properties
+                    .filter((p) => p.label.trim() || parseDollarsToCents(p.value))
+                    .map((p) => ({
+                      label: p.label.trim() || "Property",
+                      value: formatMoney(parseDollarsToCents(p.value) ?? 0n),
+                      mortgage: formatMoney(parseDollarsToCents(p.mortgage) ?? 0n),
+                    })),
+                  otherAssets: otherAssets
+                    .filter((a) => a.label.trim() || parseDollarsToCents(a.value))
+                    .map((a) => ({
+                      label: a.label.trim() || "Other asset",
+                      value: formatMoney(parseDollarsToCents(a.value) ?? 0n),
+                    })),
+                  otherLiabilities: moneyOrBlank(otherLiabilities),
+                  netWorth: formatMoney(netWorthTotal),
+                  annualIncome: formatMoney(householdIncome),
+                  annualExpenses: formatMoney(householdExpenses),
+                  annualSurplus: formatMoney(householdIncome - householdExpenses),
+                  clarifications,
+                })}
+              />
+            </div>
             {createError ? <div className="mt-2 text-xs text-loss">{createError}</div> : null}
             <div className="mt-2 text-xs text-ink-muted">
-              Sections this form doesn&rsquo;t cover — allocation, retirement, tax, protection,
-              estate — start empty, and each section&rsquo;s completeness ring says so. Nothing is
-              custodied on day one, so AUM starts at zero. The social security number is not saved:
-              there is no encrypted column for one yet (CLAUDE.md §11, Phase 9).
+              Sections this form doesn&rsquo;t cover — retirement, tax, protection, estate — start
+              empty, and each section&rsquo;s completeness ring says so. Allocation is as complete
+              as the accounts entered above. The social security number is not saved: there is no
+              encrypted column for one yet (CLAUDE.md §11, Phase 9).
             </div>
           </div>
         )}

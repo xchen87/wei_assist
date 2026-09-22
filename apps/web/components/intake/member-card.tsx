@@ -35,7 +35,6 @@ export function MemberCard({
 }) {
   const [showSsn, setShowSsn] = useState(false);
   const age = ageFrom(member.birthDate);
-  const netWorth = netWorthOf(member);
   const surplus = surplusOf(member);
 
   return (
@@ -119,14 +118,8 @@ export function MemberCard({
 
       <div className="mb-4 border-t border-rule pt-3">
         <div className="mb-2 flex items-baseline justify-between">
-          <div className="text-xs font-semibold">Finances</div>
+          <div className="text-xs font-semibold">Income and spending</div>
           <div className="text-xs text-ink-muted">
-            {netWorth !== null ? (
-              <>
-                Net worth <span className="tabular font-semibold text-ink">{formatMoney(netWorth)}</span>
-              </>
-            ) : null}
-            {netWorth !== null && surplus !== null ? " · " : null}
             {surplus !== null ? (
               <>
                 Annual {surplus >= 0n ? "surplus" : "deficit"}{" "}
@@ -137,12 +130,16 @@ export function MemberCard({
             ) : null}
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Money label="Annual income" value={member.annualIncome} onChange={(v) => onChange({ annualIncome: v })} />
           <Money label="Annual expenses" value={member.annualExpenses} onChange={(v) => onChange({ annualExpenses: v })} />
-          <Money label="Assets" value={member.assets} onChange={(v) => onChange({ assets: v })} />
-          <Money label="Liabilities" value={member.liabilities} onChange={(v) => onChange({ liabilities: v })} />
         </div>
+        {/* What they own is itemised two steps on, as accounts and
+            property. Asking for a lump sum here as well would double-count
+            the balance sheet and leave two answers to the same question. */}
+        <p className="mt-2 text-xs text-ink-muted">
+          What this household owns and owes is itemised in the next two steps.
+        </p>
       </div>
 
       <div className="border-t border-rule pt-3">
@@ -154,15 +151,6 @@ export function MemberCard({
       </div>
     </div>
   );
-}
-
-/** Assets minus liabilities, once both are entered. Cents are bigint
- * (D-023), so the zero defaults are too. */
-export function netWorthOf(member: MemberRow): bigint | null {
-  const assets = parseDollarsToCents(member.assets);
-  const liabilities = parseDollarsToCents(member.liabilities);
-  if (assets === null && liabilities === null) return null;
-  return (assets ?? 0n) - (liabilities ?? 0n);
 }
 
 /** Income minus expenses — what the Cashflow section will call savings. */
