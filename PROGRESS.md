@@ -78,7 +78,7 @@ The assistant needs one more, and only if you want it to answer: copy
 Without it the chat dock says exactly that and every other surface is
 unaffected.
 
-Checks: `pnpm typecheck`, `pnpm lint`, `pnpm build`.
+Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
 
 ## M-demo — advisor discovery demo
 
@@ -124,7 +124,8 @@ narrative; the second raises the quality of everything the third produces.
 ### Running the demo
 
 ```bash
-pnpm demo:reset   # 40 households, 16 prospects, 8 indicators, 42 open alerts
+pnpm demo:reset   # 40 households, 16 prospects, 8 indicators, 42 open alerts,
+                  # and two saved scenarios on the Whitakers for Compare
 pnpm dev
 ```
 
@@ -138,14 +139,23 @@ A sequence that shows the whole loop in about ten minutes:
    needs attention first, and why?"* — every figure in the answer is cited
    to a record you can click.
 3. **Prospects → Intake** — take an Agreement-stage prospect through the
-   five steps and create the household. It lands at ~18% complete with $0
-   AUM and a three-item worklist. That is the "day one, here's the work"
-   beat; the empty sections are the point.
-4. **Signals** — the part nothing else on their desk does. Run a scenario
+   seven steps. Enter two or three holdings in one account and a property:
+   the allocation builds as you type. At Review, take the household in as
+   typed — it lands with a working Allocation section and an honest
+   worklist — or press **Analyse and draft a plan first** and let the
+   assistant read the whole picture. It asks two or three questions before
+   it writes; answer them and the report it produces is filed against the
+   household in Activity.
+4. **Planning → Compare** — on the Whitakers, the two saved scenarios. The
+   first is a like-for-like plan change; the second reads −31 points and
+   the page shows that the plan change is worth *none* of it and the
+   return assumption is worth all of it. Then **Review this change** and
+   ask it a follow-up.
+5. **Signals** — the part nothing else on their desk does. Run a scenario
    live: policy rate to 5.0, or the estate threshold to $7M. Watch it name
    the affected households and say why each one matched, in that
    household's own figures.
-5. **Ask the assistant** *"which households did that touch, and what should
+6. **Ask the assistant** *"which households did that touch, and what should
    I do about the worst one?"* — it reads the alerts, ranks them, and cites
    each one.
 6. **Open a flagged household** — the alert and its reason are on the
@@ -478,7 +488,7 @@ spec for reasons specific to this sandbox, not because the spec was wrong.
       the table's inline one), Tabs, Sheet, Dialog, Popover, Tooltip — deferred until
       a feature needs them (see notes). Settings has its own local scaffold
       (`components/settings/settings-panel.tsx`) rather than generalised primitives
-- [x] Vitest wired up — `pnpm test`, 101 unit tests over `lib/**` (D-026)
+- [x] Vitest wired up — `pnpm test`, 195 unit tests over `lib/**` (D-026)
 - [ ] Storybook with light/dark and density toggles
 - [~] Prisma schema v1 — sixteen models, shaped around what's actually implemented
       (Advisor, Household, Member, Goal, Insight, Prospect, Policy, EstateAsset,
