@@ -1342,3 +1342,67 @@ this morning has no IPS, so every target reads zero, and drift against zero is a
 enormous — three full red bars that mean only "no target exists". The section shows the actual
 mix and says so instead. Same failure as a threshold that fires on the whole book (D-029): a
 signal that cannot distinguish is not a signal.
+
+---
+
+## D-034 — Meeting and Task are rows, and the assistant's second half comes before the integrations
+
+2026-09-25 · Accepted
+
+**Context** — CLAUDE.md §9 lists `calendar.*` and `task.*` among the assistant's tool
+families, "read, propose, create on confirmation", and §5 wants Today's Agenda to show
+meetings and its Tasks widget to show due and overdue items. None of that had a table
+behind it. Schedule was built over `Household.nextReviewDate`, Tasks over open `Insight`
+rows, and both pages said so in their own footers. The assistant could surface what needed
+attention — chips, alerts, the signals engine — but had nowhere to put the result when the
+advisor said "yes, book it". The question was whether to wait for Phase 8's real calendars
+before giving it one.
+
+**Decision** — Two models now, and a milestone (M-assist) ahead of Phase 8.
+
+**`Meeting` and `Task` hang off `Advisor`,** and each points at a `Household` or a
+`Prospect`, never both. `Task` may point at neither: an advisor's own to-do is still a task.
+The two nullable keys are enforced in application code; Prisma on SQLite has no check
+constraint to hand.
+
+**A prospect's rows survive its conversion.** Intake converts a prospect by deleting it.
+`prospectId` is `SetNull` rather than `Cascade`, and intake re-points the prospect's meetings
+and tasks at the new household before the delete, so a signing booked last week is still a
+meeting with these people. If that step were ever skipped the rows would go unattached
+rather than vanish.
+
+**`status` carries the confirmation flow.** A meeting is `proposed` until the advisor
+confirms it and nothing the model does creates a `confirmed` row directly, which is §9
+rule 3 written into the schema rather than remembered in a prompt. `source` says who put the
+row there — advisor, assistant, alert, insight, intake — and a task keeps the plain id of the
+alert or insight that raised it. Plain ids, not relations: demo reset clears alerts, and a
+task that outlives its trigger should keep its history, not lose it to a cascade.
+
+**The seed agrees with the record instead of sitting beside it.** A household whose review
+is "scheduled" has that review on the calendar; one whose review is "due" or "overdue" has
+nothing booked, which is precisely the gap a proactive assistant should find, so seeding a
+meeting there would hide the demo's point. Open task rows per household equal the stored
+`openTasksCount`. The held check-in and the completed task each mirror an `ActivityEvent`
+already on the timeline, on the same date. Each advisor keeps deliberately regular hours —
+a fixture, but a regular one, because the habit inference planned for M-assist needs
+something true to find, and four identical calendars would give it nothing.
+
+**Before Phase 8, not after.** The same reasoning as M-demo: the mechanism is what an
+advisor reacts to, and whether the free slots come from a mock adapter or from Google
+changes nothing about that reaction. It also means the Phase 8 adapter interface gets
+designed against a real consumer instead of a guess.
+
+**Alternatives** — Keep deriving Schedule from `nextReviewDate` and add the proposal tools
+on top: the assistant would then be able to "schedule" a review only by editing a date
+field, and could not book a discovery call with a prospect at all. Make `Meeting` a kind of
+`ActivityEvent`: one table, but a calendar entry has a start, an end, a status and a
+location that a timeline entry does not, and the timeline would fill with proposals that
+never happened. Wait for Phase 8: correct instants from a real calendar, and nothing to show
+an advisor until then.
+
+**Consequences** — Seed times treat the practice's local time as UTC, a fixture convention
+the model comment states; a real adapter writes true instants. `Household.openTasksCount`
+is now a number the rows can contradict and should become derived when Tasks reads them
+(M-assist item 2). Two more tables for demo reset to clear, done. The Schedule and Tasks
+pages are, as of this entry, still reading the old sources — the models landed first so the
+pages and the tools can be built against them, not against each other.

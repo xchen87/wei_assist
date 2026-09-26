@@ -5,13 +5,11 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
-**Last updated:** 2026-09-19
-**Current phase:** Phase 3 — the assistant is wired: streaming, six grounded tools,
-confirmation cards, guardrails, and an append-only interaction log. Phase 5 is complete — all 13 household-detail sections are built on the
-shared scaffold (Business is correctly hidden; no seeded household has an entity, D-003).
-The five surfaces with no design mockup were built directly at the user's direction
-(D-016). Next up is Phase 3, the assistant: the chat dock is UI-only until a model,
-tool runtime, and confirmation flow exist.
+**Last updated:** 2026-09-25
+**Current phase:** M-assist — the advisor's assistant (see below), inserted ahead of Phase 8.
+Phases 1, 2, 4, 5 and 7 are built; Phase 3's assistant is wired (streaming, grounded tools,
+confirmation cards, guardrails, interaction log) with history and telemetry still open;
+M-demo is done. Markets stays `[~]` until a market-data adapter exists (Phase 8).
 
 ---
 
@@ -28,6 +26,7 @@ tool runtime, and confirmation flow exist.
 | M7 | Audit ready | Compliance, audit log, retention, RBAC verified | Week 23 |
 | M8 | Private beta | 5 design-partner firms on real data | Week 26 |
 | **M-demo** | **Advisor discovery demo** | **A demo that runs end to end for real advisors: a prospect becomes a household, the book is broad enough for impact analysis to look like a book, and a watched indicator change finds the households it affects and says why** | **done 2026-09-20** |
+| **M-assist** | **The advisor's assistant** | **The assistant tells the advisor what needs attention today and why, every line cited, and can put a meeting or a task on their real calendar and worklist after they confirm it — started 2026-09-25** | **before Phase 8** |
 
 ---
 
@@ -175,6 +174,62 @@ fixtures, and suggested actions are phrased as prompts to review, never as
 advice. The mechanism is the product; the feed plugs in at Phase 8. The
 existing guardrails already enforce the same line in chat, which is itself
 worth demoing.
+
+---
+
+## M-assist — the advisor's assistant
+
+Inserted ahead of Phase 8 on 2026-09-25 (D-034). The idea: the app already knows
+what needs attention (reviews overdue, alerts, milestones, stalled prospects) and
+already proposes-then-confirms through the chat dock. What it can't do is the
+second half of the loop — turn a surfaced item into a meeting or a task — because
+until now there was nowhere to write one. Schedule was a view over each
+household's `nextReviewDate` and Tasks a view over open Insights, and both pages
+said so in their own footers.
+
+Built before Phase 8 for the same reason M-demo went ahead of M6–M8: the
+mechanism is what an advisor reacts to, and a mock calendar changes nothing
+about that reaction. It also gives the Phase 8 adapter interface a real
+consumer to be designed against.
+
+Two constraints from the start. Client-facing outreach stays a draft in the
+demo — sending is an outward effect and brings CLAUDE.md §11's retention rules
+with it. And anything inferred about the advisor's habits may only soften or
+reorder a suggestion, never suppress a compliance or drift alert.
+
+1. ~~**Meeting and Task are real rows.**~~ **Done 2026-09-25.** Two models on the
+   `Advisor` → `Household` / `Prospect` spine (`packages/db/prisma/schema.prisma`),
+   seeded to agree with the rest of the record: a household whose review is
+   "scheduled" has that review on the calendar; one whose review is "due" or
+   "overdue" has nothing booked, which is the gap item 2 should find. Open task
+   rows per household equal the stored `openTasksCount`; the held check-in and
+   the completed task each mirror the ActivityEvent the timeline already shows.
+   Each advisor keeps deliberately regular hours in the seed so item 4 has
+   something true to find. Intake now re-points a converted prospect's meetings
+   and tasks at the new household before deleting the prospect. 88 meetings and
+   144 tasks after `pnpm demo:reset`.
+2. [ ] **Schedule and Tasks read the rows.** Schedule becomes a real calendar of
+   Meeting rows (reviews, check-ins, prospect meetings) and Today's Agenda widget
+   reads the same table. Tasks lists Task rows with real due and overdue, and keeps
+   open Insights as a second tab rather than pretending they are the same thing.
+   `Household.openTasksCount` becomes derived. Both pages drop their "honestly
+   scoped" footers because the scope is now the real one.
+3. [ ] **The daily brief.** On Today and in chat: a ranked list of what needs
+   attention and why — overdue reviews with nothing booked, open alerts, stalled
+   prospects with no follow-up, tasks past due, milestones in the next thirty days
+   — every line citing the record it came from. A `get_agenda` tool for the
+   assistant, so "what should I do first today?" is answered from the same
+   ranking the widget shows.
+4. [ ] **Propose a meeting, propose a task.** Two `propose_*` tools with
+   confirmation cards, following the existing `propose_dismiss_insight` pattern:
+   the model never writes a confirmed row. A mock calendar adapter supplies free
+   slots from the advisor's existing Meeting rows — the first consumer of the
+   Phase 8 adapter interface. The card carries a drafted outreach note the
+   advisor can edit; it is filed, not sent.
+5. [ ] **Advisor patterns, explicit and inspectable.** Review cadence they
+   actually keep per segment, alert rules they act on versus dismiss, the days
+   and hours they book. Stored as rows, shown in Settings → AI beside the
+   interaction log, editable, and used only to order and phrase suggestions.
 
 ---
 
@@ -1822,3 +1877,21 @@ advisor capacity, all queried live from the 10 seeded households.
   smoke test, and curl-inspection confirming Ferreira Household's real
   advisor (Dana Whitfield) and estimated value render correctly in the
   Start step.
+- **2026-09-25** — Started M-assist (D-034), inserted ahead of Phase 8, with
+  item 1: Meeting and Task as real rows. Both hang off Advisor and point at a
+  Household or a Prospect (never both; Task may point at neither). Prospect
+  deletion sets the key null rather than cascading, and Intake re-points a
+  converted prospect's rows at the new household first, so a signing booked
+  last week is still a meeting with these people. Seeded to agree with the
+  record rather than beside it: a "scheduled" review is on the calendar, a
+  "due" or "overdue" one is not, open Task rows equal `openTasksCount`, and the
+  held check-in and completed task mirror the ActivityEvents already on the
+  timeline. Each advisor keeps regular hours (Dana Tue–Thu, Maya Mon–Thu, and
+  so on) so the habit inference in item 5 has something real to find; a
+  first-cut slot picker put every review on each advisor's first working day,
+  fixed by choosing among matching days within three days either side. One
+  meeting per advisor is pinned to the next working day so a demo morning
+  never opens on an empty agenda. Verified by a cross-check script (review
+  status ↔ review meeting, task counts, weekday spread, stalled prospects have
+  nothing booked), clean typecheck, lint, and 195 tests. Also fixed the
+  "Last updated" line, which had sat at 2026-09-19 through a week of work.

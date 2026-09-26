@@ -395,8 +395,13 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
   await createAccounts(household.id, household.members, payload.accounts);
 
   // A converted prospect shouldn't stay in the pipeline competing for
-  // attention with live ones.
+  // attention with live ones. Anything on the calendar or the worklist for
+  // the prospect follows it to the household first — a signing meeting
+  // booked last week is still a meeting with these people.
   if (payload.prospectId) {
+    const moved = { where: { prospectId: payload.prospectId }, data: { prospectId: null, householdId: household.id } };
+    await prisma.meeting.updateMany(moved);
+    await prisma.task.updateMany(moved);
     await prisma.prospect.deleteMany({ where: { id: payload.prospectId } });
     revalidatePath("/prospects");
   }

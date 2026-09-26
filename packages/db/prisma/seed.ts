@@ -1747,11 +1747,265 @@ const INDICATORS: {
   },
 ];
 
+// ── Meetings and tasks (D-034) ───────────────────────────────────────────────
+// The calendar and worklist the assistant will read and, after
+// confirmation, write. Seeded to agree with what the rest of the record
+// already says: a household whose review is "scheduled" has that review on
+// the calendar; one whose review is "due" or "overdue" has nothing booked,
+// which is exactly the gap a proactive assistant should find. The held
+// check-in and the completed task each mirror an ActivityEvent the timeline
+// already shows, on the same date, so the two never disagree.
+
+type AgendaMeeting = {
+  kind: string;
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  location: string | null;
+  status: "confirmed" | "held";
+  notes: string | null;
+};
+type AgendaTask = {
+  title: string;
+  detail: string | null;
+  dueAt: Date | null;
+  priority: "high" | "normal" | "low";
+  status: "open" | "done";
+  completedAt: Date | null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Each advisor keeps different hours. This is a fixture, but a
+ * deliberately regular one: the habit inference planned for M-assist needs
+ * something true to find ("you book reviews on Tuesdays and Thursdays"),
+ * and four advisors with identical calendars would make it find nothing. */
+const ADVISOR_HOURS: Record<AdvisorKey, { weekdays: number[]; startHours: number[] }> = {
+  dana: { weekdays: [2, 3, 4], startHours: [10, 11, 14] },
+  maya: { weekdays: [1, 2, 3, 4], startHours: [9, 13, 15] },
+  theo: { weekdays: [2, 3, 4, 5], startHours: [9.5, 11.5, 14.5] },
+  ines: { weekdays: [1, 3, 5], startHours: [10, 14] },
+};
+
+/** Move a date onto a day the advisor works, within three days either side
+ * so a Friday review date is as likely to land on the Thursday before as the
+ * Tuesday after, and onto one of their usual start times. UTC throughout —
+ * see the Meeting model comment. `anyWeekday` relaxes the day preference: a
+ * habit is a tendency, not a rule, and check-ins happen off-pattern. */
+function onAdvisorSlot(
+  date: Date,
+  advisor: AdvisorKey,
+  rand: () => number,
+  durationMin: number,
+  anyWeekday = false,
+) {
+  const hours = ADVISOR_HOURS[advisor];
+  const day0 = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const allowed = anyWeekday ? [1, 2, 3, 4, 5] : hours.weekdays;
+  const candidates: Date[] = [];
+  for (const offset of [0, 1, -1, 2, -2, 3, -3]) {
+    const d = new Date(day0.getTime() + offset * DAY_MS);
+    if (allowed.includes(d.getUTCDay())) candidates.push(d);
+  }
+  const d = candidates[Math.floor(rand() * candidates.length)]!;
+  const startHour = hours.startHours[Math.floor(rand() * hours.startHours.length)]!;
+  const startsAt = new Date(d.getTime() + startHour * 60 * 60 * 1000);
+  return { startsAt, endsAt: new Date(startsAt.getTime() + durationMin * 60 * 1000) };
+}
+
+/** Today if it is a weekday, otherwise the Monday after. */
+function nextWeekday(from: number): Date {
+  const d = new Date(Date.UTC(new Date(from).getUTCFullYear(), new Date(from).getUTCMonth(), new Date(from).getUTCDate()));
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+
+const LOCATIONS = ["Video", "Office", "Phone"];
+
+const HOUSEHOLD_TASK_TEMPLATES: { title: string; detail: string | null; priority: AgendaTask["priority"] }[] = [
+  { title: "Send updated IPS for signature", detail: "Target allocation changed at the last review; the signed copy on file predates it.", priority: "high" },
+  { title: "Request updated beneficiary form for the IRA", detail: null, priority: "normal" },
+  { title: "Chase the held-away 401(k) statement", detail: "Last statement on file is two quarters old.", priority: "normal" },
+  { title: "Confirm this year's Roth conversion amount", detail: "Needs the household's decision before year end.", priority: "high" },
+  { title: "Collect the renewed umbrella policy declaration", detail: null, priority: "low" },
+  { title: "Follow up on the 529 contribution", detail: "Household said they would fund it after the bonus lands.", priority: "normal" },
+  { title: "Introduce the estate attorney", detail: "Household asked for a referral at the last check-in.", priority: "normal" },
+  { title: "Review rebalancing trades toward target", detail: null, priority: "normal" },
+];
+
+const FIRST_IN_BOOK = new Map<AdvisorKey, string>();
+for (const h of HOUSEHOLDS) if (!FIRST_IN_BOOK.has(h.advisor)) FIRST_IN_BOOK.set(h.advisor, h.name);
+
+function buildHouseholdAgenda(
+  h: HouseholdSeed,
+  openTasksCount: number,
+  activityEvents: { kind: string; label: string; detail: string | null; occurredAt: Date }[],
+): { meetings: AgendaMeeting[]; tasks: AgendaTask[] } {
+  const rand = mulberry32(hashCode(`agenda:${h.name}`));
+  const pick = <T,>(items: T[]) => items[Math.floor(rand() * items.length)]!;
+  const now = Date.now();
+  const meetings: AgendaMeeting[] = [];
+  const tasks: AgendaTask[] = [];
+
+  // The scheduled review, on the date the household record already carries.
+  if (h.reviewStatus === "scheduled") {
+    const slot = onAdvisorSlot(new Date(h.nextReviewDate), h.advisor, rand, 60);
+    meetings.push({
+      kind: "Review",
+      title: `${h.name} — ${h.segment === "Core" ? "annual" : "quarterly"} review`,
+      ...slot,
+      location: pick(LOCATIONS),
+      status: slot.startsAt.getTime() < now ? "held" : "confirmed",
+      notes: null,
+    });
+  }
+
+  // The check-in the Activity timeline already records, as a held meeting.
+  const heldCheckIn = activityEvents.find((e) => e.kind === "Meeting");
+  if (heldCheckIn) {
+    const start = new Date(heldCheckIn.occurredAt);
+    meetings.push({
+      kind: "Check-in",
+      title: `${h.name} — check-in call`,
+      startsAt: start,
+      endsAt: new Date(start.getTime() + 30 * 60 * 1000),
+      location: "Phone",
+      status: "held",
+      notes: heldCheckIn.detail,
+    });
+  }
+
+  // Roughly a quarter of the book has something else booked in the next
+  // ten days, so Today's agenda has a meeting or two on most days. The
+  // first household in each advisor's book is booked for the next working
+  // day regardless, so the agenda is never empty on the morning of a demo
+  // — off-pattern, because that is what a same-week check-in is.
+  const guaranteed = FIRST_IN_BOOK.get(h.advisor) === h.name;
+  if (guaranteed || rand() < 0.25) {
+    const slot = guaranteed
+      ? (() => {
+          const hours = ADVISOR_HOURS[h.advisor];
+          const startsAt = new Date(nextWeekday(now).getTime() + hours.startHours[0]! * 60 * 60 * 1000);
+          return { startsAt, endsAt: new Date(startsAt.getTime() + 45 * 60 * 1000) };
+        })()
+      : onAdvisorSlot(new Date(now + Math.floor(rand() * 10) * DAY_MS), h.advisor, rand, 45, true);
+    const kind = rand() < 0.5 ? "Planning" : "Check-in";
+    meetings.push({
+      kind,
+      title: `${h.name} — ${kind === "Planning" ? "planning session" : "check-in call"}`,
+      ...slot,
+      location: pick(LOCATIONS),
+      status: slot.startsAt.getTime() < now ? "held" : "confirmed",
+      notes: null,
+    });
+  }
+
+  // Exactly openTasksCount open tasks, so the Activity page's "open" figure
+  // and the rows behind it are one number, not two.
+  const templates = [...HOUSEHOLD_TASK_TEMPLATES].sort(() => rand() - 0.5).slice(0, openTasksCount);
+  for (const t of templates) {
+    const hasDue = rand() < 0.75;
+    const dueInDays = Math.round(-12 + rand() * 33); // -12 … +21
+    tasks.push({
+      title: t.title,
+      detail: t.detail,
+      dueAt: hasDue ? new Date(now + dueInDays * DAY_MS) : null,
+      priority: hasDue && dueInDays < 0 ? "high" : t.priority,
+      status: "open",
+      completedAt: null,
+    });
+  }
+
+  // The completed task the Activity timeline already records.
+  const done = activityEvents.find((e) => e.kind === "TaskCompleted");
+  if (done) {
+    tasks.push({
+      title: done.label,
+      detail: null,
+      dueAt: done.occurredAt,
+      priority: "normal",
+      status: "done",
+      completedAt: done.occurredAt,
+    });
+  }
+
+  return { meetings, tasks };
+}
+
+function buildProspectAgenda(p: (typeof PROSPECTS)[number]): { meetings: AgendaMeeting[]; tasks: AgendaTask[] } {
+  const rand = mulberry32(hashCode(`agenda:${p.name}`));
+  const now = Date.now();
+  const meetings: AgendaMeeting[] = [];
+  const tasks: AgendaTask[] = [];
+  const inDays = (lo: number, hi: number) => new Date(now + (lo + Math.floor(rand() * (hi - lo + 1))) * DAY_MS);
+
+  if (p.stalled) {
+    // Nothing booked, and the follow-up that should have happened is late —
+    // the shape of a stalled prospect, not a label saying so.
+    tasks.push({
+      title: `Follow up with ${p.name}`,
+      detail: `No reply in ${p.daysInStage} days at ${p.stage}.`,
+      dueAt: new Date(now - Math.max(1, p.daysInStage - 14) * DAY_MS),
+      priority: "high",
+      status: "open",
+      completedAt: null,
+    });
+    return { meetings, tasks };
+  }
+
+  switch (p.stage) {
+    case "Inquiry":
+      tasks.push({
+        title: `Return ${p.name}'s inquiry`,
+        detail: `Came in via ${p.source.toLowerCase()}. Offer an intro call.`,
+        dueAt: p.daysInStage > 5 ? new Date(now - (p.daysInStage - 5) * DAY_MS) : inDays(1, 2),
+        priority: p.daysInStage > 5 ? "high" : "normal",
+        status: "open",
+        completedAt: null,
+      });
+      break;
+    case "Discovery": {
+      const slot = onAdvisorSlot(inDays(1, 7), p.advisor, rand, 60);
+      meetings.push({ kind: "Discovery", title: `${p.name} — discovery meeting`, ...slot, location: "Video", status: "confirmed", notes: null });
+      tasks.push({
+        title: `Prepare the discovery agenda for ${p.name}`,
+        detail: null,
+        dueAt: new Date(slot.startsAt.getTime() - DAY_MS),
+        priority: "normal",
+        status: "open",
+        completedAt: null,
+      });
+      break;
+    }
+    case "Proposal": {
+      const slot = onAdvisorSlot(inDays(2, 9), p.advisor, rand, 45);
+      meetings.push({ kind: "Proposal", title: `${p.name} — proposal walkthrough`, ...slot, location: "Office", status: "confirmed", notes: null });
+      tasks.push({
+        title: `Send the proposal to ${p.name}`,
+        detail: "Ahead of the walkthrough, so they can read it first.",
+        dueAt: new Date(slot.startsAt.getTime() - 2 * DAY_MS),
+        priority: "high",
+        status: "open",
+        completedAt: null,
+      });
+      break;
+    }
+    case "Agreement": {
+      const slot = onAdvisorSlot(inDays(1, 5), p.advisor, rand, 30);
+      meetings.push({ kind: "Signing", title: `${p.name} — agreement signing`, ...slot, location: "Office", status: "confirmed", notes: null });
+      break;
+    }
+  }
+  return { meetings, tasks };
+}
+
 async function main() {
   // Runtime artifacts go too, so seeding is a true reset: a demo that
   // opens with the previous demo's chat transcript still in the dock, or
   // its dragged-about widget layout, is not the demo that was rehearsed.
   await prisma.aiConversation.deleteMany();
+  await prisma.meeting.deleteMany();
+  await prisma.task.deleteMany();
   await prisma.dashboardLayout.deleteMany();
   await prisma.alert.deleteMany();
   await prisma.indicatorChange.deleteMany();
@@ -1800,6 +2054,8 @@ async function main() {
     ines: ines.id,
   };
 
+  let meetingCount = 0;
+  let taskCount = 0;
   for (const [index, h] of HOUSEHOLDS.entries()) {
     const extra = deriveFinancials(h, index);
     const created = await prisma.household.create({
@@ -1925,10 +2181,20 @@ async function main() {
         }
       }
     }
+
+    const agenda = buildHouseholdAgenda(h, extra.openTasksCount, extra.activityEvents);
+    for (const m of agenda.meetings) {
+      await prisma.meeting.create({ data: { ...m, advisorId: advisorId[h.advisor], householdId: created.id } });
+    }
+    for (const t of agenda.tasks) {
+      await prisma.task.create({ data: { ...t, advisorId: advisorId[h.advisor], householdId: created.id } });
+    }
+    meetingCount += agenda.meetings.length;
+    taskCount += agenda.tasks.length;
   }
 
   for (const p of PROSPECTS) {
-    await prisma.prospect.create({
+    const prospect = await prisma.prospect.create({
       data: {
         name: p.name,
         source: p.source,
@@ -1939,6 +2205,15 @@ async function main() {
         advisorId: advisorId[p.advisor],
       },
     });
+    const agenda = buildProspectAgenda(p);
+    for (const m of agenda.meetings) {
+      await prisma.meeting.create({ data: { ...m, advisorId: advisorId[p.advisor], prospectId: prospect.id } });
+    }
+    for (const t of agenda.tasks) {
+      await prisma.task.create({ data: { ...t, advisorId: advisorId[p.advisor], prospectId: prospect.id } });
+    }
+    meetingCount += agenda.meetings.length;
+    taskCount += agenda.tasks.length;
   }
 
   for (const ind of INDICATORS) {
@@ -1961,7 +2236,7 @@ async function main() {
   }
 
   console.log(
-    `Seeded ${HOUSEHOLDS.length} households, ${PROSPECTS.length} prospects and ${INDICATORS.length} watched indicators.`,
+    `Seeded ${HOUSEHOLDS.length} households, ${PROSPECTS.length} prospects, ${INDICATORS.length} watched indicators, ${meetingCount} meetings and ${taskCount} tasks.`,
   );
 }
 
