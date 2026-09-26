@@ -35,6 +35,7 @@ model Advisor {
   indicatorWatches IndicatorWatch[]
   meetings         Meeting[]
   tasks            Task[]
+  patterns         AdvisorPattern[]
 }
 
 model Household {
@@ -740,4 +741,32 @@ model Task {
 
   @@index([advisorId, status, dueAt])
   @@index([householdId, status])
+}
+
+// ── Advisor working patterns ───────────────────────────────────────────────
+// What the app has noticed about how this advisor works — the days and
+// hours they book, the review cadence they actually keep per segment, the
+// signal rules they act on versus dismiss — stored as rows so it can be
+// read, corrected and reset in Settings → AI. Inference fills a row; an
+// advisor's own setting replaces it and is never overwritten. Patterns only
+// order and phrase suggestions; nothing here hides a line (D-037).
+
+model AdvisorPattern {
+  id        String  @id @default(cuid())
+  advisor   Advisor @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  advisorId String
+
+  // booking.weekdays | booking.hours | cadence.<Segment> | alert-rule.<ruleKey>
+  key String
+  // inferred | advisor — who set the current value.
+  source String @default("inferred")
+  // The value, shaped per key; see lib/calc/patterns.ts.
+  valueJson String
+  // What the inference was computed from, in words the Settings page shows.
+  evidence   String
+  sampleSize Int
+  computedAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  @@unique([advisorId, key])
 }

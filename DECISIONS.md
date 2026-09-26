@@ -1516,3 +1516,53 @@ how to use them. The mock adapter treats the practice's hours as 9–17 UTC (D-0
 convention) and knows nothing booked outside Meridian; Settings → Integrations says so.
 Confirming a proposal calls a server action from inside the chat dock, which now depends on
 `app/(app)/schedule/actions.ts` and `app/(app)/tasks/actions.ts`.
+
+---
+
+## D-037 — Advisor patterns are rows with evidence, and they reorder, never hide
+
+2026-09-26 · Accepted
+
+**Context** — The last M-assist item: the assistant should know how this advisor works and
+let that shape what it suggests. The tempting version is a preference model learned in the
+background and applied everywhere. The trouble is that an advisor who cannot see why the
+brief put something third will stop reading the brief, and a pattern that quietly drops a
+compliance alert because the advisor dismissed three like it is exactly the failure
+CLAUDE.md §9 rule 4 and §11 exist to prevent.
+
+**Decision** — Explicit rows, visible evidence, two narrow uses, and a hard floor.
+
+**Inference is a pure function of the advisor's own rows.** `lib/calc/patterns.ts` reads
+meetings, households and alerts and writes three kinds of pattern: booking days and start
+times (from meetings held or booked, needing at least five), the on-time share of each
+segment's reviews, and each signal rule's acted-on versus dismissed count. Every row carries
+`evidence` in words and a `sampleSize`, and Settings → AI shows both, so "you usually book
+Tuesdays" comes with "41 meetings held or booked: Tue 38%, Wed 29%, Thu 33%" and can be
+argued with.
+
+**An advisor's own setting wins.** A row with `source: "advisor"` is skipped by recompute
+until they reset it. Inference is a default, not an authority.
+
+**Two uses, both stated.** Free slots are offered in the advisor's usual days and times
+first; every free slot is still listed and the payload says the order is the only effect.
+A medium or low brief line for a rule the advisor habitually dismisses moves down by 15
+points, or 25 if they muted it, with the reason on the line, in the widget's tooltip and in
+the tool payload. That is the whole of it. Cadence is shown as a measurement and drives
+nothing.
+
+**The floor.** A high-severity line is never moved, whatever the pattern says, and no
+pattern removes a line from the brief. `alertAdjustment` returns null for "high" and a test
+pins it. "Mute" in Settings means "order lower", and the button says so.
+
+**Alternatives** — A learned weighting over all brief scores: more responsive, and
+unreadable. Patterns applied inside the model prompt ("this advisor prefers…"): the model
+then paraphrases them into its ordering and nobody can audit the effect. Hiding dismissed
+rules: what the advisor might say they want, and the first thing a compliance reviewer
+would ask about.
+
+**Consequences** — Another table, cleared by demo reset and recomputed lazily on first
+read, so the first Today or Settings load after a reset pays the inference. Five seeded
+patterns per advisor plus one per rule that has fired. The seed's regular hours mean the
+inference is checkable against its own fixture, which is convenient for the demo and says
+nothing about a real book. When Auth.js lands the advisor id comes from the session; today it
+is the one hardcoded name, like everything else.

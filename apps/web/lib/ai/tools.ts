@@ -8,6 +8,8 @@ import { bySeverity } from "@/lib/calc/signals";
 import { loadBrief } from "@/lib/brief";
 import { calendar } from "@/lib/integrations";
 import { conflictWith, findFreeSlots } from "@/lib/calc/slots";
+import { loadPatterns } from "@/lib/patterns";
+import { hourLabel, orderSlots, WEEKDAY_NAMES } from "@/lib/calc/patterns";
 import { DAY_MS, utcDayStart } from "@/lib/agenda";
 import {
   defaultMeetingTitle,
@@ -421,6 +423,7 @@ const getAgenda: ToolDef = {
           what: i.title,
           why: i.why,
           next_step: i.nextStep,
+          ...(i.adjustment ? { ordering_note: i.adjustment } : {}),
         })),
         meetings_today: meetings.map((m) => ({
           ref: refs.issue(`${formatTime(m.startsAt)} · ${m.title}`, m.household ? `/clients/${m.household.id}` : "/prospects"),
@@ -501,8 +504,17 @@ const findMeetingSlots: ToolDef = {
       : part === "afternoon" ? { startHour: Math.max(12, hours.startHour), endHour: hours.endHour }
       : { startHour: hours.startHour, endHour: hours.endHour };
 
-    const busy = await calendar.busy(advisorId, from, to);
-    const slots = findFreeSlots(busy, { durationMin: duration, from, to, workingHours, weekdays: hours.weekdays, stepMin: 30, limit });
+    const [busy, patterns] = await Promise.all([calendar.busy(advisorId, from, to), loadPatterns(advisorId, now)]);
+    // Search wider than asked, then put the advisor's usual days and times
+    // first (D-037) and cut to the limit — a preference reorders what is
+    // free, it does not make anything free.
+    const found = findFreeSlots(busy, { durationMin: duration, from, to, workingHours, weekdays: hours.weekdays, stepMin: 30, limit: limit * 4 });
+    const booking = patterns.booking;
+    const slots = (booking ? orderSlots(found, booking) : found).slice(0, limit);
+    const preference =
+      booking && (booking.days.length > 0 || booking.startHours.length > 0)
+        ? `Ordered by your usual days (${booking.days.map((d) => WEEKDAY_NAMES[d]).join(", ") || "any"}) and start times (${booking.startHours.map(hourLabel).join(", ") || "any"}), from Settings → AI. Every listed slot is free; the order is the only effect.`
+        : "No booking pattern on file yet; earliest first.";
     const ref = refs.issue(`${CURRENT_ADVISOR_NAME}'s calendar, next ${withinDays} days`, "/schedule");
     return {
       recordIds: [],
@@ -511,6 +523,7 @@ const findMeetingSlots: ToolDef = {
         calendar: calendar.label,
         working_hours: `${formatTime(new Date(Date.UTC(2000, 0, 1, Math.floor(hours.startHour), (hours.startHour % 1) * 60)))}–${formatTime(new Date(Date.UTC(2000, 0, 1, Math.floor(hours.endHour), (hours.endHour % 1) * 60)))}, weekdays`,
         busy_blocks_considered: busy.length,
+        preference,
         time_zone: "All times are the practice's own clock. Quote labels as given; pass starts_at to propose_meeting exactly as given.",
         slots: slots.map((s) => ({ starts_at: s.startsAt.toISOString(), label: slotLabel(s) })),
         note: slots.length === 0 ? "No free slot of that length in the window. Try a shorter meeting or a wider window." : "Offer two or three of these; the advisor picks. Pass the chosen starts_at to propose_meeting unchanged.",

@@ -1862,14 +1862,19 @@ function buildHouseholdAgenda(
   }
 
   // The check-in the Activity timeline already records, as a held meeting.
+  // Placed on one of the advisor's usual slots near the timeline's date,
+  // and the timeline entry is moved onto the same instant, so the two
+  // agree and the held meeting says something true about when this
+  // advisor books — a first cut used the seed run's clock time, and the
+  // pattern inference dutifully reported "6:30 AM ×14".
   const heldCheckIn = activityEvents.find((e) => e.kind === "Meeting");
   if (heldCheckIn) {
-    const start = new Date(heldCheckIn.occurredAt);
+    const slot = onAdvisorSlot(heldCheckIn.occurredAt, h.advisor, rand, 30);
+    heldCheckIn.occurredAt = slot.startsAt;
     meetings.push({
       kind: "Check-in",
       title: `${h.name} — check-in call`,
-      startsAt: start,
-      endsAt: new Date(start.getTime() + 30 * 60 * 1000),
+      ...slot,
       location: "Phone",
       status: "held",
       notes: heldCheckIn.detail,
@@ -2006,6 +2011,7 @@ async function main() {
   await prisma.aiConversation.deleteMany();
   await prisma.meeting.deleteMany();
   await prisma.task.deleteMany();
+  await prisma.advisorPattern.deleteMany();
   await prisma.dashboardLayout.deleteMany();
   await prisma.alert.deleteMany();
   await prisma.indicatorChange.deleteMany();
@@ -2058,6 +2064,10 @@ async function main() {
   let taskCount = 0;
   for (const [index, h] of HOUSEHOLDS.entries()) {
     const extra = deriveFinancials(h, index);
+    // Before the create: the agenda builder moves the mirrored check-in's
+    // timeline entry onto the meeting's slot, and that entry is written
+    // with the household below.
+    const agenda = buildHouseholdAgenda(h, extra.openTasksCount, extra.activityEvents);
     const created = await prisma.household.create({
       data: {
         name: h.name,
@@ -2181,7 +2191,6 @@ async function main() {
       }
     }
 
-    const agenda = buildHouseholdAgenda(h, extra.openTasksCount, extra.activityEvents);
     for (const m of agenda.meetings) {
       await prisma.meeting.create({ data: { ...m, advisorId: advisorId[h.advisor], householdId: created.id } });
     }

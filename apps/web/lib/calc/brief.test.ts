@@ -44,7 +44,7 @@ describe("buildBrief ranking", () => {
         household({ id: "h2", name: "B", members: [member("m1", "Bea", "1961-10-10")] }), // turns 65 in 15 days
         household({ id: "h3", name: "C", planHealthPct: 50 }),
       ],
-      alerts: [{ id: "a1", householdId: "h2", householdName: "B", severity: "high", title: "Cash drag", rationale: "9% cash", suggestedAction: "Review", section: "allocation" }],
+      alerts: [{ id: "a1", ruleKey: "r", householdId: "h2", householdName: "B", severity: "high", title: "Cash drag", rationale: "9% cash", suggestedAction: "Review", section: "allocation" }],
       prospects: [{ id: "p1", name: "P", stage: "Proposal", daysInStage: 27, stalled: true, estValueLabel: "$1.6M", hasMeetingBooked: false }],
       openTasks: [{ id: "t1", title: "Send IPS", dueAt: daysFromNow(-16), priority: "normal", householdId: "h1", prospectId: null, subject: "A" }],
       meetingsToday: [{ id: "mt1", title: "C — review", startsAt: now, timeLabel: "3:00 PM", householdId: "h3", householdName: "C", planHealthPct: 50 }],
@@ -72,7 +72,7 @@ describe("buildBrief ranking", () => {
     const items = buildBrief({
       ...base,
       households: [household({ reviewStatus: "overdue", nextReviewDate: daysFromNow(-200), hasReviewBooked: false })],
-      alerts: [{ id: "a1", householdId: "h1", householdName: "Ramirez Household", severity: "medium", title: "T", rationale: "R", suggestedAction: "S", section: null }],
+      alerts: [{ id: "a1", ruleKey: "r", householdId: "h1", householdName: "Ramirez Household", severity: "medium", title: "T", rationale: "R", suggestedAction: "S", section: null }],
     });
     expect(items.map((i) => [i.kind, i.score])).toEqual([
       ["alert", 70],
@@ -94,7 +94,7 @@ describe("buildBrief ranking", () => {
     const items = buildBrief({
       ...base,
       households: [household({ id: "h1", name: "A", driftPct: 5 }), household({ id: "h2", name: "B", driftPct: 6 })],
-      alerts: [{ id: "a1", householdId: "h1", householdName: "A", severity: "low", title: "Drift widened", rationale: "R", suggestedAction: "S", section: "allocation" }],
+      alerts: [{ id: "a1", ruleKey: "r", householdId: "h1", householdName: "A", severity: "low", title: "Drift widened", rationale: "R", suggestedAction: "S", section: "allocation" }],
     });
     expect(items.map((i) => `${i.kind}:${i.subject}`)).toEqual(["alert:A", "drift:B"]);
   });
@@ -138,5 +138,24 @@ describe("upcomingMilestones", () => {
   });
   it("does not report a trigger that already passed", () => {
     expect(upcomingMilestones([member("m", "Old", "1961-09-01")], now, 30, 7)).toEqual([]); // turned 65 on Sep 1
+  });
+});
+
+describe("buildBrief with advisor patterns", () => {
+  it("orders a habitually dismissed medium alert a little lower, with the reason on the line, and leaves high alone", () => {
+    const rule = { kind: "alert-rule" as const, ruleKey: "cash", title: "Cash", actedOn: 0, dismissed: 4, open: 1, tendency: "dismisses" as const, muted: false };
+    const items = buildBrief({
+      ...base,
+      alerts: [
+        { id: "a1", ruleKey: "cash", householdId: "h1", householdName: "A", severity: "medium", title: "Cash", rationale: "R", suggestedAction: "S", section: null },
+        { id: "a2", ruleKey: "cash", householdId: "h2", householdName: "B", severity: "high", title: "Cash", rationale: "R", suggestedAction: "S", section: null },
+      ],
+      alertRules: { cash: rule },
+    });
+    expect(items.map((i) => [i.subject, i.score, i.adjustment !== undefined])).toEqual([
+      ["B", 90, false],
+      ["A", 55, true],
+    ]);
+    expect(items[1]!.adjustment).toContain("dismissed this rule 4 of 4 times");
   });
 });

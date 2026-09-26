@@ -5,6 +5,7 @@ import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 import { formatShortDate, formatTime } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
 import { sectionPathFromName } from "@/lib/sections";
+import { loadPatterns } from "@/lib/patterns";
 
 /** The same threshold the Clients list's "At risk" view and Today's inline
  * alerts use (clients-table.tsx). */
@@ -19,7 +20,8 @@ export async function loadBrief(now: Date = new Date()): Promise<{ items: BriefI
   const tomorrowStart = new Date(todayStart.getTime() + DAY_MS);
   const mine = { advisor: { name: CURRENT_ADVISOR_NAME } };
 
-  const [households, alerts, prospects, openTasks, meetingsToday] = await Promise.all([
+  const advisor = await prisma.advisor.findFirst({ where: mine.advisor, select: { id: true } });
+  const [households, alerts, prospects, openTasks, meetingsToday, patterns] = await Promise.all([
     prisma.household.findMany({
       where: mine,
       select: {
@@ -43,6 +45,7 @@ export async function loadBrief(now: Date = new Date()): Promise<{ items: BriefI
       where: { status: "open", household: mine },
       select: {
         id: true,
+        ruleKey: true,
         householdId: true,
         severity: true,
         title: true,
@@ -82,6 +85,7 @@ export async function loadBrief(now: Date = new Date()): Promise<{ items: BriefI
       select: { id: true, title: true, startsAt: true, householdId: true, household: { select: { name: true, planHealthPct: true } } },
       orderBy: { startsAt: "asc" },
     }),
+    advisor ? loadPatterns(advisor.id, now) : Promise.resolve(null),
   ]);
 
   const items = buildBrief({
@@ -100,6 +104,7 @@ export async function loadBrief(now: Date = new Date()): Promise<{ items: BriefI
     })),
     alerts: alerts.map((a) => ({
       id: a.id,
+      ruleKey: a.ruleKey,
       householdId: a.householdId,
       householdName: a.household.name,
       severity: a.severity,
@@ -136,6 +141,7 @@ export async function loadBrief(now: Date = new Date()): Promise<{ items: BriefI
       planHealthPct: m.household?.planHealthPct ?? null,
     })),
     driftThresholdPct: DRIFT_ALERT_THRESHOLD,
+    alertRules: patterns?.alertRules,
     sectionHref: (householdId, section) => (section ? sectionPathFromName(householdId, section) : null) ?? `/clients/${householdId}`,
     formatDate: formatShortDate,
   });

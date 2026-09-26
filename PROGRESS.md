@@ -6,7 +6,7 @@ completes, or gets reprioritized. Add a dated line to the changelog at the botto
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped
 
 **Last updated:** 2026-09-25
-**Current phase:** M-assist — the advisor's assistant (see below), inserted ahead of Phase 8.
+**Current phase:** M-assist is complete (2026-09-26, five items, D-034 to D-037). Next is Phase 8, integrations, starting with a real calendar provider behind the adapter interface M-assist introduced.
 Phases 1, 2, 4, 5 and 7 are built; Phase 3's assistant is wired (streaming, grounded tools,
 confirmation cards, guardrails, interaction log) with history and telemetry still open;
 M-demo is done. Markets stays `[~]` until a market-data adapter exists (Phase 8).
@@ -26,7 +26,7 @@ M-demo is done. Markets stays `[~]` until a market-data adapter exists (Phase 8)
 | M7 | Audit ready | Compliance, audit log, retention, RBAC verified | Week 23 |
 | M8 | Private beta | 5 design-partner firms on real data | Week 26 |
 | **M-demo** | **Advisor discovery demo** | **A demo that runs end to end for real advisors: a prospect becomes a household, the book is broad enough for impact analysis to look like a book, and a watched indicator change finds the households it affects and says why** | **done 2026-09-20** |
-| **M-assist** | **The advisor's assistant** | **The assistant tells the advisor what needs attention today and why, every line cited, and can put a meeting or a task on their real calendar and worklist after they confirm it — started 2026-09-25** | **before Phase 8** |
+| **M-assist** | **The advisor's assistant** | **The assistant tells the advisor what needs attention today and why, every line cited, and can put a meeting or a task on their real calendar and worklist after they confirm it — done 2026-09-26** | **before Phase 8** |
 
 ---
 
@@ -250,10 +250,20 @@ reorder a suggestion, never suppress a compliance or drift alert.
    "assistant", files the outreach note on the household's timeline as a draft
    marked not sent, and logs the confirmation on the conversation. Declining
    writes nothing. Settings → Integrations reads the adapter's status live.
-5. [ ] **Advisor patterns, explicit and inspectable.** Review cadence they
-   actually keep per segment, alert rules they act on versus dismiss, the days
-   and hours they book. Stored as rows, shown in Settings → AI beside the
-   interaction log, editable, and used only to order and phrase suggestions.
+5. ~~**Advisor patterns, explicit and inspectable.**~~ **Done 2026-09-26** (D-037).
+   `AdvisorPattern` rows, inferred by `lib/calc/patterns.ts` from the advisor's own
+   records — the days and start times they book, the share of each segment's
+   reviews kept on time, and each signal rule's acted-on versus dismissed count —
+   every row carrying its evidence and sample size. Recomputed when a day old;
+   a row the advisor sets by hand is never overwritten until they reset it.
+   Shown in Settings → AI as a "Working patterns" panel with the controls:
+   weekday and start-time checkboxes, "Order lower in the brief" per rule,
+   "Reset to inferred", "Recompute". Used in exactly two places: free slots are
+   offered in the advisor's usual days and times first (every free slot still
+   listed), and a medium or low brief line for a rule the advisor habitually
+   dismisses, or has muted, is ordered lower by a stated amount with the reason
+   on the line and in the tool payload. High-severity lines are never moved and
+   nothing is ever hidden. Cadence is shown as a measurement, not a preference.
 
 ---
 
@@ -1982,3 +1992,26 @@ advisor capacity, all queried live from the 10 seeded households.
   with an instruction to pass the slot unchanged rather than silently
   converted. The tool schema says the same. Four more tests, one of them
   the bug as reported; 228 total.
+- **2026-09-26** — M-assist item 5, and the milestone is done (D-037). Advisor
+  patterns are rows with evidence, not a model: from Dana's forty-odd
+  meetings the app infers Tuesday to Thursday and 10, 11 and 2 o'clock
+  starts (which is what the seed gave her, so the inference is checkable
+  against its own fixture), from her households the on-time share per
+  segment, and from her alerts an acted-on versus dismissed count per rule,
+  which reads "not enough history yet" on a fresh demo because every seeded
+  alert is still open. Two uses only — slot order and a stated nudge on
+  medium and low lines for a rule the advisor keeps dismissing or has
+  muted — and a test pins that high-severity lines are never touched.
+  Settings → AI shows every row with its evidence and lets the advisor
+  correct, mute or reset it; the "Not built" list there lost calendar.*
+  and task.*, since they exist now. Verified in the running app: the
+  panel renders Dana's inferred rows; muting the harvest-opportunity rule
+  moved its medium line from 70 to 45 and its low line from 50 to 25 with
+  the reason attached, its high lines stayed put, and reset restored them;
+  setting booking days by hand made the row "Set by you" and survived a
+  recompute; a slot search in chat came back ordered by her usual days
+  and said so. The first inference run also caught a seed artifact: the
+  held check-ins mirrored from the activity timeline carried the seed
+  run's clock time, so "6:30 AM ×14" came out as Dana's favourite start;
+  they now land on the advisor's real slots and the timeline entry moves
+  with them, which is what D-034 promised. 233 tests across 16 files.

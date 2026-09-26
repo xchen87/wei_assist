@@ -3,6 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Panel, Row, SettingsPage, Unset } from "@/components/settings/settings-panel";
 import { isConfigured, MODEL_ID } from "@/lib/ai/model";
 import { TOOLS } from "@/lib/ai/tools";
+import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
+import { loadPatterns } from "@/lib/patterns";
+import { hourLabel, WEEKDAY_NAMES } from "@/lib/calc/patterns";
+import { AlertRuleControl, HoursControl, RecomputeButton, ResetLink, WeekdaysControl } from "@/components/settings/pattern-controls";
+import { formatShortDate } from "@/lib/format/date";
 
 export const dynamic = "force-dynamic";
 
@@ -35,20 +40,23 @@ const GROUNDING_RULES: { text: string; enforcement: string }[] = [
   },
 ];
 
-/** CLAUDE.md §9 names six tool families. These three have no data behind
- * them yet, and a tool that invents its own answer is worse than no tool. */
+/** CLAUDE.md §9 names six tool families. These two have no data behind
+ * them yet, and a tool that invents its own answer is worse than no tool.
+ * calendar.* and task.* are built (M-assist): find_meeting_slots,
+ * propose_meeting and propose_task below. */
 const UNBUILT_FAMILIES: { name: string; why: string }[] = [
   { name: "market.*", why: "No Security or Quote model — the Markets page is a static snapshot, so a quote tool would fabricate. The signals engine's watched indicators are a different thing: simulated fixtures the assistant can read through get_open_alerts." },
-  { name: "calendar.* / task.*", why: "No Meeting or Task model; Schedule stands in with review dates and Tasks with insights." },
   { name: "report.*", why: "The report builder has no renderer or delivery path yet (Phase 8)." },
 ];
 
 export default async function AiSettingsPage() {
   const connected = isConfigured();
-  const [conversations, toolCalls, flagged] = await Promise.all([
+  const advisor = await prisma.advisor.findFirst({ where: { name: CURRENT_ADVISOR_NAME }, select: { id: true } });
+  const [conversations, toolCalls, flagged, patterns] = await Promise.all([
     prisma.aiConversation.count(),
     prisma.aiToolCall.count(),
     prisma.aiMessage.count({ where: { guardrailFlags: { not: null } } }),
+    advisor ? loadPatterns(advisor.id) : Promise.resolve(null),
   ]);
 
   return (
@@ -62,7 +70,7 @@ export default async function AiSettingsPage() {
           an append-only log. {connected ? null : <>No <code>ANTHROPIC_API_KEY</code> is set in this
           environment, so the chat dock answers with that fact instead of a model response; everything
           else in Meridian runs without it. </>}
-          Three of CLAUDE.md §9&rsquo;s six tool families aren&rsquo;t built, because the data behind them
+          Two of CLAUDE.md §9&rsquo;s six tool families aren&rsquo;t built, because the data behind them
           doesn&rsquo;t exist yet — listed below rather than stubbed with invented answers.
         </>
       }
@@ -95,6 +103,41 @@ export default async function AiSettingsPage() {
         <Row label="Replies flagged by guardrails">
           <span className={`tabular ${flagged > 0 ? "text-brass" : ""}`}>{flagged}</span>
         </Row>
+      </Panel>
+
+      <Panel
+        title="Working patterns"
+        subtitle="What the assistant has noticed about how you work, from your own records. Used only to order and phrase suggestions — never to hide one. Correct anything here and inference leaves it alone."
+        action={<RecomputeButton />}
+      >
+        {!patterns || patterns.all.length === 0 ? (
+          <Row label="No patterns yet" description="Book a few meetings, or act on or dismiss a few signals, and this fills in.">
+            <Unset>Nothing inferred</Unset>
+          </Row>
+        ) : (
+          patterns.all.map((p) => (
+            <div key={p.key} className="flex items-start justify-between gap-6 border-b border-rule py-3 last:border-b-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{p.label}</span>
+                  <Badge tone={p.source === "advisor" ? "pine" : "neutral"}>{p.source === "advisor" ? "Set by you" : "Inferred"}</Badge>
+                  {p.value.kind === "alert-rule" && p.value.muted && <Badge tone="brass">Ordered lower</Badge>}
+                </div>
+                <div className="mt-0.5 text-xs text-ink-muted">
+                  {p.evidence}
+                  {p.source === "inferred" && ` · computed ${formatShortDate(p.computedAt)}`}
+                </div>
+                <div className="mt-1.5 text-sm">{describePattern(p.value)}</div>
+                <div className="mt-2 flex items-center gap-3">
+                  {p.value.kind === "weekdays" && <WeekdaysControl value={p.value} />}
+                  {p.value.kind === "hours" && <HoursControl value={p.value} />}
+                  {p.value.kind === "alert-rule" && <AlertRuleControl value={p.value} />}
+                  {p.source === "advisor" && <ResetLink patternKey={p.key} />}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </Panel>
 
       <Panel title="Grounding rules" subtitle="CLAUDE.md §9. Ungrounded speculation is a bug, not a setting.">
@@ -140,4 +183,23 @@ export default async function AiSettingsPage() {
       </Panel>
     </SettingsPage>
   );
+}
+
+function describePattern(value: import("@/lib/calc/patterns").PatternValue): string {
+  switch (value.kind) {
+    case "weekdays":
+      return value.days.length === 0 ? "No day stands out." : `Mostly ${value.days.map((d) => WEEKDAY_NAMES[d]).join(", ")}. Free slots on these days are offered first.`;
+    case "hours":
+      return value.startHours.length === 0 ? "No start time stands out." : `Usually ${value.startHours.map(hourLabel).join(", ")}. Slots at these times are offered first.`;
+    case "cadence":
+      return `${value.onTimePct}% of ${value.households} households. Measured, not a preference — the brief lists every due review regardless.`;
+    case "alert-rule":
+      return value.tendency === "acts"
+        ? "You act on this rule. Its lines keep their place in the brief."
+        : value.tendency === "dismisses"
+          ? "You usually dismiss this rule. Its medium and low lines are ordered a little lower in the brief; high-severity lines are never moved."
+          : value.tendency === "mixed"
+            ? "Mixed. No effect on ordering."
+            : "Not enough history yet. No effect on ordering.";
+  }
 }

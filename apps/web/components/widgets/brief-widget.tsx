@@ -19,7 +19,7 @@ export function BriefWidget({ items, shown }: { items: BriefItem[]; shown: numbe
       <div className="flex h-full flex-col">
         <div className="flex flex-1 flex-col gap-2.5">
           {top.map((item) => (
-            <Link key={item.id} href={item.href} className="group flex items-start gap-2.5 hover:opacity-80">
+            <Link key={item.id} href={item.href} title={item.adjustment} className="group flex items-start gap-2.5 hover:opacity-80">
               <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${DOT[item.severity]}`} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">

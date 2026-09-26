@@ -19,6 +19,7 @@
  * hides. */
 
 import { calendarDaysBetween, utcDayStart } from "@/lib/agenda";
+import { alertAdjustment, type AlertRuleValue } from "./patterns";
 
 export type BriefKind =
   | "meeting-prep"
@@ -52,6 +53,8 @@ export type BriefItem = {
   /** The record this line came from, for the assistant's citation. */
   recordId: string;
   recordLabel: string;
+  /** Set when an advisor pattern moved this line, saying how and why (D-037). */
+  adjustment?: string;
 };
 
 export type BriefHousehold = {
@@ -77,6 +80,7 @@ export type BriefMember = {
 
 export type BriefAlert = {
   id: string;
+  ruleKey: string;
   householdId: string;
   householdName: string;
   severity: string;
@@ -126,6 +130,9 @@ export type BriefInput = {
   driftThresholdPct: number;
   sectionHref: (householdId: string, section: string | null) => string;
   formatDate: (d: Date) => string;
+  /** Advisor patterns per signal rule, when known. Only ever lowers a
+   * medium or low alert line by a stated amount; see alertAdjustment. */
+  alertRules?: Record<string, AlertRuleValue>;
 };
 
 /** The bands, and what moves a line within one. Every number is a rank,
@@ -182,10 +189,12 @@ export function buildBrief(input: BriefInput): BriefItem[] {
   for (const a of input.alerts) {
     householdsWithAlerts.add(a.householdId);
     const severity: BriefSeverity = a.severity === "high" ? "high" : a.severity === "medium" ? "medium" : "low";
+    const adjustment = alertAdjustment(input.alertRules?.[a.ruleKey], severity);
     items.push({
       id: `alert:${a.id}`,
       kind: "alert",
-      score: SCORE.alert[a.severity] ?? SCORE.alert.low!,
+      score: (SCORE.alert[a.severity] ?? SCORE.alert.low!) + (adjustment?.delta ?? 0),
+      ...(adjustment ? { adjustment: adjustment.note } : {}),
       severity,
       subject: a.householdName,
       householdId: a.householdId,
