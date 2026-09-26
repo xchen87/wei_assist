@@ -309,8 +309,6 @@ export async function createHouseholdFromIntake(payload: IntakePayload): Promise
       unrealizedGainsCents: 0n,
       harvestableLossesCents: 0n,
 
-      openTasksCount: 0,
-
       ...sectionCompleteness,
 
       members: {

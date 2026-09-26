@@ -1045,7 +1045,8 @@ function deriveFinancials(h: HouseholdSeed, index: number) {
     0,
   );
 
-  // Activity
+  // How many open tasks this household's worklist starts with. Not stored
+  // on the household — the Task rows are the count (D-034).
   const openTasksCount = Math.round(rand() * 4);
 
   // Per-section completeness — varies per household and per section rather
@@ -1900,8 +1901,7 @@ function buildHouseholdAgenda(
     });
   }
 
-  // Exactly openTasksCount open tasks, so the Activity page's "open" figure
-  // and the rows behind it are one number, not two.
+  // Exactly openTasksCount open tasks; the Activity page counts these rows.
   const templates = [...HOUSEHOLD_TASK_TEMPLATES].sort(() => rand() - 0.5).slice(0, openTasksCount);
   for (const t of templates) {
     const hasDue = rand() < 0.75;
@@ -2115,7 +2115,6 @@ async function main() {
         realizedGainsCents: big(extra.realizedGainsCents),
         unrealizedGainsCents: big(extra.unrealizedGainsCents),
         harvestableLossesCents: big(extra.harvestableLossesCents),
-        openTasksCount: extra.openTasksCount,
         householdCompletenessPct: extra.householdCompletenessPct,
         cashflowCompletenessPct: extra.cashflowCompletenessPct,
         balanceCompletenessPct: extra.balanceCompletenessPct,

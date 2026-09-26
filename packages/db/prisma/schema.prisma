@@ -141,9 +141,6 @@ model Household {
   unrealizedGainsCents   BigInt
   harvestableLossesCents BigInt
 
-  // Activity
-  openTasksCount Int
-
   members         Member[]
   goals           Goal[]
   accounts        Account[]

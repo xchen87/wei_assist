@@ -13,6 +13,7 @@ export default async function ActivityPage({ params }: { params: { id: string } 
     include: {
       activityEvents: { orderBy: { occurredAt: "desc" } },
       insights: { where: { dismissed: false, section: "Activity" } },
+      tasks: { select: { status: true } },
     },
   });
   if (!household) notFound();
@@ -23,7 +24,10 @@ export default async function ActivityPage({ params }: { params: { id: string } 
 
   const meetingsYtd = events.filter((e) => e.kind === "Meeting" && isThisYear(e.occurredAt)).length;
   const notes = events.filter((e) => e.kind === "Note").length;
-  const tasksCompleted = events.filter((e) => e.kind === "TaskCompleted").length;
+  // From the household's Task rows (D-034), not a stored count: the number
+  // on this card and the rows behind it in the Tasks inbox are one thing.
+  const tasksCompleted = household.tasks.filter((t) => t.status === "done").length;
+  const tasksOpen = household.tasks.filter((t) => t.status === "open").length;
   const lastPlanChange = events.find((e) => e.kind === "PlanChange");
   const lastPlanChangeLabel = lastPlanChange
     ? daysUntil(lastPlanChange.occurredAt) === 0
@@ -59,12 +63,12 @@ export default async function ActivityPage({ params }: { params: { id: string } 
         <div className="grid grid-cols-4 gap-3.5">
           <Stat value={String(meetingsYtd)} label="Meetings, YTD" />
           <Stat value={String(notes)} label="Notes" />
-          <Stat value={`${tasksCompleted} / ${household.openTasksCount}`} label="Tasks completed / open" />
+          <Stat value={`${tasksCompleted} / ${tasksOpen}`} label="Tasks completed / open" />
           <Stat value={lastPlanChangeLabel} label="Last plan change" />
         </div>
       }
       insights={household.insights.map((i) => ({ id: i.id, text: i.text, sourceLabel: i.sourceLabel, householdId: i.householdId, section: i.section }))}
-      provenance="Meetings and notes: manually logged by the advisor · Documents and plan changes: recorded automatically when the underlying record changes · Tasks: manual entry, no Task model in this pass — see PROGRESS.md."
+      provenance="Meetings and notes: manually logged by the advisor · Documents and plan changes: recorded automatically when the underlying record changes · Tasks: the household's own task rows, marked done from the Tasks inbox."
     />
   );
 }

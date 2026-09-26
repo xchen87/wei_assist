@@ -40,14 +40,14 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "agenda",
     title: "Agenda",
-    description: "Today and tomorrow's reviews, with a prep-readiness dot per meeting.",
+    description: "Today and tomorrow's meetings, with a prep-readiness dot per household meeting.",
     defaultSize: { w: 6, h: 7 },
     minSize: { w: 3, h: 4 },
   },
   {
     id: "tasks",
     title: "Tasks",
-    description: "Open insights across the book, grouped by household.",
+    description: "Your due and overdue tasks, grouped by household.",
     defaultSize: { w: 3, h: 7 },
     minSize: { w: 3, h: 4 },
   },

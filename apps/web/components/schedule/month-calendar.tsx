@@ -1,12 +1,22 @@
 import Link from "next/link";
 
-export type CalendarEvent = { id: string; date: Date; label: string; tone: "gain" | "brass" | "loss" };
+export type CalendarEvent = {
+  id: string;
+  date: Date;
+  label: string;
+  href: string;
+  /** gain/brass/loss: prep readiness of a household meeting. pine: a
+   * prospect meeting. neutral: already held. */
+  tone: "gain" | "brass" | "loss" | "pine" | "neutral";
+};
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DOT_CLASS: Record<CalendarEvent["tone"], string> = {
   gain: "bg-gain",
   brass: "bg-brass",
   loss: "bg-loss",
+  pine: "bg-pine",
+  neutral: "bg-rule",
 };
 
 function toKey(d: Date) {
@@ -61,15 +71,17 @@ export function MonthCalendar({
           const key = toKey(d);
           const dayEvents = eventsByDay.get(key) ?? [];
           const isToday = key === todayKey;
+          const overflow = dayEvents.length - 6;
           return (
             <div key={i} className={`h-16 rounded-control border p-1.5 ${isToday ? "border-pine bg-pine-tint" : "border-rule"}`}>
               <div className={`tabular text-xs ${isToday ? "font-semibold text-pine" : "text-ink-muted"}`}>{d.getUTCDate()}</div>
-              <div className="mt-1 flex flex-wrap gap-0.5">
-                {dayEvents.slice(0, 4).map((e) => (
-                  <Link key={e.id} href={`/clients/${e.id}`} title={e.label}>
+              <div className="mt-1 flex flex-wrap items-center gap-0.5">
+                {dayEvents.slice(0, 6).map((e) => (
+                  <Link key={e.id} href={e.href} title={e.label}>
                     <span className={`block h-1.5 w-1.5 rounded-full ${DOT_CLASS[e.tone]}`} />
                   </Link>
                 ))}
+                {overflow > 0 && <span className="tabular text-[10px] leading-none text-ink-muted">+{overflow}</span>}
               </div>
             </div>
           );

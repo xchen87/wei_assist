@@ -208,12 +208,23 @@ reorder a suggestion, never suppress a compliance or drift alert.
    something true to find. Intake now re-points a converted prospect's meetings
    and tasks at the new household before deleting the prospect. 88 meetings and
    144 tasks after `pnpm demo:reset`.
-2. [ ] **Schedule and Tasks read the rows.** Schedule becomes a real calendar of
-   Meeting rows (reviews, check-ins, prospect meetings) and Today's Agenda widget
-   reads the same table. Tasks lists Task rows with real due and overdue, and keeps
-   open Insights as a second tab rather than pretending they are the same thing.
-   `Household.openTasksCount` becomes derived. Both pages drop their "honestly
-   scoped" footers because the scope is now the real one.
+2. ~~**Schedule and Tasks read the rows.**~~ **Done 2026-09-25.** Schedule is a
+   calendar of Meeting rows: month grid with a dot per meeting (readiness tone
+   for household meetings, pine for prospects, muted once held), the next
+   fourteen days as a list grouped by day, an advisor filter, and a "Reviews
+   with nothing booked" list — households due or overdue with no future review
+   on the calendar, which is the gap item 4 will offer to fill. Today's Agenda
+   reads the signed-in advisor's meetings for today and tomorrow and names the
+   next one when both days are clear. Tasks has two views: Task rows (grouped
+   by household or prospect, overdue first, filters for household, advisor, due
+   window and done) and the old Insights inbox, kept separate because an
+   insight is a prompt, not a to-do. Marking a task done is a server action
+   that also writes the TaskCompleted entry on the household's timeline;
+   reopening leaves that entry, since the log is append-only.
+   `Household.openTasksCount` is gone — the Activity page counts Task rows.
+   Due-date and day arithmetic lives in `lib/agenda.ts`, pure and tested on
+   UTC day boundaries. Both pages' "honestly scoped" footers are replaced by
+   the one limitation that remains: no external calendar is connected.
 3. [ ] **The daily brief.** On Today and in chat: a ranked list of what needs
    attention and why — overdue reviews with nothing booked, open alerts, stalled
    prospects with no follow-up, tasks past due, milestones in the next thirty days
@@ -1895,3 +1906,20 @@ advisor capacity, all queried live from the 10 seeded households.
   status ↔ review meeting, task counts, weekday spread, stalled prospects have
   nothing booked), clean typecheck, lint, and 195 tests. Also fixed the
   "Last updated" line, which had sat at 2026-09-19 through a week of work.
+- **2026-09-25** — M-assist item 2: the screens read the rows. Schedule went
+  from "each household's next review date" to a real calendar of Meeting
+  rows with an advisor filter and a list of due reviews that have nothing
+  booked. Today's Agenda shows the signed-in advisor's meetings for today
+  and tomorrow, with a "next up" line when both are clear — the check
+  that caught this: the first render of the day was empty because it is
+  already Saturday in UTC, and a blank card with no explanation would have
+  read as broken. Tasks became a two-view page, Task rows first, the
+  Insights inbox second, with a done/reopen action that writes to the
+  household timeline. The stored `openTasksCount` column was dropped rather
+  than kept in sync. Extracted `lib/agenda.ts` (due labels, UTC day
+  arithmetic, sort order) with seven tests, including the 23:30 UTC case a
+  local-time implementation gets wrong. Verified in the running app: every
+  route 200, Tasks header reads 104 open · 26 overdue with the overdue
+  filter agreeing, Schedule lists Monday's meetings for all four advisors,
+  the advisor filter narrows to one, and a prospect row no longer reads
+  "Proposal · Proposal" (kind and stage said the same word).

@@ -12,7 +12,8 @@ import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
 import { centsToNumber } from "@/lib/format/money";
-import { formatShortDate } from "@/lib/format/date";
+import { formatShortDate, formatTime } from "@/lib/format/date";
+import { DAY_MS, compareByDue, dayHeading, describeDue, readinessTone, utcDayStart } from "@/lib/agenda";
 import { bySeverity } from "@/lib/calc/signals";
 import { WidgetGrid } from "@/components/widgets/widget-grid";
 import { DEFAULT_LAYOUT, sanitizeLayout, type WidgetId } from "@/components/widgets/catalog";
@@ -25,13 +26,33 @@ const DRIFT_ALERT_THRESHOLD = 4;
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const [households, prospects, openInsights, openAlerts, savedLayout] = await Promise.all([
+  const now = new Date();
+  const todayStart = utcDayStart(now);
+  const dayAfterTomorrow = new Date(todayStart.getTime() + 2 * DAY_MS);
+  // The signed-in advisor's own calendar and worklist. Every other widget
+  // reads the whole book; these two are personal by nature.
+  const me = { advisor: { name: CURRENT_ADVISOR_NAME } };
+  const meetingInclude = {
+    household: { select: { id: true, name: true, planHealthPct: true } },
+    prospect: { select: { id: true, name: true } },
+  } as const;
+
+  const [households, prospects, meetings, nextMeeting, openTasks, openAlerts, savedLayout] = await Promise.all([
     prisma.household.findMany({ orderBy: { nextReviewDate: "asc" } }),
     prisma.prospect.findMany(),
-    prisma.insight.findMany({
-      where: { dismissed: false },
-      include: { household: { select: { name: true } } },
-      take: 3,
+    prisma.meeting.findMany({
+      where: { ...me, status: { in: ["confirmed", "proposed"] }, startsAt: { gte: todayStart, lt: dayAfterTomorrow } },
+      include: meetingInclude,
+      orderBy: { startsAt: "asc" },
+    }),
+    prisma.meeting.findFirst({
+      where: { ...me, status: { in: ["confirmed", "proposed"] }, startsAt: { gte: dayAfterTomorrow } },
+      include: meetingInclude,
+      orderBy: { startsAt: "asc" },
+    }),
+    prisma.task.findMany({
+      where: { ...me, status: "open" },
+      include: { household: { select: { id: true, name: true } }, prospect: { select: { name: true } } },
     }),
     // The advisor's own arrangement, if they've made one. A row that fails
     // to parse falls back to the default rather than breaking the page.
@@ -56,15 +77,34 @@ export default async function TodayPage() {
     }
   }
 
-  const agenda = households.slice(0, 3).map((h) => ({
-    id: h.id,
-    name: h.name,
-    date: h.nextReviewDate,
-    readiness: (h.planHealthPct >= 80 ? "ready" : h.planHealthPct >= 60 ? "partial" : "not-started") as
-      | "ready"
-      | "partial"
-      | "not-started",
+  const agenda = meetings.map((m) => ({
+    id: m.id,
+    href: m.household ? `/clients/${m.household.id}` : "/prospects",
+    day: dayHeading(m.startsAt, now, formatShortDate),
+    time: formatTime(m.startsAt),
+    title: m.title,
+    kind: m.kind,
+    tone: m.household ? readinessTone(m.household.planHealthPct) : ("pine" as const),
   }));
+  const nextUp = nextMeeting
+    ? {
+        href: nextMeeting.household ? `/clients/${nextMeeting.household.id}` : "/prospects",
+        when: `${formatShortDate(nextMeeting.startsAt)} at ${formatTime(nextMeeting.startsAt)}`,
+        title: nextMeeting.title,
+      }
+    : null;
+
+  const TASKS_SHOWN = 6;
+  const tasks = [...openTasks]
+    .sort(compareByDue)
+    .slice(0, TASKS_SHOWN)
+    .map((t) => ({
+      id: t.id,
+      subject: t.household?.name ?? t.prospect?.name ?? "Your own",
+      href: t.household ? `/clients/${t.household.id}` : t.prospect ? "/prospects" : null,
+      title: t.title,
+      due: describeDue(t.dueAt, now, formatShortDate),
+    }));
 
   // Signals the engine raised come first: those know which household and
   // why. The inline drift and overdue conditions fill the rest of the card
@@ -143,12 +183,8 @@ export default async function TodayPage() {
   // still open, and doing it here would have meant rewriting every widget
   // to make them draggable.
   const panels: Partial<Record<WidgetId, React.ReactNode>> = {
-    agenda: <AgendaWidget items={agenda} />,
-    tasks: (
-      <TasksWidget
-        items={openInsights.map((i) => ({ id: i.id, householdName: i.household.name, text: i.text }))}
-      />
-    ),
+    agenda: <AgendaWidget items={agenda} nextUp={nextUp} />,
+    tasks: <TasksWidget items={tasks} openCount={openTasks.length} />,
     alerts: <AlertsWidget items={alerts} />,
     pipeline: <PipelineWidget counts={pipelineCounts} />,
     markets: <MarketsWidget />,
