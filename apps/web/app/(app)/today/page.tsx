@@ -8,6 +8,9 @@ import { MarketsWidget } from "@/components/widgets/markets-widget";
 import { BookWidget } from "@/components/widgets/book-widget";
 import { ReviewsWidget } from "@/components/widgets/reviews-widget";
 import { MilestonesWidget } from "@/components/widgets/milestones-widget";
+import { BRIEF_PROMPT, BriefWidget } from "@/components/widgets/brief-widget";
+import { loadBrief } from "@/lib/brief";
+import { upcomingMilestones } from "@/lib/calc/brief";
 import { RecentsWidget } from "@/components/widgets/recents-widget";
 import { NotesWidget } from "@/components/widgets/notes-widget";
 import { formatPercent } from "@/lib/format/percent";
@@ -37,7 +40,7 @@ export default async function TodayPage() {
     prospect: { select: { id: true, name: true } },
   } as const;
 
-  const [households, prospects, meetings, nextMeeting, openTasks, openAlerts, savedLayout] = await Promise.all([
+  const [households, prospects, meetings, nextMeeting, openTasks, openAlerts, savedLayout, brief, members] = await Promise.all([
     prisma.household.findMany({ orderBy: { nextReviewDate: "asc" } }),
     prisma.prospect.findMany(),
     prisma.meeting.findMany({
@@ -65,7 +68,31 @@ export default async function TodayPage() {
       where: { advisor: { name: CURRENT_ADVISOR_NAME } },
       select: { layoutJson: true },
     }),
+    loadBrief(now),
+    prisma.member.findMany({
+      where: { birthDate: { not: null } },
+      select: { id: true, name: true, role: true, birthDate: true, household: { select: { id: true, name: true } } },
+    }),
   ]);
+
+  // Birthdays in the next 30 days and age triggers in the next 60, from
+  // real dates of birth, soonest first.
+  const milestones = members
+    .flatMap((m) =>
+      upcomingMilestones([m], now, 60, 30).map((ms) => ({
+        id: `${ms.memberId}:${ms.kind}`,
+        href: `/clients/${m.household.id}/household`,
+        householdName: m.household.name,
+        inDays: ms.inDays,
+        trigger: ms.kind === "age-trigger",
+        text:
+          ms.kind === "age-trigger"
+            ? `${ms.memberName} turns ${ms.age} ${ms.inDays === 0 ? "today" : ms.inDays === 1 ? "tomorrow" : `in ${ms.inDays} days`}`
+            : `${ms.memberName}'s birthday ${ms.inDays === 0 ? "today" : ms.inDays === 1 ? "tomorrow" : `in ${ms.inDays} days`}`,
+      })),
+    )
+    .sort((a, b) => a.inDays - b.inDays)
+    .slice(0, 8);
 
   let layout = DEFAULT_LAYOUT;
   if (savedLayout) {
@@ -159,6 +186,7 @@ export default async function TodayPage() {
   const article = (name: string) => (/^the\s/i.test(name) ? "" : "the ");
 
   const chips = [
+    brief.items.length > 0 ? BRIEF_PROMPT : null,
     nextReview
       ? `Prep me for ${article(nextReview.name)}${nextReview.name} review on ${formatShortDate(nextReview.nextReviewDate)}`
       : null,
@@ -183,6 +211,7 @@ export default async function TodayPage() {
   // still open, and doing it here would have meant rewriting every widget
   // to make them draggable.
   const panels: Partial<Record<WidgetId, React.ReactNode>> = {
+    brief: <BriefWidget items={brief.items} shown={6} />,
     agenda: <AgendaWidget items={agenda} nextUp={nextUp} />,
     tasks: <TasksWidget items={tasks} openCount={openTasks.length} />,
     alerts: <AlertsWidget items={alerts} />,
@@ -190,11 +219,7 @@ export default async function TodayPage() {
     markets: <MarketsWidget />,
     book: <BookWidget aumCents={totalAum} monthlyFlowCents={monthlyFlow} />,
     reviews: <ReviewsWidget items={overdue} />,
-    milestones: (
-      <MilestonesWidget
-        items={households.slice(0, 2).map((h) => `${h.name} — upcoming age-based milestone`)}
-      />
-    ),
+    milestones: <MilestonesWidget items={milestones} />,
     recents: <RecentsWidget items={households.slice(0, 3).map((h) => ({ id: h.id, name: h.name }))} />,
     notes: <NotesWidget />,
   };

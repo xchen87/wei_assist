@@ -15,6 +15,7 @@ export const ROW_HEIGHT = 28;
 export const GRID_GAP = 16;
 
 export type WidgetId =
+  | "brief"
   | "agenda"
   | "tasks"
   | "alerts"
@@ -37,6 +38,13 @@ export type WidgetMeta = {
 };
 
 export const WIDGETS: WidgetMeta[] = [
+  {
+    id: "brief",
+    title: "Brief",
+    description: "What needs your attention today, ranked, with the reason for each line.",
+    defaultSize: { w: 6, h: 8 },
+    minSize: { w: 4, h: 5 },
+  },
   {
     id: "agenda",
     title: "Agenda",
@@ -89,7 +97,7 @@ export const WIDGETS: WidgetMeta[] = [
   {
     id: "milestones",
     title: "Milestones",
-    description: "Birthdays and age-based triggers. Static in this build.",
+    description: "Birthdays and age-based triggers in the next 60 days, from members' dates of birth.",
     defaultSize: { w: 3, h: 6 },
     minSize: { w: 3, h: 4 },
   },
@@ -117,21 +125,22 @@ export type WidgetPlacement = { i: WidgetId; x: number; y: number; w: number; h:
  * than a surprise. §5's org-published default would replace this constant
  * once there's an Org to publish one.
  *
- * Three full-width bands, deliberately collision-free: react-grid-layout
+ * Full-width bands, deliberately collision-free: react-grid-layout
  * compacts anything that overlaps, and a default that gets rewritten on
  * first render can never compare equal to itself — which is what "Reset"
  * depends on to know it has nothing to store. */
 export const DEFAULT_LAYOUT: WidgetPlacement[] = [
-  { i: "agenda", x: 0, y: 0, w: 6, h: 7 },
-  { i: "tasks", x: 6, y: 0, w: 3, h: 7 },
-  { i: "alerts", x: 9, y: 0, w: 3, h: 7 },
-  { i: "pipeline", x: 0, y: 7, w: 4, h: 7 },
-  { i: "markets", x: 4, y: 7, w: 4, h: 7 },
-  { i: "book", x: 8, y: 7, w: 4, h: 7 },
-  { i: "reviews", x: 0, y: 14, w: 3, h: 6 },
-  { i: "milestones", x: 3, y: 14, w: 3, h: 6 },
-  { i: "recents", x: 6, y: 14, w: 3, h: 6 },
-  { i: "notes", x: 9, y: 14, w: 3, h: 6 },
+  { i: "brief", x: 0, y: 0, w: 6, h: 8 },
+  { i: "agenda", x: 6, y: 0, w: 6, h: 8 },
+  { i: "tasks", x: 0, y: 8, w: 3, h: 7 },
+  { i: "alerts", x: 3, y: 8, w: 3, h: 7 },
+  { i: "pipeline", x: 6, y: 8, w: 3, h: 7 },
+  { i: "book", x: 9, y: 8, w: 3, h: 7 },
+  { i: "markets", x: 0, y: 15, w: 4, h: 7 },
+  { i: "reviews", x: 4, y: 15, w: 4, h: 6 },
+  { i: "milestones", x: 8, y: 15, w: 4, h: 6 },
+  { i: "recents", x: 0, y: 22, w: 3, h: 6 },
+  { i: "notes", x: 3, y: 22, w: 3, h: 6 },
 ];
 
 const BY_ID = new Map(WIDGETS.map((w) => [w.id, w]));

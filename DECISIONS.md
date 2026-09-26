@@ -1406,3 +1406,55 @@ is now a number the rows can contradict and should become derived when Tasks rea
 (M-assist item 2). Two more tables for demo reset to clear, done. The Schedule and Tasks
 pages are, as of this entry, still reading the old sources — the models landed first so the
 pages and the tools can be built against them, not against each other.
+
+---
+
+## D-035 — The brief is one ranking, read on Today and asked in chat
+
+2026-09-26 · Accepted
+
+**Context** — M-assist item 3 asks for "what needs attention today and why", on Today and
+in the assistant. The raw material already existed in five places: the signals engine's
+alerts, review status on the household, open tasks, the pipeline's stalled flag, and
+members' dates of birth. What did not exist was an order. Left to the model, the order
+would be whatever it inferred from five tool results on the day, and the widget would be
+built from a sixth opinion. An advisor asked "what first?" would get two answers.
+
+**Decision** — One pure ranker, `lib/calc/brief.ts`, and one loader that both surfaces
+call.
+
+**Scores are written down, not learned.** Each line gets a number from a table at the top
+of the file: bands in triage order (meeting prep, signals, reviews owed with nothing
+booked, overdue tasks, stalled prospects, drift, milestones), and within a band the more
+overdue or more severe the higher. The bands overlap at their edges on purpose — a
+prospect stalled a month outranks a task two days late — and a test pins that overlap so
+a later "fix" has to argue with it. When item 5's advisor patterns arrive they will adjust
+these numbers per advisor; they will not replace the table with something that cannot be
+read.
+
+**The brief reorders, it never hides.** Every open signal, every owed review and every
+overdue task is in the list. The widget shows six and says how many more; the tool takes
+a limit. Nothing is filtered on the way in, so a line the advisor never sees is a line
+they scrolled past, not one the ranker decided against.
+
+**Every line carries its reason and its record.** `why` is built from the record's own
+figures ("Review was due Jun 29; last contact 108d ago; no review on the calendar"), the
+next step is a prompt to review rather than an instruction, and the tool issues a citation
+ref per line so the model quotes the reason instead of reconstructing it from other tools.
+
+**Milestones are ages, not rules.** 59½, 65 and 73 are CLAUDE.md §5's list. The copy says
+"an age-based planning trigger" and leaves what changes at that age to the advisor and
+the household's tax adviser, per §13.
+
+**Alternatives** — Let the model rank: five tool calls per question, an order that varies
+by phrasing, and a widget that cannot show the same thing. Rank inside the signals engine:
+it only knows about indicator moves, and half the brief is reviews, tasks and prospects.
+A single "attention score" on the household: hides which of three reasons put it there,
+and cannot list a prospect.
+
+**Consequences** — The score table is a product decision dressed as code and will be
+argued with; that is the point of writing it down. The loader runs five queries per Today
+render and per `get_agenda` call — fine at forty households, worth a cache at four
+hundred. A saved dashboard layout from before this entry does not include the Brief
+widget; it appears in the add menu, and demo reset restores the default with it at the
+top.

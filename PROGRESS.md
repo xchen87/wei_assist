@@ -225,12 +225,19 @@ reorder a suggestion, never suppress a compliance or drift alert.
    Due-date and day arithmetic lives in `lib/agenda.ts`, pure and tested on
    UTC day boundaries. Both pages' "honestly scoped" footers are replaced by
    the one limitation that remains: no external calendar is connected.
-3. [ ] **The daily brief.** On Today and in chat: a ranked list of what needs
-   attention and why — overdue reviews with nothing booked, open alerts, stalled
-   prospects with no follow-up, tasks past due, milestones in the next thirty days
-   — every line citing the record it came from. A `get_agenda` tool for the
-   assistant, so "what should I do first today?" is answered from the same
-   ranking the widget shows.
+3. ~~**The daily brief.**~~ **Done 2026-09-26** (D-035). `lib/calc/brief.ts` ranks
+   what needs the advisor's attention: meetings today the plan is not ready for,
+   open signals, reviews owed with nothing booked, tasks past due, stalled
+   prospects, drift no signal already covers, and age triggers or birthdays close
+   enough to act on — each line with its reason in the record's own figures, a
+   next step phrased as a prompt to review, a link, and the record it came from.
+   Pure and tested (eleven cases, including the band overlaps). One loader,
+   `lib/brief.ts`, feeds both the new Brief widget on Today (top six, "N more",
+   "Walk me through it" sends the brief question to the dock) and the assistant's
+   `get_agenda` tool, so the widget and the answer are one ranking. Today's first
+   suggestion chip is now that question. The Milestones widget became real on the
+   way: birthdays and 59½ / 65 / 73 triggers from members' dates of birth, via the
+   same `upcomingMilestones`, replacing the "upcoming age-based milestone" stub.
 4. [ ] **Propose a meeting, propose a task.** Two `propose_*` tools with
    confirmation cards, following the existing `propose_dismiss_insight` pattern:
    the model never writes a confirmed row. A mock calendar adapter supplies free
@@ -1923,3 +1930,24 @@ advisor capacity, all queried live from the 10 seeded households.
   filter agreeing, Schedule lists Monday's meetings for all four advisors,
   the advisor filter narrows to one, and a prospect row no longer reads
   "Proposal · Proposal" (kind and stage said the same word).
+- **2026-09-26** — M-assist item 3: the daily brief (D-035). A pure ranker in
+  `lib/calc/brief.ts` with the scores written out as one table, a loader
+  that scopes it to the signed-in advisor's book, a Brief widget at the
+  top-left of the default Today layout, and a `get_agenda` tool that hands
+  the assistant the same list with a citation ref per line. Verified in
+  the running app: the widget shows six lines and "22 more" for Dana's
+  book, Settings → AI lists the new tool from the live registry, and the
+  Milestones widget now lists real birthdays from seeded dates of birth
+  (no seeded member crosses 59½, 65 or 73 in the next 60 days, so that
+  half of the widget is empty by fact, not by omission). Asked "What should
+  I do first today, and why?" through the chat route, the assistant called
+  `get_agenda` once, led with the top-ranked line, cited nine refs that all
+  resolved, tripped no guardrail, and offered a navigation card rather than
+  navigating. One ranking test
+  failed on first run — a prospect stalled 27 days outranked a task 5 days
+  late, against the band order the file comment promised — and the answer
+  was that the overlap is right, so the comment and a test now say so.
+  Thirteen test files, 213 tests. Milestone ages come from CLAUDE.md §5's
+  list; what each age means is left to the advisor and the household's tax
+  adviser (§13), and the copy says "an age-based planning trigger" rather
+  than naming a rule.

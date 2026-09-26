@@ -2,9 +2,12 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@meridian/db";
 import { centsToNumber, formatMoney, type Cents } from "@/lib/format/money";
 import { formatPercent, formatSignedPercent } from "@/lib/format/percent";
-import { formatDate } from "@/lib/format/date";
+import { formatDate, formatTime } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
 import { bySeverity } from "@/lib/calc/signals";
+import { loadBrief } from "@/lib/brief";
+import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
+import { countBySeverity } from "@/lib/calc/brief";
 import { sectionPath, sectionPathFromName, type SectionKey } from "@/lib/sections";
 import { ASSET_CLASS_LABEL, mergeBySecurity, summarisePortfolio } from "@/lib/calc/holdings";
 import {
@@ -349,6 +352,76 @@ const getOpenAlerts: ToolDef = {
   },
 };
 
+const getAgenda: ToolDef = {
+  name: "get_agenda",
+  effect: "read",
+  definition: {
+    name: "get_agenda",
+    description:
+      "The advisor's daily brief: what needs their attention today, ranked, with the reason for each line in that record's own figures, plus today's meetings. Same list and order as the Brief widget on Today. Use for 'what should I do first', 'what needs attention', 'walk me through today', or to check whether a household is on today's list. Each line already says why; quote it rather than reconstructing the reason from other tools.",
+    input_schema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Default 12, maximum 40." },
+        household_id: { type: "string", description: "Only lines about this household." },
+      },
+      required: [],
+    },
+  },
+  async run(input, refs) {
+    const limit = Math.min(Math.max(num(input, "limit") ?? 12, 1), 40);
+    const householdId = str(input, "household_id");
+    const now = new Date();
+    const { items, scope } = await loadBrief(now);
+    const scoped = householdId ? items.filter((i) => i.householdId === householdId) : items;
+    const shown = scoped.slice(0, limit);
+    const bySev = countBySeverity(scoped);
+
+    const meetings = await prisma.meeting.findMany({
+      where: {
+        advisor: { name: CURRENT_ADVISOR_NAME },
+        status: { in: ["confirmed", "proposed"] },
+        startsAt: { gte: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())), lt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)) },
+        ...(householdId ? { householdId } : {}),
+      },
+      include: { household: { select: { id: true, name: true, planHealthPct: true } }, prospect: { select: { name: true } } },
+      orderBy: { startsAt: "asc" },
+    });
+
+    return {
+      recordIds: [...shown.map((i) => i.recordId), ...meetings.map((m) => m.id)],
+      payload: {
+        as_of: formatDate(now),
+        scope: `${scope.households} household${scope.households === 1 ? "" : "s"} in the advisor's own book`,
+        needs_attention: scoped.length,
+        by_severity: bySev,
+        note: "Ranked by lib/calc/brief: meeting prep, then signals, then reviews owed with nothing booked, then overdue tasks, stalled prospects, drift, milestones. Next steps are prompts to review with the household or their tax or legal adviser, never advice. The brief reorders; it never hides a line.",
+        items: shown.map((i, n) => ({
+          rank: n + 1,
+          ref: refs.issue(i.recordLabel, i.href),
+          kind: i.kind,
+          severity: i.severity,
+          subject: i.subject,
+          household_id: i.householdId ?? undefined,
+          prospect_id: i.prospectId ?? undefined,
+          what: i.title,
+          why: i.why,
+          next_step: i.nextStep,
+        })),
+        meetings_today: meetings.map((m) => ({
+          ref: refs.issue(`${formatTime(m.startsAt)} · ${m.title}`, m.household ? `/clients/${m.household.id}` : "/prospects"),
+          time: formatTime(m.startsAt),
+          title: m.title,
+          kind: m.kind,
+          with: m.household?.name ?? m.prospect?.name ?? "—",
+          plan_health: m.household ? `${m.household.planHealthPct}%` : undefined,
+          status: m.status,
+        })),
+      },
+    };
+  },
+};
+
 const proposeNavigation: ToolDef = {
   name: "propose_navigation",
   effect: "proposal",
@@ -419,6 +492,7 @@ export const TOOLS: ToolDef[] = [
   getHouseholdActivity,
   getOpenInsights,
   getOpenAlerts,
+  getAgenda,
   proposeNavigation,
   proposeDismissInsight,
 ];
