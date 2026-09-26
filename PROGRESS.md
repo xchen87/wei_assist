@@ -238,12 +238,18 @@ reorder a suggestion, never suppress a compliance or drift alert.
    suggestion chip is now that question. The Milestones widget became real on the
    way: birthdays and 59½ / 65 / 73 triggers from members' dates of birth, via the
    same `upcomingMilestones`, replacing the "upcoming age-based milestone" stub.
-4. [ ] **Propose a meeting, propose a task.** Two `propose_*` tools with
-   confirmation cards, following the existing `propose_dismiss_insight` pattern:
-   the model never writes a confirmed row. A mock calendar adapter supplies free
-   slots from the advisor's existing Meeting rows — the first consumer of the
-   Phase 8 adapter interface. The card carries a drafted outreach note the
-   advisor can edit; it is filed, not sent.
+4. ~~**Propose a meeting, propose a task.**~~ **Done 2026-09-26** (D-036). Three
+   tools: `find_meeting_slots` reads the advisor's busy time through the new
+   calendar adapter interface (`lib/integrations`, mock provider over Meeting
+   rows — the first Phase 8 adapter, built for its first consumer) and runs the
+   pure slot search in `lib/calc/slots.ts`; `propose_meeting` and `propose_task`
+   return cards and write nothing. The cards are editable — time, length, place,
+   the drafted note; title, due date, priority — and confirming calls a server
+   action that validates the edited fields again through the same rules the tool
+   used (`lib/ai/proposals.ts`), checks for a clash, writes the row with source
+   "assistant", files the outreach note on the household's timeline as a draft
+   marked not sent, and logs the confirmation on the conversation. Declining
+   writes nothing. Settings → Integrations reads the adapter's status live.
 5. [ ] **Advisor patterns, explicit and inspectable.** Review cadence they
    actually keep per segment, alert rules they act on versus dismiss, the days
    and hours they book. Stored as rows, shown in Settings → AI beside the
@@ -1951,3 +1957,28 @@ advisor capacity, all queried live from the 10 seeded households.
   list; what each age means is left to the advisor and the household's tax
   adviser (§13), and the copy says "an age-based planning trigger" rather
   than naming a rule.
+- **2026-09-26** — M-assist item 4: the assistant can put things on the
+  calendar and the worklist, after the advisor says so (D-036). The calendar
+  adapter interface landed in `apps/web/lib/integrations` with a mock
+  provider, ahead of the `packages/integrations` workspace CLAUDE.md §3
+  plans, because one consumer and no real provider is not yet a package.
+  Free-slot search is pure and separate from the adapter, so Google and
+  Microsoft will share it. Proposal validation is one module used twice:
+  when the model proposes and when the edited card comes back, since the
+  card is input too. Verified end to end in the running app: asked to book
+  a review with an overdue household and draft a note, the assistant
+  called find_meeting_slots then propose_meeting and the card arrived
+  with a note in the advisor's voice; asked to add a task, propose_task.
+  Confirming through the action created the row, a second confirm at the
+  same time was refused as a clash, a past time and a past due date were
+  refused, and the draft note landed on the household's Activity timeline
+  labelled not sent. Eleven new tests (slots, proposal parsing); 224 total.
+  Then the first real try from the chat dock found a bug the API test had
+  not: the advisor picked the 1pm slot and Schedule showed 8pm. The model
+  had passed `starts_at` without its trailing Z, `new Date()` read the
+  zone-less string in the server's local zone (Pacific), and 13:00 became
+  20:00 UTC. Instants now go through `parseInstant`: zone-less means UTC,
+  the app's convention (D-034), and an explicit non-UTC offset is refused
+  with an instruction to pass the slot unchanged rather than silently
+  converted. The tool schema says the same. Four more tests, one of them
+  the bug as reported; 228 total.

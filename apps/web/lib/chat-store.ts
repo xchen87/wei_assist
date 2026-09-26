@@ -16,9 +16,9 @@ export type ToolRun = {
   summary?: string;
 };
 
-export type Proposal =
-  | { kind: "navigate"; path: string; label: string }
-  | { kind: "dismissInsight"; insightId: string; text: string; householdId: string };
+/** Mirrors the server's union — a type-only import, so the tool module's
+ * Prisma dependency never reaches the client bundle. */
+export type Proposal = import("@/lib/ai/tools").Proposal;
 
 export type ProposalRecord = {
   id: string;

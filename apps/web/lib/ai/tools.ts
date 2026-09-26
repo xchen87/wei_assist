@@ -6,6 +6,18 @@ import { formatDate, formatTime } from "@/lib/format/date";
 import type { RefRegistry } from "./refs";
 import { bySeverity } from "@/lib/calc/signals";
 import { loadBrief } from "@/lib/brief";
+import { calendar } from "@/lib/integrations";
+import { conflictWith, findFreeSlots } from "@/lib/calc/slots";
+import { DAY_MS, utcDayStart } from "@/lib/agenda";
+import {
+  defaultMeetingTitle,
+  parseInstant,
+  parseMeetingFields,
+  parseTaskFields,
+  type MeetingProposal,
+  type ProposalSubject,
+  type TaskProposal,
+} from "./proposals";
 import { CURRENT_ADVISOR_NAME } from "@/lib/current-advisor";
 import { countBySeverity } from "@/lib/calc/brief";
 import { sectionPath, sectionPathFromName, type SectionKey } from "@/lib/sections";
@@ -48,7 +60,9 @@ export type ToolOutcome = {
 
 export type Proposal =
   | { kind: "navigate"; path: string; label: string }
-  | { kind: "dismissInsight"; insightId: string; text: string; householdId: string };
+  | { kind: "dismissInsight"; insightId: string; text: string; householdId: string }
+  | MeetingProposal
+  | TaskProposal;
 
 export type ToolDef = {
   name: string;
@@ -422,6 +436,199 @@ const getAgenda: ToolDef = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Scheduling (M-assist item 4, D-036). find_meeting_slots reads the
+// advisor's calendar through the adapter; propose_meeting and propose_task
+// return cards. Nothing here writes a row — the confirmation actions in
+// app/(app)/schedule/actions.ts and app/(app)/tasks/actions.ts do, after
+// the advisor has seen and possibly edited the card.
+
+async function currentAdvisorId(): Promise<string | null> {
+  const advisor = await prisma.advisor.findFirst({ where: { name: CURRENT_ADVISOR_NAME }, select: { id: true } });
+  return advisor?.id ?? null;
+}
+
+async function resolveSubject(input: Record<string, unknown>): Promise<ProposalSubject | { error: string } | null> {
+  const householdId = str(input, "household_id");
+  const prospectId = str(input, "prospect_id");
+  if (householdId && prospectId) return { error: "Give household_id or prospect_id, not both." };
+  if (householdId) {
+    const h = await prisma.household.findUnique({ where: { id: householdId }, select: { id: true, name: true } });
+    return h ? { type: "household", id: h.id, name: h.name } : { error: "No household with that id." };
+  }
+  if (prospectId) {
+    const p = await prisma.prospect.findUnique({ where: { id: prospectId }, select: { id: true, name: true } });
+    return p ? { type: "prospect", id: p.id, name: p.name } : { error: "No prospect with that id." };
+  }
+  return null;
+}
+
+const slotLabel = (i: { startsAt: Date; endsAt: Date }) => `${formatDate(i.startsAt)}, ${formatTime(i.startsAt)}–${formatTime(i.endsAt)}`;
+
+const findMeetingSlots: ToolDef = {
+  name: "find_meeting_slots",
+  effect: "read",
+  definition: {
+    name: "find_meeting_slots",
+    description:
+      "Free times on the advisor's calendar for a meeting of a given length, inside working hours, avoiding everything already booked. Call this before propose_meeting and offer the advisor two or three of the results; do not invent a time. Times are returned as display strings — quote them as given.",
+    input_schema: {
+      type: "object",
+      properties: {
+        duration_min: { type: "number", description: "Default 60." },
+        within_days: { type: "number", description: "How far ahead to look. Default 10, maximum 30." },
+        from: { type: "string", description: "Earliest acceptable start, ISO 8601. Default: now." },
+        part_of_day: { type: "string", enum: ["morning", "afternoon"], description: "Optional preference." },
+        limit: { type: "number", description: "Default 5, maximum 10." },
+      },
+      required: [],
+    },
+  },
+  async run(input, refs) {
+    const advisorId = await currentAdvisorId();
+    if (!advisorId) return { payload: { error: "No signed-in advisor." }, recordIds: [] };
+    const now = new Date();
+    const duration = Math.min(Math.max(num(input, "duration_min") ?? 60, 15), 240);
+    const withinDays = Math.min(Math.max(num(input, "within_days") ?? 10, 1), 30);
+    const fromParsed = parseInstant(str(input, "from"));
+    const from = fromParsed instanceof Date && fromParsed > now ? fromParsed : now;
+    const to = new Date(utcDayStart(from).getTime() + (withinDays + 1) * DAY_MS);
+    const limit = Math.min(Math.max(num(input, "limit") ?? 5, 1), 10);
+    const part = str(input, "part_of_day");
+    const hours = calendar.workingHours;
+    const workingHours =
+      part === "morning" ? { startHour: hours.startHour, endHour: Math.min(12, hours.endHour) }
+      : part === "afternoon" ? { startHour: Math.max(12, hours.startHour), endHour: hours.endHour }
+      : { startHour: hours.startHour, endHour: hours.endHour };
+
+    const busy = await calendar.busy(advisorId, from, to);
+    const slots = findFreeSlots(busy, { durationMin: duration, from, to, workingHours, weekdays: hours.weekdays, stepMin: 30, limit });
+    const ref = refs.issue(`${CURRENT_ADVISOR_NAME}'s calendar, next ${withinDays} days`, "/schedule");
+    return {
+      recordIds: [],
+      payload: {
+        ref,
+        calendar: calendar.label,
+        working_hours: `${formatTime(new Date(Date.UTC(2000, 0, 1, Math.floor(hours.startHour), (hours.startHour % 1) * 60)))}–${formatTime(new Date(Date.UTC(2000, 0, 1, Math.floor(hours.endHour), (hours.endHour % 1) * 60)))}, weekdays`,
+        busy_blocks_considered: busy.length,
+        time_zone: "All times are the practice's own clock. Quote labels as given; pass starts_at to propose_meeting exactly as given.",
+        slots: slots.map((s) => ({ starts_at: s.startsAt.toISOString(), label: slotLabel(s) })),
+        note: slots.length === 0 ? "No free slot of that length in the window. Try a shorter meeting or a wider window." : "Offer two or three of these; the advisor picks. Pass the chosen starts_at to propose_meeting unchanged.",
+      },
+    };
+  },
+};
+
+const proposeMeeting: ToolDef = {
+  name: "propose_meeting",
+  effect: "proposal",
+  definition: {
+    name: "propose_meeting",
+    description:
+      "Propose putting a meeting with a household or prospect on the advisor's calendar. This does NOT book it — the advisor sees a card with the time, can adjust it, and confirms. Use a starts_at from find_meeting_slots. Include a short outreach note to the household in the advisor's voice when the meeting needs their agreement; it is filed on the record as a draft, never sent.",
+    input_schema: {
+      type: "object",
+      properties: {
+        household_id: { type: "string" },
+        prospect_id: { type: "string" },
+        kind: { type: "string", enum: ["Review", "Check-in", "Planning", "Discovery", "Proposal", "Signing", "Internal"] },
+        starts_at: { type: "string", description: "The starts_at string from find_meeting_slots, copied exactly, ending in Z. Never convert it to another time zone." },
+        duration_min: { type: "number", description: "Default 60." },
+        location: { type: "string", enum: ["Video", "Office", "Phone"] },
+        title: { type: "string", description: "Optional; defaults to '<name> — <kind>'." },
+        note: { type: "string", description: "Optional draft note to the household, 2–4 sentences, warm and plain." },
+        reason: { type: "string", description: "One sentence: why this meeting, citing the record." },
+      },
+      required: ["kind", "starts_at", "reason"],
+    },
+  },
+  async run(input) {
+    const subject = await resolveSubject(input);
+    if (subject === null) return { payload: { error: "household_id or prospect_id is required." }, recordIds: [] };
+    if ("error" in subject) return { payload: { error: subject.error }, recordIds: [] };
+    const now = new Date();
+    const parsed = parseMeetingFields(input, now);
+    if (!parsed.ok) return { payload: { error: parsed.error }, recordIds: [subject.id] };
+    const f = parsed.value;
+
+    const advisorId = await currentAdvisorId();
+    if (!advisorId) return { payload: { error: "No signed-in advisor." }, recordIds: [] };
+    const busy = await calendar.busy(advisorId, f.startsAt, f.endsAt);
+    const clash = conflictWith({ startsAt: f.startsAt, endsAt: f.endsAt }, busy);
+    if (clash) {
+      return {
+        recordIds: [subject.id],
+        payload: { error: `That time collides with something already booked (${slotLabel(clash)}). Call find_meeting_slots and pick a free one.` },
+      };
+    }
+
+    const proposal: MeetingProposal = {
+      kind: "meeting",
+      subject,
+      meetingKind: f.meetingKind,
+      title: f.title ?? defaultMeetingTitle(subject.name, f.meetingKind),
+      startsAt: f.startsAt.toISOString(),
+      endsAt: f.endsAt.toISOString(),
+      location: f.location,
+      note: f.note,
+      reason: f.reason,
+    };
+    return {
+      recordIds: [subject.id],
+      proposal,
+      payload: { status: `Card shown to the advisor: ${proposal.title}, ${slotLabel(f)}. Nothing is booked until they confirm; they may change the time on the card.` },
+    };
+  },
+};
+
+const proposeTask: ToolDef = {
+  name: "propose_task",
+  effect: "proposal",
+  definition: {
+    name: "propose_task",
+    description:
+      "Propose adding a task to the advisor's worklist, about a household, a prospect, or the advisor's own. This does NOT create it — the advisor sees a card, can edit the title and due date, and confirms. Link it to the alert or insight that prompted it when there is one.",
+    input_schema: {
+      type: "object",
+      properties: {
+        household_id: { type: "string" },
+        prospect_id: { type: "string" },
+        title: { type: "string", description: "What to do, as a verb phrase, e.g. 'Send updated IPS for signature'." },
+        detail: { type: "string", description: "Optional second line." },
+        due_at: { type: "string", description: "YYYY-MM-DD, or omit for no due date." },
+        priority: { type: "string", enum: ["high", "normal", "low"] },
+        reason: { type: "string", description: "One sentence: why this task, citing the record." },
+        alert_id: { type: "string", description: "From get_open_alerts or get_agenda, when the task acts on a signal." },
+        insight_id: { type: "string", description: "From get_open_insights, when the task acts on an insight." },
+      },
+      required: ["title", "reason"],
+    },
+  },
+  async run(input) {
+    const subject = await resolveSubject(input);
+    if (subject !== null && "error" in subject) return { payload: { error: subject.error }, recordIds: [] };
+    const parsed = parseTaskFields(input, new Date());
+    if (!parsed.ok) return { payload: { error: parsed.error }, recordIds: subject ? [subject.id] : [] };
+    const f = parsed.value;
+    const proposal: TaskProposal = {
+      kind: "task",
+      subject,
+      title: f.title,
+      detail: f.detail,
+      dueAt: f.dueAt ? f.dueAt.toISOString().slice(0, 10) : null,
+      priority: f.priority,
+      reason: f.reason,
+      alertId: str(input, "alert_id") ?? null,
+      insightId: str(input, "insight_id") ?? null,
+    };
+    return {
+      recordIds: subject ? [subject.id] : [],
+      proposal,
+      payload: { status: `Card shown to the advisor: "${f.title}"${f.dueAt ? `, due ${formatDate(f.dueAt)}` : ""}. Nothing is added until they confirm.` },
+    };
+  },
+};
+
 const proposeNavigation: ToolDef = {
   name: "propose_navigation",
   effect: "proposal",
@@ -493,8 +700,11 @@ export const TOOLS: ToolDef[] = [
   getOpenInsights,
   getOpenAlerts,
   getAgenda,
+  findMeetingSlots,
   proposeNavigation,
   proposeDismissInsight,
+  proposeMeeting,
+  proposeTask,
 ];
 
 export const TOOL_DEFINITIONS: Anthropic.Tool[] = TOOLS.map((t) => t.definition);

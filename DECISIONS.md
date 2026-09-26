@@ -1458,3 +1458,61 @@ render and per `get_agenda` call — fine at forty households, worth a cache at 
 hundred. A saved dashboard layout from before this entry does not include the Brief
 widget; it appears in the add menu, and demo reset restores the default with it at the
 top.
+
+---
+
+## D-036 — The assistant books nothing; it fills in a card the advisor can edit
+
+2026-09-26 · Accepted
+
+**Context** — M-assist item 4: after "review overdue, nothing booked", the natural next
+sentence is "book it". CLAUDE.md §9 rule 3 says anything with an external effect is a
+proposal the advisor confirms, and the existing `propose_dismiss_insight` shows the shape.
+Two things were new. A meeting has a time, and the model's first pick is rarely the right
+one; a card the advisor can only accept or decline makes them decline and re-ask to move it
+half an hour. And a meeting with a household needs the household's agreement, which means
+words to them, which the app must not send.
+
+**Decision** — Three tools, two cards, one validator, and an adapter with a mock behind it.
+
+**Free time comes from an adapter; the search does not.** `lib/integrations/calendar.ts`
+is the interface — busy blocks and a status — and the mock provider answers from Meeting
+rows. Slot search is `lib/calc/slots.ts`, pure and tested, over whatever busy blocks the
+provider returns, so a Google or Microsoft provider is a `busy()` and a `status()` and
+nothing else. It lives in `apps/web/lib/integrations` rather than the planned
+`packages/integrations`: one consumer and no real provider is not yet a package, and moving
+a folder later is cheaper than a workspace nobody imports.
+
+**The card is input.** Time, length, place and the drafted note are editable before
+confirming; so are a task's title, due date and priority. The server action therefore
+validates the edited fields through `lib/ai/proposals.ts`, the same module the tool used
+when the model proposed — one set of rules, checked twice, so the model cannot propose a
+past time and the advisor cannot edit one in. The action also re-checks for a clash: the
+card may have sat open while something else was booked.
+
+**The note is filed, not sent.** A drafted note to the household lands on the Activity
+timeline labelled "Draft outreach … (not sent)". Sending is an outward effect with §11's
+retention rules attached, and the app has no email adapter to send with anyway. The label
+says what it is so nobody later reads the timeline as "we wrote to them".
+
+**Rows say who wrote them.** A meeting or task the assistant proposed carries
+`source: "assistant"` (or "alert" / "insight" when a task acts on one), the meeting keeps
+the model's reason in `notes`, and the confirmation is logged as a tool call on the
+conversation. The interaction log then shows the proposal and the decision side by side.
+
+**"proposed" stays reserved.** Meeting.status has a "proposed" value (D-034); this pass does
+not use it. A confirmed card creates a confirmed row, because the advisor is the one
+confirming. "proposed" is for the day the household is asked and has not yet answered,
+which needs the sending the previous paragraph rules out.
+
+**Alternatives** — Write a "proposed" row when the model proposes and flip it on confirm:
+declined proposals leave rows to clean up, and a calendar that shows meetings nobody
+agreed to. An accept-only card: simpler, and the advisor re-asks for every half-hour
+change. Send the note on confirm: the loop the advisor actually wants, and exactly the
+thing §11 says needs retention and a vendor list first.
+
+**Consequences** — Three more tools in the registry and the prompt grew a paragraph on
+how to use them. The mock adapter treats the practice's hours as 9–17 UTC (D-034's
+convention) and knows nothing booked outside Meridian; Settings → Integrations says so.
+Confirming a proposal calls a server action from inside the chat dock, which now depends on
+`app/(app)/schedule/actions.ts` and `app/(app)/tasks/actions.ts`.

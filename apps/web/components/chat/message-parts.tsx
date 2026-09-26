@@ -4,15 +4,28 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { dismissInsight } from "@/app/(app)/clients/[id]/actions";
 import Link from "next/link";
-import { useChatContext, type ChatMessage, type Citation, type ProposalRecord } from "@/lib/chat-store";
+import { useChatContext, type ChatMessage, type Citation, type Proposal, type ProposalRecord } from "@/lib/chat-store";
+import { MeetingProposalCard, TaskProposalCard } from "./proposal-cards";
 
 const TOOL_LABELS: Record<string, string> = {
   search_households: "Searched the book",
   get_household_section: "Read a plan section",
   get_household_activity: "Read recent activity",
   get_open_insights: "Read open insights",
+  get_open_alerts: "Read open signals",
+  get_agenda: "Read the daily brief",
+  find_meeting_slots: "Checked the calendar",
   propose_navigation: "Offered a link",
   propose_dismiss_insight: "Proposed a dismissal",
+  propose_meeting: "Proposed a meeting",
+  propose_task: "Proposed a task",
+};
+
+const RESOLVED_LABEL: Record<Proposal["kind"], { confirmed: string; declined: string }> = {
+  navigate: { confirmed: "Opened.", declined: "Left alone." },
+  dismissInsight: { confirmed: "Dismissed.", declined: "Left alone." },
+  meeting: { confirmed: "Booked. It is on Schedule and the household's timeline.", declined: "Not booked." },
+  task: { confirmed: "Added to Tasks.", declined: "Not added." },
 };
 
 /** What the assistant read, shown inline as it happens. CLAUDE.md §9 rule 1
@@ -56,13 +69,16 @@ export function ProposalCard({
   if (state !== "pending") {
     return (
       <div className="mt-2 rounded-card border border-rule px-3 py-2 text-xs text-ink-muted">
-        {state === "confirmed"
-          ? proposal.kind === "navigate"
-            ? "Opened."
-            : "Dismissed."
-          : "Left alone."}
+        {RESOLVED_LABEL[proposal.kind][state]}
       </div>
     );
+  }
+
+  if (proposal.kind === "meeting") {
+    return <MeetingProposalCard proposal={proposal} onResolved={(s) => resolveProposal(messageIndex, record.id, s)} />;
+  }
+  if (proposal.kind === "task") {
+    return <TaskProposalCard proposal={proposal} onResolved={(s) => resolveProposal(messageIndex, record.id, s)} />;
   }
 
   if (proposal.kind === "navigate") {
